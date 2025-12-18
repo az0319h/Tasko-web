@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "default": {
+      "title": "CAMBOB - Meet over Meals and Drinks on Campus",
+      "description": "CAMBOB helps university students connect and make friends over shared meals or drinks — your campus meal & drink mate platform.",
+      "keywords": "CAMBOB, university, meal mate, drink mate, social campus, dining, meetup, student network"
+    },
+    "login": {
+      "title": "Login - CAMBOB",
+      "description": "Log in to CAMBOB to meet new meal and drink mates on your campus."
+    },
+    "signup": {
+      "title": "Sign Up - CAMBOB",
+      "description": "Create your CAMBOB account to share meals, drinks, and new connections with other students."
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "logout": "Log out"
+  },
+  "layout": {
+    "sidebar": {
+      "menu": {
+        "home": "Home",
+        "notifications": "Notifications",
+        "chats": "Chats",
+        "settings": "Settings",
+        "profile": "Profile",
+        "post": "Post"
+      },
+      "settingsSub": {
+        "language": "Change Language",
+        "theme": "Change Theme",
+        "resetPassword": "Change Password"
+      },
+      "footer": {
+        "logout": "Log out"
+      }
+    }
+  },
+  "dialog": {
+    "language": {
+      "title": "Change Language",
+      "description": "Which language would you like to use CAMBOB in?"
+    },
+    "theme": {
+      "title": "Change Theme",
+      "description": "Which theme would you like to use CAMBOB with?"
+    },
+    "logout": {
+      "title": "Log out of CAMBOB?",
+      "description": "Even if you log out, your account information and settings will be safely saved. You can log in anytime to continue using CAMBOB."
+    }
+  },
+  "select": {
+    "label": {
+      "language": "Language",
+      "theme": "Theme"
+    }
+  },
+
+  "notFound": {
+    "title": "Page not found",
+    "description": "We are sorry! The page you are looking for doesn't exist.",
+    "backToHome": "Back to Home"
+  }
+}
