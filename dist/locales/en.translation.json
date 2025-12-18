@@ -1,17 +1,13 @@
 {
   "meta": {
     "default": {
-      "title": "CAMBOB - Meet over Meals and Drinks on Campus",
-      "description": "CAMBOB helps university students connect and make friends over shared meals or drinks — your campus meal & drink mate platform.",
-      "keywords": "CAMBOB, university, meal mate, drink mate, social campus, dining, meetup, student network"
+      "title": "TASKO - Manage Your Work, Clearly",
+      "description": "TASKO is a task and workflow management web app that helps individuals and teams organize work, track progress, and manage approvals in one place.",
+      "keywords": "TASKO, task management, workflow, project management, team collaboration, dashboard, approvals, productivity"
     },
     "login": {
-      "title": "Login - CAMBOB",
-      "description": "Log in to CAMBOB to meet new meal and drink mates on your campus."
-    },
-    "signup": {
-      "title": "Sign Up - CAMBOB",
-      "description": "Create your CAMBOB account to share meals, drinks, and new connections with other students."
+      "title": "Login - TASKO",
+      "description": "Log in to TASKO and stay on top of your tasks, progress, and approvals."
     }
   },
   "common": {
