@@ -1,0 +1,69 @@
+{
+  "meta": {
+    "default": {
+      "title": "캠밥 - 밥 한 끼, 술 한 잔으로 가까워지는 대학생활",
+      "description": "캠밥은 대학생들이 밥이나 술을 함께하며 자연스럽게 친해질 수 있는 밥친·술친 매칭 플랫폼입니다.",
+      "keywords": "캠밥, 대학생, 밥약, 술약, 밥친, 술친, 대학친목, 밥메이트, 술자리, 미팅"
+    },
+    "login": {
+      "title": "로그인 - 캠밥",
+      "description": "캠밥에 로그인하고 당신의 밥친·술친을 찾아보세요."
+    },
+    "signup": {
+      "title": "회원가입 - 캠밥",
+      "description": "지금 캠밥에 가입하고 밥 한 끼, 술 한 잔으로 새로운 친구를 만나보세요."
+    }
+  },
+  "common": {
+    "cancel": "취소",
+    "save": "저장",
+    "logout": "로그아웃"
+  },
+  "layout": {
+    "sidebar": {
+      "menu": {
+        "home": "홈",
+        "notifications": "알림",
+        "chats": "채팅",
+        "settings": "설정",
+        "profile": "프로필",
+        "post": "게시하기"
+      },
+      "settingsSub": {
+        "language": "언어 변경",
+        "theme": "테마 변경",
+        "resetPassword": "비밀번호 변경"
+      },
+      "footer": {
+        "logout": "로그아웃"
+      }
+    }
+  },
+  "dialog": {
+    "language": {
+      "title": "언어 변경",
+      "description": "캠밥을 어떤 언어로 이용하고 싶으신가요?"
+    },
+    "theme": {
+      "title": "테마 변경",
+      "description": "캠밥을 어떤 테마로 이용하고 싶으신가요?"
+    },
+    "logout": {
+      "title": "캠밥에서 로그아웃할까요?",
+      "description": "로그아웃을 하셔도 계정 정보와 이용 중이던 설정은 안전하게 저장됩니다. 필요할 때 언제든지 다시 로그인해 캠밥을 계속 이용하실 수 있습니다."
+    }
+  },
+
+  "select": {
+    "label": {
+      "language": "언어",
+      "theme": "테마"
+    }
+  },
+
+  "notFound": {
+    "title": "페이지를 찾을 수 없습니다",
+    "description": "죄송합니다. 요청하신 페이지가 존재하지 않습니다.",
+    "backToHome": "홈으로 돌아가기"
+  }
+}
