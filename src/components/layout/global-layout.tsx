@@ -21,21 +21,13 @@ export default function GlobalLayout() {
               <Link to={"/"}>
                 {mode === "light" ? (
                   <img
-                    src={
-                      i18n.language.startsWith("ko")
-                        ? logo_ko_dark
-                        : logo_en_dark
-                    }
+                    src={i18n.language.startsWith("ko") ? logo_ko_dark : logo_en_dark}
                     alt="logo"
                     className="h-6"
                   />
                 ) : (
                   <img
-                    src={
-                      i18n.language.startsWith("ko")
-                        ? logo_ko_light
-                        : logo_en_light
-                    }
+                    src={i18n.language.startsWith("ko") ? logo_ko_light : logo_en_light}
                     alt="logo"
                     className="h-6"
                   />

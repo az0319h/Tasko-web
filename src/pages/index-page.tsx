@@ -1,15 +1,27 @@
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router";
+import { useSignOut } from "@/hooks/mutations/use-sign-out";
+import { generateErrorMessage } from "@/lib/error";
+import { useSetSession } from "@/store/session";
+import { toast } from "sonner";
 
 export default function IndexPage() {
+  const setSession = useSetSession();
+  const { mutate: signOut } = useSignOut({
+    onSuccess: () => {
+      setSession(null);
+    },
+    onError: (error) => {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    },
+  });
+
   return (
     <div>
-      <h1 className="">indexpage</h1>
-      <Button>
-        <div>홈으로 이동</div>
-      </Button>
-      <Button variant={"outline"} size={"lg"} asChild>
-        <Link to={"/home"}>홈으로 이동</Link>
+      <Button type="button" onClick={() => signOut()}>
+        로그아웃
       </Button>
     </div>
   );
