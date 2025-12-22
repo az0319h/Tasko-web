@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import EditProfileDialog from "@/components/dialog/edit-profile-dialog";
 import { Pencil } from "lucide-react";
+import LogoutDialog from "@/components/dialog/logout-dialog";
+import { ProfileAvatar } from "@/components/common/profile-avatar";
 
 export default function ProfilePage() {
   const { t } = useTranslation();
@@ -35,43 +37,43 @@ export default function ProfilePage() {
                 <CardTitle>프로필</CardTitle>
                 <CardDescription>내 프로필 정보를 확인할 수 있습니다.</CardDescription>
               </div>
-              <EditProfileDialog>
-                <Button variant="outline" size="sm">
-                  <Pencil className="mr-2 size-4" />
-                  수정
-                </Button>
-              </EditProfileDialog>
             </div>
           </CardHeader>
           <CardContent>
+            <div className="mb-6 flex justify-center">
+              <ProfileAvatar
+                avatarUrl={profile?.avatar_url}
+                size={120}
+              />
+            </div>
             <div className="space-y-6">
               {/* Email */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">이메일</label>
+                <label className="text-muted-foreground text-sm font-medium">이메일</label>
                 <p className="mt-1 text-base">{profile?.email || "-"}</p>
               </div>
 
               {/* Full Name */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">이름</label>
+                <label className="text-muted-foreground text-sm font-medium">이름</label>
                 <p className="mt-1 text-base">{profile?.full_name || "-"}</p>
               </div>
 
               {/* Position */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">직책</label>
+                <label className="text-muted-foreground text-sm font-medium">직책</label>
                 <p className="mt-1 text-base">{profile?.position || "-"}</p>
               </div>
 
               {/* Phone */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">전화번호</label>
+                <label className="text-muted-foreground text-sm font-medium">전화번호</label>
                 <p className="mt-1 text-base">{profile?.phone || "-"}</p>
               </div>
 
               {/* Role */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">역할</label>
+                <label className="text-muted-foreground text-sm font-medium">역할</label>
                 <p className="mt-1 text-base">
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
@@ -87,9 +89,21 @@ export default function ProfilePage() {
 
               {/* Created At */}
               <div>
-                <label className="text-sm font-medium text-muted-foreground">가입일</label>
+                <label className="text-muted-foreground text-sm font-medium">가입일</label>
                 <p className="mt-1 text-base">{formatDate(profile?.created_at)}</p>
               </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <EditProfileDialog>
+                <Button variant="outline" className="w-full">
+                  <Pencil className="mr-2 size-4" />
+                  수정
+                </Button>
+              </EditProfileDialog>
+              <LogoutDialog>
+                <Button className="w-full">로그아웃</Button>
+              </LogoutDialog>
             </div>
           </CardContent>
         </Card>
@@ -97,5 +111,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-

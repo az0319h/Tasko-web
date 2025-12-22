@@ -8,6 +8,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Home,
@@ -20,7 +21,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import profileImage from "@/assets/profile.svg";
+import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import LanguageDialog from "../dialog/language-dialog";
@@ -94,6 +95,7 @@ export function AppSidebar() {
   const mode = useResolvedThemeMode();
   const { data: profile } = useCurrentProfile();
   const { data: isAdmin, refetch: refetchAdmin, isLoading: isAdminLoading } = useIsAdmin();
+  const { isMobile, setOpenMobile, setOpen } = useSidebar();
 
   // [핵심] 세션/유저 변경에 따라 admin 권한 refetch
   useEffect(() => {
@@ -228,6 +230,12 @@ export function AppSidebar() {
                         <Link
                           to={item.url ?? "#"}
                           className="flex items-center gap-2 rounded-md px-3 py-2 md:gap-3 md:py-6"
+                          onClick={() => {
+                            // 모바일에서만 사이드바 닫기
+                            if (isMobile) {
+                              setOpenMobile(false);
+                            }
+                          }}
                         >
                           {item.icon && <item.icon className="!size-4 md:!size-5" />}
                           <span className="text-14-regular md:text-16-regular">{t(item.key)}</span>
@@ -262,7 +270,7 @@ export function AppSidebar() {
                   className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-3"
                 >
                   <div className="flex items-center gap-2">
-                    <img src={profileImage} alt="profile" className="size-10" />
+                    <ProfileAvatar avatarUrl={profile?.avatar_url} size={40} />
                     <div className="text-14-regular text-left">
                       <div>{profile?.full_name || "사용자"}</div>
                       <div className="text-muted-foreground text-xs">{profile?.email || ""}</div>
@@ -271,25 +279,6 @@ export function AppSidebar() {
                   <Ellipsis />
                 </Button>
               </DropdownMenuTrigger>
-
-              <DropdownMenuContent side="top" className="w-[16rem] md:w-[14rem]">
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                  }}
-                >
-                  <LogoutDialog>
-                    <Button
-                      type={"button"}
-                      variant={"none"}
-                      className="text-14-medium flex w-full items-center justify-between gap-2 !p-1"
-                    >
-                      <span>{t("layout.sidebar.footer.logout")}</span>
-                      <LogOut />
-                    </Button>
-                  </LogoutDialog>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>

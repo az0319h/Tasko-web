@@ -12,14 +12,7 @@ import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "../ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet } from "../ui/field";
 import { Input } from "../ui/input";
 import {
   profileUpdateSchema,
@@ -28,10 +21,17 @@ import {
 import { useUpdateProfile, useCurrentProfile } from "@/hooks";
 import { toast } from "sonner";
 import { generateErrorMessage } from "@/lib/error";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { ProfileAvatar } from "@/components/common/profile-avatar";
+import { ImageCropDialog } from "./image-crop-dialog";
+import { uploadAvatar, deleteAvatar } from "@/api/storage";
+import { Camera, Trash2 } from "lucide-react";
 
 export default function EditProfileDialog({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [imageSrc, setImageSrc] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: currentProfile } = useCurrentProfile();
   const {
     register,
@@ -73,6 +73,110 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
     },
   });
 
+  // 이미지만 업로드하는 mutation (모달을 닫지 않음)
+  const { mutate: updateProfileAvatar, isPending: isUpdatingAvatar } = useUpdateProfile({
+    onSuccess: () => {
+      toast.success("프로필 이미지가 업로드되었습니다.", {
+        position: "bottom-right",
+      });
+      // 모달을 닫지 않음
+    },
+    onError: (error) => {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    },
+  });
+
+  // 이미지 삭제하는 mutation (모달을 닫지 않음)
+  const { mutate: deleteProfileAvatar, isPending: isDeletingAvatar } = useUpdateProfile({
+    onSuccess: () => {
+      toast.success("프로필 이미지가 삭제되었습니다.", {
+        position: "bottom-right",
+      });
+      // 모달을 닫지 않음
+    },
+    onError: (error) => {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    },
+  });
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 파일 타입 검증
+    if (!file.type.startsWith("image/")) {
+      toast.error("이미지 파일만 업로드할 수 있습니다.", {
+        position: "bottom-right",
+      });
+      return;
+    }
+
+    // 파일 크기 검증 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("파일 크기는 5MB 이하여야 합니다.", {
+        position: "bottom-right",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageSrc(reader.result as string);
+      setCropDialogOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropComplete = async (croppedImageBlob: Blob) => {
+    if (!currentProfile) return;
+
+    try {
+      const file = new File([croppedImageBlob], "avatar.jpg", {
+        type: "image/jpeg",
+      });
+      const avatarUrl = await uploadAvatar(file, currentProfile.id);
+      // 이미지만 업로드하는 mutation 사용 (모달을 닫지 않음)
+      updateProfileAvatar({
+        full_name: currentProfile.full_name ?? "",
+        position: currentProfile.position ?? "",
+        phone: currentProfile.phone ?? "",
+        avatar_url: avatarUrl,
+      });
+    } catch (error) {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    if (!currentProfile?.avatar_url) return;
+
+    try {
+      // Storage에서 이미지 삭제
+      await deleteAvatar(currentProfile.avatar_url);
+      // 프로필에서 avatar_url 제거
+      deleteProfileAvatar({
+        full_name: currentProfile.full_name ?? "",
+        position: currentProfile.position ?? "",
+        phone: currentProfile.phone ?? "",
+        avatar_url: null,
+      });
+    } catch (error) {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    }
+  };
+
   function onSubmit(data: ProfileUpdateFormValues) {
     updateProfile({
       full_name: data.full_name,
@@ -92,8 +196,50 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
-          <FieldSet disabled={isPending}>
+          <FieldSet disabled={isPending || isUpdatingAvatar || isDeletingAvatar}>
             <FieldGroup>
+              {/* Profile Image */}
+              <Field>
+                <FieldLabel>프로필 이미지</FieldLabel>
+                <div className="flex items-center gap-4">
+                  <ProfileAvatar avatarUrl={currentProfile?.avatar_url} size={80} />
+                  <div className="flex flex-col gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isPending || isUpdatingAvatar || isDeletingAvatar}
+                      >
+                        <Camera className="mr-2 size-4" />
+                        이미지 변경
+                      </Button>
+                      {currentProfile?.avatar_url && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDeleteImage}
+                          disabled={isPending || isUpdatingAvatar || isDeletingAvatar}
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          이미지 삭제
+                        </Button>
+                      )}
+                    </div>
+                    <FieldDescription>JPG, PNG, WEBP 형식, 최대 5MB</FieldDescription>
+                  </div>
+                </div>
+              </Field>
+
               {/* Email (읽기 전용) */}
               <Field>
                 <FieldLabel htmlFor="email">이메일</FieldLabel>
@@ -110,12 +256,7 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
               {/* Full Name */}
               <Field data-invalid={!!errors.full_name}>
                 <FieldLabel htmlFor="full_name">이름</FieldLabel>
-                <Input
-                  id="full_name"
-                  type="text"
-                  placeholder="홍길동"
-                  {...register("full_name")}
-                />
+                <Input id="full_name" type="text" placeholder="홍길동" {...register("full_name")} />
                 {errors.full_name ? (
                   <FieldError errors={[errors.full_name]} />
                 ) : (
@@ -142,12 +283,7 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
               {/* Phone */}
               <Field data-invalid={!!errors.phone}>
                 <FieldLabel htmlFor="phone">전화번호</FieldLabel>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="010-1234-5678"
-                  {...register("phone")}
-                />
+                <Input id="phone" type="tel" placeholder="010-1234-5678" {...register("phone")} />
                 {errors.phone ? (
                   <FieldError errors={[errors.phone]} />
                 ) : (
@@ -168,8 +304,14 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
             </Button>
           </DialogFooter>
         </form>
+
+        <ImageCropDialog
+          open={cropDialogOpen}
+          onOpenChange={setCropDialogOpen}
+          imageSrc={imageSrc}
+          onCropComplete={handleCropComplete}
+        />
       </DialogContent>
     </Dialog>
   );
 }
-

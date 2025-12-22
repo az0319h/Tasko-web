@@ -1,46 +1,63 @@
 import {
   Dialog,
+  DialogClose,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ReactNode } from "react";
 import { Button } from "../ui/button";
-import { DialogClose } from "@radix-ui/react-dialog";
-import { useTranslation } from "react-i18next";
+import { useState } from "react";
+import { useSignOut } from "@/hooks/mutations/use-sign-out";
+import { useSetSession } from "@/store/session";
+import { toast } from "sonner";
+import { generateErrorMessage } from "@/lib/error";
 
 export default function LogoutDialog({ children }: { children: ReactNode }) {
-  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const setSession = useSetSession();
+
+  const { mutate: signOut, isPending } = useSignOut({
+    onSuccess: () => {
+      setSession(null);
+      setOpen(false);
+      toast.success("로그아웃되었습니다.", {
+        position: "bottom-right",
+      });
+    },
+    onError: (error) => {
+      const message = generateErrorMessage(error);
+      toast.error(message, {
+        position: "bottom-right",
+      });
+    },
+  });
+
+  function handleLogout() {
+    signOut();
+  }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton>
         <DialogHeader>
-          <div className="flex justify-center">로고</div>
+          <DialogTitle>로그아웃</DialogTitle>
+          <DialogDescription>정말 로그아웃하시겠습니까?</DialogDescription>
         </DialogHeader>
 
-        <div>
-          <p className="text-18-semibold md:text-20-semibold mb-2"> {t("dialog.logout.title")}</p>
-          <span className="text-14-regular md:text-16-regular text-muted-foreground">
-            {t("dialog.logout.description")}
-          </span>
-        </div>
-
         <DialogFooter>
-          <div className="flex w-full flex-col-reverse gap-2 md:gap-3">
-            <DialogClose asChild>
-              <Button variant="outline" type="button">
-                {t("common.cancel")}
-              </Button>
-            </DialogClose>
-            <DialogClose asChild>
-              <Button type="button" className="xs:text-14-semibold">
-                {t("common.logout")}
-              </Button>
-            </DialogClose>
-          </div>
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabled={isPending}>
+              취소
+            </Button>
+          </DialogClose>
+          <Button type="button" variant="destructive" onClick={handleLogout} disabled={isPending}>
+            {isPending ? "로그아웃 중..." : "로그아웃"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
