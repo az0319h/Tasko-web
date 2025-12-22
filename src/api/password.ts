@@ -5,7 +5,7 @@ import supabase from "@/lib/supabase";
  */
 export async function resetPassword(email: string): Promise<void> {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: `${import.meta.env.VITE_FRONTEND_URL}/reset-password`,
   });
 
   if (error) throw error;
@@ -54,5 +54,3 @@ export async function changePassword(data: ChangePasswordData): Promise<void> {
 
   if (updateError) throw updateError;
 }
-
-
