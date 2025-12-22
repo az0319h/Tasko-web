@@ -1,8 +1,9 @@
 import supabase from "@/lib/supabase";
-import type { Database, Tables, TablesInsert } from "@/database.type";
+import type { Database, Tables, TablesInsert, TablesUpdate } from "@/database.type";
 
 type Profile = Tables<"profiles">;
-type ProfileInsert = Tables<"profiles">;
+type ProfileInsert = TablesInsert<"profiles">;
+type ProfileUpdate = TablesUpdate<"profiles">;
 
 interface ProfileSetupData {
   password: string;
@@ -38,6 +39,9 @@ export async function setupProfileWithPassword(data: ProfileSetupData): Promise<
     phone: data.phone,
     profile_completed: true,
     updated_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    is_active: true,
+    role: "member",
   };
 
   // 기존 프로필 확인
@@ -57,23 +61,13 @@ export async function setupProfileWithPassword(data: ProfileSetupData): Promise<
       profile_completed: true,
       updated_at: new Date().toISOString(),
     };
-    result = await supabase
-      .from("profiles")
-      .update(updateData)
-      .eq("id", user.id)
-      .select()
-      .single();
+    result = await supabase.from("profiles").update(updateData).eq("id", user.id).select().single();
   } else {
     // 새 프로필 생성
-    result = await supabase
-      .from("profiles")
-      .insert(profileData)
-      .select()
-      .single();
+    result = await supabase.from("profiles").insert(profileData).select().single();
   }
 
   if (result.error) throw result.error;
 
   return result.data;
 }
-

@@ -20,7 +20,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import profile from "@/assets/profile.svg";
+import profileImage from "@/assets/profile.svg";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import LanguageDialog from "../dialog/language-dialog";
@@ -218,7 +218,7 @@ export function AppSidebar() {
                   className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-3"
                 >
                   <div className="flex items-center gap-2">
-                    <img src={profile} alt="profile" className="size-10" />
+                    <img src={profileImage} alt="profile" className="size-10" />
                     <div className="text-14-regular text-left">
                       <div>{profile?.full_name || "사용자"}</div>
                       <div className="text-xs text-muted-foreground">{profile?.email || ""}</div>

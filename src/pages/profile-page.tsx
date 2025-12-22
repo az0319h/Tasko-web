@@ -15,7 +15,7 @@ export default function ProfilePage() {
     return <DefaultSpinner />;
   }
 
-  const formatDate = (dateString: string | null) => {
+  const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-";
     return new Date(dateString).toLocaleDateString("ko-KR", {
       year: "numeric",
