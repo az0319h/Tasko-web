@@ -22,13 +22,15 @@
         "notifications": "알림",
         "chats": "채팅",
         "settings": "설정",
+        "users": "사용자 관리",
         "profile": "프로필",
         "post": "게시하기"
       },
       "settingsSub": {
         "language": "언어 변경",
         "theme": "테마 변경",
-        "resetPassword": "비밀번호 변경"
+        "editProfile": "프로필 수정",
+        "changePassword": "비밀번호 변경"
       },
       "footer": {
         "logout": "로그아웃"

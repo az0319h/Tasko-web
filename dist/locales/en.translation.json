@@ -22,13 +22,15 @@
         "notifications": "Notifications",
         "chats": "Chats",
         "settings": "Settings",
+        "users": "User Management",
         "profile": "Profile",
         "post": "Post"
       },
       "settingsSub": {
         "language": "Change Language",
         "theme": "Change Theme",
-        "resetPassword": "Change Password"
+        "editProfile": "Edit Profile",
+        "changePassword": "Change Password"
       },
       "footer": {
         "logout": "Log out"
