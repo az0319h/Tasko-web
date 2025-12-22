@@ -78,7 +78,7 @@ export async function inviteUser(email: string): Promise<void> {
   const { data, error } = await supabase.functions.invoke("invite-user", {
     body: {
       email,
-      redirectTo: `${window.location.origin}/profile/setup`,
+      redirectTo: `${import.meta.env.VITE_FRONTEND_URL}/profile/setup`,
     },
   });
 
