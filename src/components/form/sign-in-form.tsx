@@ -18,7 +18,7 @@ import { cn, getResolvedThemeMode } from "@/lib/utils";
 import logo_dark from "@/assets/logo_dark.png";
 import logo_light from "@/assets/logo_light.png";
 
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { useSignInWithPassword } from "@/hooks/mutations/use-sign-in-with-password";
 
@@ -45,6 +45,7 @@ export function SigninForm({ ...props }: React.ComponentProps<typeof Card>) {
   const { mutate: signInWithPassword, isPending: isSignInWithPasswordPending } =
     useSignInWithPassword({
       onSuccess: () => {
+        // 로그인 성공 후 프로필 확인 및 자동 생성은 레이아웃에서 처리
         navigate("/", { replace: true });
       },
       onError: async (error, variables) => {
@@ -120,7 +121,7 @@ export function SigninForm({ ...props }: React.ComponentProps<typeof Card>) {
                 <Button type="submit">로그인</Button>
 
                 <FieldDescription className="px-6 text-center">
-                  이 서비스는 초대받은 사용자만 이용할 수 있습니다.
+                  비빌번호를 잊어버리셨나요? <Link to={"/forgot-password"}>비밀번호 초기화</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>

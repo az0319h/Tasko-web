@@ -8,27 +8,17 @@ import {
 import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import { DialogClose } from "@radix-ui/react-dialog";
-import logo_character_dark from "@/assets/logo_character_dark.svg";
-import logo_character_light from "@/assets/logo_character_light.svg";
-import { useResolvedThemeMode } from "@/hooks";
 import { useTranslation } from "react-i18next";
 
 export default function LogoutDialog({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
-  const mode = useResolvedThemeMode();
 
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <div className="flex justify-center">
-            {mode === "light" ? (
-              <img src={logo_character_dark} alt="logo_character" className="size-10 md:size-12" />
-            ) : (
-              <img src={logo_character_light} alt="logo_character" className="size-10 md:size-12" />
-            )}
-          </div>
+          <div className="flex justify-center">로고</div>
         </DialogHeader>
 
         <div>

@@ -20,10 +20,6 @@ import {
   LogOut,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import logo_en_light from "@/assets/logo_en_light.svg";
-import logo_en_dark from "@/assets/logo_en_dark.svg";
-import logo_ko_light from "@/assets/logo_ko_light.svg";
-import logo_ko_dark from "@/assets/logo_ko_dark.svg";
 import profile from "@/assets/profile.svg";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -37,31 +33,51 @@ import {
 import LogoutDialog from "../dialog/logout-dialog";
 import { Button } from "../ui/button";
 import ThemeDialog from "../dialog/theme-dialog";
-import { useResolvedThemeMode } from "@/hooks";
+import EditProfileDialog from "../dialog/edit-profile-dialog";
+import ChangePasswordDialog from "../dialog/change-password-dialog";
+import { useResolvedThemeMode, useCurrentProfile, useIsAdmin } from "@/hooks";
+import { Users } from "lucide-react";
 
-const items = [
-  { id: "home", key: "layout.sidebar.menu.home", url: "/home", icon: Home },
-  {
-    id: "notifications",
-    key: "layout.sidebar.menu.notifications",
-    url: "/notifications",
-    icon: Bell,
-  },
-  { id: "chats", key: "layout.sidebar.menu.chats", url: "/chats", icon: MessageCircle },
-  { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
-  { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
-  { id: "post", key: "layout.sidebar.menu.post" },
-];
+const getMenuItems = (isAdmin: boolean) => {
+  const items = [
+    { id: "home", key: "layout.sidebar.menu.home", url: "/", icon: Home },
+    {
+      id: "notifications",
+      key: "layout.sidebar.menu.notifications",
+      url: "/notifications",
+      icon: Bell,
+    },
+    { id: "chats", key: "layout.sidebar.menu.chats", url: "/chats", icon: MessageCircle },
+    { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
+    { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
+    { id: "post", key: "layout.sidebar.menu.post" },
+  ];
+
+  // Admin 전용 메뉴 추가 (설정 메뉴 바로 앞)
+  if (isAdmin) {
+    items.splice(3, 0, {
+      id: "users",
+      key: "layout.sidebar.menu.users",
+      url: "/admin/users",
+      icon: Users,
+    });
+  }
+
+  return items;
+};
 
 const settingsSubItems = [
   { id: "language", key: "layout.sidebar.settingsSub.language" },
   { id: "theme", key: "layout.sidebar.settingsSub.theme" },
-  { id: "reset-password", key: "layout.sidebar.settingsSub.resetPassword" },
+  { id: "edit-profile", key: "layout.sidebar.settingsSub.editProfile" },
+  { id: "change-password", key: "layout.sidebar.settingsSub.changePassword" },
 ];
 
 export function AppSidebar() {
   const { i18n, t } = useTranslation();
   const mode = useResolvedThemeMode();
+  const { data: profile } = useCurrentProfile();
+  const { data: isAdmin } = useIsAdmin();
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -69,21 +85,7 @@ export function AppSidebar() {
         {/* 회사 정보 영역 */}
         <SidebarGroup>
           <SidebarGroupLabel className="py-6 md:py-8">
-            <Link to={"/home"}>
-              {mode === "light" ? (
-                <img
-                  src={i18n.language.startsWith("ko") ? logo_ko_dark : logo_en_dark}
-                  alt="logo"
-                  className="h-6"
-                />
-              ) : (
-                <img
-                  src={i18n.language.startsWith("ko") ? logo_ko_light : logo_en_light}
-                  alt="logo"
-                  className="h-6"
-                />
-              )}
-            </Link>
+            <Link to={"/"}>로고</Link>
           </SidebarGroupLabel>
         </SidebarGroup>
 
@@ -91,7 +93,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {getMenuItems(isAdmin ?? false).map((item) => {
                 if (item.id === "settings") {
                   return (
                     <Collapsible key={item.id} className="group/collapsible">
@@ -137,16 +139,31 @@ export function AppSidebar() {
                                 );
                               }
 
-                              if (sub.id === "reset-password") {
-                                // 나중에 PasswordDialog 만들면 여기도 같은 패턴으로
+                              if (sub.id === "edit-profile") {
                                 return (
-                                  <Button
-                                    key={sub.id}
-                                    variant={"ghost"}
-                                    className="text-14-regular block w-full rounded-md px-6 py-2 text-left"
-                                  >
-                                    {t(sub.key)}
-                                  </Button>
+                                  <EditProfileDialog key={sub.id}>
+                                    <Button
+                                      type={"button"}
+                                      variant={"ghost"}
+                                      className="text-14-regular block w-full rounded-md px-6 py-2 text-left"
+                                    >
+                                      {t(sub.key)}
+                                    </Button>
+                                  </EditProfileDialog>
+                                );
+                              }
+
+                              if (sub.id === "change-password") {
+                                return (
+                                  <ChangePasswordDialog key={sub.id}>
+                                    <Button
+                                      type={"button"}
+                                      variant={"ghost"}
+                                      className="text-14-regular block w-full rounded-md px-6 py-2 text-left"
+                                    >
+                                      {t(sub.key)}
+                                    </Button>
+                                  </ChangePasswordDialog>
                                 );
                               }
 
@@ -203,8 +220,8 @@ export function AppSidebar() {
                   <div className="flex items-center gap-2">
                     <img src={profile} alt="profile" className="size-10" />
                     <div className="text-14-regular text-left">
-                      <div>Full Name</div>
-                      <div>Email</div>
+                      <div>{profile?.full_name || "사용자"}</div>
+                      <div className="text-xs text-muted-foreground">{profile?.email || ""}</div>
                     </div>
                   </div>
                   <Ellipsis />
