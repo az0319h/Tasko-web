@@ -37,6 +37,23 @@ import EditProfileDialog from "../dialog/edit-profile-dialog";
 import ChangePasswordDialog from "../dialog/change-password-dialog";
 import { useResolvedThemeMode, useCurrentProfile, useIsAdmin } from "@/hooks";
 import { Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * 문제 원인 설명:
+ *
+ * - useIsAdmin은 react-query나 SWR 기반 fetch 혹은 react state 기반인데,
+ * - 로그아웃 → 로그인(다른계정) 시, AppSidebar 컴포넌트가 마운트된 상태에서 useIsAdmin 훅의 캐시가 갱신되지 않거나 내부적으로 '변경'을 전달하지 않아서
+ * - 예전 권한 정보가 남아 있어서 user management 메뉴 표시가 안 됨.
+ * - 새로고침을 하면 프로필 및 admin 여부가 새로 불려서 메뉴가 올바르게 보임.
+ *
+ * 해결 방법:
+ * - 사용자가 로그아웃/로그인(전환)하는 시점, 즉 세션이 바뀔 때 useIsAdmin이나 관련 쿼리의 캐시/정보가 무조건 새로고침(혹은 refetch)되어야 함
+ * - 그리고 렌더링은 isAdmin 정보가 정확히 변경될 때까지는 이전 값을 사용하지 않도록 처리(대기 or skeleton UI)
+ * - 아래 예시는 supabase의 onAuthStateChange로 세션 변화를 감지해서 강제 재로드 및 useIsAdmin에 의존하는 값 변경을 트리거함
+ */
+
+import supabase from "@/lib/supabase";
 
 const getMenuItems = (isAdmin: boolean) => {
   const items = [
@@ -53,7 +70,6 @@ const getMenuItems = (isAdmin: boolean) => {
     { id: "post", key: "layout.sidebar.menu.post" },
   ];
 
-  // Admin 전용 메뉴 추가 (설정 메뉴 바로 앞)
   if (isAdmin) {
     items.splice(3, 0, {
       id: "users",
@@ -77,7 +93,35 @@ export function AppSidebar() {
   const { i18n, t } = useTranslation();
   const mode = useResolvedThemeMode();
   const { data: profile } = useCurrentProfile();
-  const { data: isAdmin } = useIsAdmin();
+  const { data: isAdmin, refetch: refetchAdmin, isLoading: isAdminLoading } = useIsAdmin();
+
+  // [핵심] 세션/유저 변경에 따라 admin 권한 refetch
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, _session) => {
+      // onAuthStateChange 이벤트가 발생하면 isAdmin 쿼리를 강제로 refetch
+      if (refetchAdmin) {
+        refetchAdmin();
+      }
+    });
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [refetchAdmin]);
+
+  // admin여부가 아직 판단 안됐으면 skeleton 등 보여줄 수 있음
+  if (isAdminLoading) {
+    return (
+      <Sidebar collapsible="offcanvas">
+        <SidebarContent className="bg-background">
+          <SidebarGroup>
+            <SidebarGroupLabel className="py-6 md:py-8">
+              <Link to={"/"}>로고</Link>
+            </SidebarGroupLabel>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -93,7 +137,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {getMenuItems(isAdmin ?? false).map((item) => {
+              {getMenuItems(!!isAdmin).map((item) => {
                 if (item.id === "settings") {
                   return (
                     <Collapsible key={item.id} className="group/collapsible">
@@ -221,7 +265,7 @@ export function AppSidebar() {
                     <img src={profileImage} alt="profile" className="size-10" />
                     <div className="text-14-regular text-left">
                       <div>{profile?.full_name || "사용자"}</div>
-                      <div className="text-xs text-muted-foreground">{profile?.email || ""}</div>
+                      <div className="text-muted-foreground text-xs">{profile?.email || ""}</div>
                     </div>
                   </div>
                   <Ellipsis />
