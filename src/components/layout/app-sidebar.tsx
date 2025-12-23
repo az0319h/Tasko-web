@@ -34,8 +34,8 @@ import {
 import LogoutDialog from "../dialog/logout-dialog";
 import { Button } from "../ui/button";
 import ThemeDialog from "../dialog/theme-dialog";
-import EditProfileDialog from "../dialog/edit-profile-dialog";
 import ChangePasswordDialog from "../dialog/change-password-dialog";
+import ChangeEmailDialog from "../dialog/change-email-dialog";
 import { useResolvedThemeMode, useCurrentProfile, useIsAdmin } from "@/hooks";
 import { Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -86,7 +86,7 @@ const getMenuItems = (isAdmin: boolean) => {
 const settingsSubItems = [
   { id: "language", key: "layout.sidebar.settingsSub.language" },
   { id: "theme", key: "layout.sidebar.settingsSub.theme" },
-  { id: "edit-profile", key: "layout.sidebar.settingsSub.editProfile" },
+  { id: "change-email", key: "layout.sidebar.settingsSub.changeEmail" },
   { id: "change-password", key: "layout.sidebar.settingsSub.changePassword" },
 ];
 
@@ -146,7 +146,7 @@ export function AppSidebar() {
                       <SidebarMenuItem>
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton className="flex items-center gap-2 rounded-md px-3 py-2 md:gap-3 md:py-6">
-                            {item.icon && <item.icon className="!size-4 md:!size-5" />}
+                            {item.icon && <item.icon className="size-4! md:size-5!" />}
                             <span className="text-14-regular md:text-16-regular">
                               {t(item.key)}
                             </span>
@@ -185,9 +185,9 @@ export function AppSidebar() {
                                 );
                               }
 
-                              if (sub.id === "edit-profile") {
+                              if (sub.id === "change-email") {
                                 return (
-                                  <EditProfileDialog key={sub.id}>
+                                  <ChangeEmailDialog key={sub.id}>
                                     <Button
                                       type={"button"}
                                       variant={"ghost"}
@@ -195,7 +195,7 @@ export function AppSidebar() {
                                     >
                                       {t(sub.key)}
                                     </Button>
-                                  </EditProfileDialog>
+                                  </ChangeEmailDialog>
                                 );
                               }
 
@@ -237,7 +237,7 @@ export function AppSidebar() {
                             }
                           }}
                         >
-                          {item.icon && <item.icon className="!size-4 md:!size-5" />}
+                          {item.icon && <item.icon className="size-4! md:size-5!" />}
                           <span className="text-14-regular md:text-16-regular">{t(item.key)}</span>
                         </Link>
                       </SidebarMenuButton>
@@ -271,9 +271,11 @@ export function AppSidebar() {
                 >
                   <div className="flex items-center gap-2">
                     <ProfileAvatar avatarUrl={profile?.avatar_url} size={40} />
-                    <div className="text-14-regular text-left">
+                    <div className="text-14-regular flex flex-col text-left">
                       <div>{profile?.full_name || "사용자"}</div>
-                      <div className="text-muted-foreground text-xs">{profile?.email || ""}</div>
+                      <div className="text-muted-foreground line-clamp-1 text-xs">
+                        {profile?.email || ""}
+                      </div>
                     </div>
                   </div>
                   <Ellipsis />

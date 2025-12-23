@@ -100,7 +100,7 @@ serve(async (req) => {
       data: inviteData,
       error: inviteError,
     } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: redirectTo || `${Deno.env.get("SITE_URL") || "http://localhost:5173"}/profile/setup`,
+      redirectTo: redirectTo || `${Deno.env.get("VITE_FRONTEND_URL") || Deno.env.get("SITE_URL") || "http://localhost:5173"}/profile/setup`,
     });
 
     if (inviteError) {
