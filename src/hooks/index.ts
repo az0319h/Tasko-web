@@ -8,5 +8,6 @@ export * from "./mutations/use-profile";
 export * from "./mutations/use-profile-auto";
 export * from "./mutations/use-profile-setup";
 export * from "./mutations/use-password";
+export * from "./mutations/use-email";
 export * from "./mutations/use-admin";
 export * from "./mutations/use-sign-up";
