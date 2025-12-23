@@ -261,8 +261,8 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       {...props}
     >
-      <span className="block cursor-pointer overflow-hidden rounded-full">
-        <ProfileAvatar avatarUrl={profile?.avatar_url} size={32} />
+      <span className="block size-full overflow-hidden rounded-full">
+        <ProfileAvatar avatarUrl={profile?.avatar_url} size={28} />
       </span>
       <span className="sr-only">Toggle Sidebar</span>
     </Button>

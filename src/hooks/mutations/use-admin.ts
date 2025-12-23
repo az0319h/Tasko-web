@@ -1,6 +1,9 @@
-import { deactivateUser, inviteUser } from "@/api/admin";
+import { deactivateUser, inviteUser, toggleUserStatus } from "@/api/admin";
 import type { UseMutationCallback } from "@/types/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Database, Tables } from "@/database.type";
+
+type Profile = Tables<"profiles">;
 
 export function useInviteUser(
   callbacks?: UseMutationCallback<void, string>,
@@ -28,6 +31,26 @@ export function useDeactivateUser(
 
   return useMutation<void, Error, string>({
     mutationFn: deactivateUser,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      callbacks?.onSuccess?.(data, variables, context);
+    },
+    onError: (error, variables, context) => {
+      callbacks?.onError?.(error, variables, context);
+    },
+  });
+}
+
+type ToggleUserStatusVariables = { userId: string; isActive: boolean };
+
+export function useToggleUserStatus(
+  callbacks?: UseMutationCallback<Profile, ToggleUserStatusVariables>,
+) {
+  const queryClient = useQueryClient();
+
+  return useMutation<Profile, Error, ToggleUserStatusVariables>({
+    mutationFn: ({ userId, isActive }) => toggleUserStatus(userId, isActive),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
