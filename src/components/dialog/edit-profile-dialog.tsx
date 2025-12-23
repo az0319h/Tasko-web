@@ -15,6 +15,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet } from "../ui/field";
 import { Input } from "../ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   profileUpdateSchema,
   type ProfileUpdateFormValues,
 } from "@/schemas/profile/profile-schema";
@@ -38,6 +47,8 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<ProfileUpdateFormValues>({
     resolver: zodResolver(profileUpdateSchema),
     defaultValues: {
@@ -46,6 +57,8 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
       phone: "",
     },
   });
+
+  const positionValue = watch("position");
 
   // 다이얼로그가 열릴 때 프로필 데이터로 폼 초기화
   useEffect(() => {
@@ -267,16 +280,60 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
               {/* Position */}
               <Field data-invalid={!!errors.position}>
                 <FieldLabel htmlFor="position">직책</FieldLabel>
-                <Input
-                  id="position"
-                  type="text"
-                  placeholder="예: 개발자, 디자이너"
-                  {...register("position")}
-                />
+                <Select
+                  value={positionValue}
+                  onValueChange={(value) => setValue("position", value, { shouldValidate: true })}
+                >
+                  <SelectTrigger id="position" className="w-full">
+                    <SelectValue placeholder="직책을 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>일반 직급</SelectLabel>
+                      <SelectItem value="인턴">인턴</SelectItem>
+                      <SelectItem value="사원">사원</SelectItem>
+                      <SelectItem value="대리">대리</SelectItem>
+                      <SelectItem value="과장">과장</SelectItem>
+                      <SelectItem value="차장">차장</SelectItem>
+                      <SelectItem value="부장">부장</SelectItem>
+                      <SelectItem value="이사">이사</SelectItem>
+                      <SelectItem value="상무">상무</SelectItem>
+                      <SelectItem value="전무">전무</SelectItem>
+                      <SelectItem value="부사장">부사장</SelectItem>
+                      <SelectItem value="사장">사장</SelectItem>
+                      <SelectItem value="대표이사">대표이사</SelectItem>
+                      <SelectItem value="임원">임원</SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>법률 사무소 특화</SelectLabel>
+                      <SelectItem value="변호사">변호사</SelectItem>
+                      <SelectItem value="변리사">변리사</SelectItem>
+                      <SelectItem value="연구원">연구원</SelectItem>
+                      <SelectItem value="책임연구원">책임연구원</SelectItem>
+                      <SelectItem value="수석연구원">수석연구원</SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>전문직</SelectLabel>
+                      <SelectItem value="디자이너">디자이너</SelectItem>
+                      <SelectItem value="개발자">개발자</SelectItem>
+                      <SelectItem value="기획자">기획자</SelectItem>
+                      <SelectItem value="마케터">마케터</SelectItem>
+                      <SelectItem value="운영자">운영자</SelectItem>
+                      <SelectItem value="관리자">관리자</SelectItem>
+                      <SelectItem value="회계사">회계사</SelectItem>
+                      <SelectItem value="세무사">세무사</SelectItem>
+                      <SelectItem value="노무사">노무사</SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>기타</SelectLabel>
+                      <SelectItem value="기타">기타</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
                 {errors.position ? (
                   <FieldError errors={[errors.position]} />
                 ) : (
-                  <FieldDescription>직책을 입력해주세요.</FieldDescription>
+                  <FieldDescription>직책을 선택해주세요.</FieldDescription>
                 )}
               </Field>
 

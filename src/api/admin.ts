@@ -64,6 +64,28 @@ export async function deactivateUser(userId: string): Promise<void> {
 }
 
 /**
+ * 사용자 상태 토글 (활성/비활성) (관리자 전용)
+ */
+export async function toggleUserStatus(userId: string, isActive: boolean): Promise<Profile> {
+  // 관리자 권한 확인
+  const isAdmin = await checkAdminPermission();
+  if (!isAdmin) {
+    throw new Error("관리자 권한이 필요합니다.");
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return data;
+}
+
+/**
  * 사용자 초대 이메일 발송 (관리자 전용)
  * Edge Function을 통해 Supabase Admin API 호출
  */

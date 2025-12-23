@@ -11,21 +11,26 @@ type ProfileUpdate = TablesUpdate<"profiles">;
 export async function getCurrentProfile(): Promise<Profile | null> {
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("인증되지 않은 사용자입니다.");
+  if (userError || !user) {
+    throw new Error("인증되지 않은 사용자입니다.");
+  }
 
+  // maybeSingle()을 사용하여 프로필이 없어도 에러를 던지지 않음
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (error) {
+    // PGRST116은 프로필이 없는 경우 (정상)
     if (error.code === "PGRST116") {
-      // 프로필이 없는 경우
       return null;
     }
+    // 다른 에러는 던짐
     throw error;
   }
 

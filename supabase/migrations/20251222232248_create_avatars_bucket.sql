@@ -50,3 +50,5 @@ FOR SELECT
 TO public
 USING (bucket_id = 'avatars');
 
+
+

@@ -1,35 +1,70 @@
 import { SEO } from "@/components/common/seo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useUsers, useDeactivateUser } from "@/hooks";
+import { Switch } from "@/components/ui/switch";
+import { useUsers, useToggleUserStatus } from "@/hooks";
 import { toast } from "sonner";
 import { generateErrorMessage } from "@/lib/error";
 import DefaultSpinner from "@/components/common/default-spinner";
 import { InviteUserDialog } from "@/components/dialog/invite-user-dialog";
-import { Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useState } from "react";
 import type { Database, Tables } from "@/database.type";
 
 type Profile = Tables<"profiles">;
 
 export default function AdminUsersPage() {
   const { data: users, isLoading, isError } = useUsers();
-  const { mutate: deactivateUser } = useDeactivateUser({
-    onSuccess: () => {
-      toast.success("사용자가 비활성화되었습니다.", {
-        position: "bottom-right",
-      });
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<{
+    userId: string;
+    email: string;
+    newStatus: boolean;
+  } | null>(null);
+
+  const { mutate: toggleUserStatus, isPending: isToggling } = useToggleUserStatus({
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.isActive
+          ? "사용자가 활성화되었습니다."
+          : "사용자가 비활성화되었습니다.",
+        {
+          position: "bottom-right",
+        },
+      );
+      setConfirmDialogOpen(false);
+      setPendingToggle(null);
     },
     onError: (error) => {
       const message = generateErrorMessage(error);
       toast.error(message, {
         position: "bottom-right",
       });
+      setConfirmDialogOpen(false);
+      setPendingToggle(null);
     },
   });
 
-  const handleDeactivate = (userId: string, email: string) => {
-    if (confirm(`정말로 ${email} 사용자를 비활성화하시겠습니까?`)) {
-      deactivateUser(userId);
+  const handleStatusChange = (userId: string, email: string, currentStatus: boolean | null) => {
+    const newStatus = !currentStatus;
+    setPendingToggle({ userId, email, newStatus });
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmToggle = () => {
+    if (pendingToggle) {
+      toggleUserStatus({
+        userId: pendingToggle.userId,
+        isActive: pendingToggle.newStatus,
+      });
     }
   };
 
@@ -135,17 +170,13 @@ export default function AdminUsersPage() {
                           {formatDate(user.created_at)}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {user.is_active && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeactivate(user.id, user.email)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          )}
+                          <Switch
+                            checked={user.is_active ?? false}
+                            onCheckedChange={() =>
+                              handleStatusChange(user.id, user.email, user.is_active)
+                            }
+                            disabled={isToggling}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -157,6 +188,37 @@ export default function AdminUsersPage() {
             )}
           </CardContent>
         </Card>
+
+        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+          <DialogContent showCloseButton>
+            <DialogHeader>
+              <DialogTitle>사용자 상태 변경</DialogTitle>
+              <DialogDescription>
+                {pendingToggle &&
+                  `정말로 ${pendingToggle.email} 사용자를 ${
+                    pendingToggle.newStatus ? "활성화" : "비활성화"
+                  }하시겠습니까?`}
+                {pendingToggle?.newStatus === false &&
+                  " 비활성화된 사용자는 로그인할 수 없습니다."}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isToggling}>
+                  취소
+                </Button>
+              </DialogClose>
+              <Button
+                type="button"
+                variant={pendingToggle?.newStatus === false ? "destructive" : "default"}
+                onClick={handleConfirmToggle}
+                disabled={isToggling}
+              >
+                {isToggling ? "처리 중..." : "확인"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

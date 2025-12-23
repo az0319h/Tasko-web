@@ -24,13 +24,14 @@ export function ProfileAvatar({
   const displayImage = avatarUrl && !imageError ? avatarUrl : profileImage;
 
   return (
-    <img
-      src={displayImage}
-      alt={alt}
-      className={cn("rounded-full object-cover", className)}
-      style={{ width: size, height: size }}
-      onError={handleImageError}
-    />
+    <div className={cn("overflow-hidden", className)} style={{ width: size, height: size }}>
+      <img
+        src={displayImage}
+        alt={alt}
+        className="h-full w-full rounded-full object-cover"
+        style={{ width: size, height: size }}
+        onError={handleImageError}
+      />
+    </div>
   );
 }
-
