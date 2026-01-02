@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Cursor settings (contains API keys)
+.cursor/
+*.cursor
+
 # Env files 
 .env
 .env.*
@@ -37,4 +41,4 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
