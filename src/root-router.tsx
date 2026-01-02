@@ -1,5 +1,4 @@
 import { Route, Routes } from "react-router";
-import IndexPage from "./pages/index-page";
 import ResetPasswordPage from "./pages/reset-password-page";
 import GlobalLayout from "./components/layout/global-layout";
 import NotfoundPage from "./pages/not-found-page";
@@ -13,6 +12,7 @@ import ProfileSetupPage from "./pages/profile-setup-page";
 import ForgotPasswordPage from "./pages/forgot-password-page";
 import SignupPage from "./pages/signup-page";
 import AdminUsersPage from "./pages/admin-users-page";
+import HomePage from "./pages/home-page";
 
 export default function RootRoute() {
   return (
@@ -29,7 +29,7 @@ export default function RootRoute() {
 
         <Route element={<ProfileRequiredLayout />}>
           <Route element={<GlobalLayout />}>
-            <Route path="/" element={<IndexPage />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/profile" element={<ProfilePage />} />
 
             <Route element={<AdminOnlyLayout />}>

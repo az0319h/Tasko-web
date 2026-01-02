@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          is_read: boolean | null
+          message_type: string
+          task_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_read?: boolean | null
+          message_type?: string
+          task_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          is_read?: boolean | null
+          message_type?: string
+          task_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -56,6 +100,92 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          client_name: string
+          created_at: string | null
+          created_by: string | null
+          due_date: string | null
+          id: string
+          patent_name: string | null
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          client_name: string
+          created_at?: string | null
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          patent_name?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          client_name?: string
+          created_at?: string | null
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          patent_name?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          assignee_id: string | null
+          assigner_id: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          is_public: boolean
+          project_id: string | null
+          task_status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assignee_id?: string | null
+          assigner_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_public?: boolean
+          project_id?: string | null
+          task_status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assignee_id?: string | null
+          assigner_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          is_public?: boolean
+          project_id?: string | null
+          task_status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -64,7 +194,14 @@ export type Database = {
       is_admin: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      message_type: "USER" | "SYSTEM"
+      project_status: "inProgress" | "done"
+      task_status:
+        | "ASSIGNED"
+        | "IN_PROGRESS"
+        | "WAITING_CONFIRM"
+        | "APPROVED"
+        | "REJECTED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -191,6 +328,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      message_type: ["USER", "SYSTEM"],
+      project_status: ["inProgress", "done"],
+      task_status: [
+        "ASSIGNED",
+        "IN_PROGRESS",
+        "WAITING_CONFIRM",
+        "APPROVED",
+        "REJECTED",
+      ],
+    },
   },
 } as const

@@ -1,0 +1,395 @@
+Tasko PRD (AI 구현용 초안)
+1. 이 문서의 목적
+
+이 문서는 Tasko 서비스의 핵심 기능을 구현하기 위한 PRD이다.
+다만 일반적인 딱딱한 요구사항 문서가 아니라,
+AI 개발 에이전트가 서비스의 의도와 UX 흐름을 이해하고 스스로 구현 판단을 할 수 있도록 설명 중심으로 작성된 문서이다.
+
+Tasko는 내부 업무 커뮤니케이션 도구이며,
+가장 중요한 가치는 다음 한 문장으로 요약된다.
+
+업무 상태가 바뀌는 순간마다, 관련된 사람들이 반드시 이메일로 인지해야 한다.
+
+2. 기술 전제 (반드시 지켜야 할 것)
+
+Backend / DB / Realtime: Supabase
+
+UI 컴포넌트: shadcn/ui
+
+이메일: NodeMailer
+
+인증: 이미 구현되어 있음 (Auth / Role 구분 가능)
+
+사용자 역할
+
+Admin
+
+Member
+
+3. 이메일 알림 (가장 중요)
+3.1 왜 중요한가
+
+Tasko는 “채팅 툴”이 아니라
+업무 상태 변경을 놓치지 않게 하는 도구다.
+
+따라서 상태(TaskStatus)가 바뀔 때마다 이메일 알림은 반드시 가야 한다.
+이메일이 안 가면 Tasko의 핵심 가치는 무너진다.
+
+3.2 이메일 발송 조건
+
+다음 상황이 발생할 때마다 무조건 이메일 발송:
+
+업무(Task)가 생성되었을 때
+
+업무 상태가 변경될 때
+
+ASSIGNED
+
+IN_PROGRESS
+
+WAITING_CONFIRM
+
+APPROVED
+
+REJECTED
+
+3.3 이메일 수신자
+
+업무를 할당한 사람(assigner)
+
+업무를 할당받은 사람(assignee)
+
+항상 서로에게 메일이 간다.
+
+3.4 이메일 구현 방식 (AI가 반드시 알아야 할 정보)
+
+라이브러리: nodemailer
+
+시스템 이메일 계정
+
+이메일: bass.to.tasko@gmail.com
+
+앱 비밀번호: wavb nhjc hdig jvrd
+
+실제 구현 시 이 정보는 .env로 관리해야 한다.
+
+이메일 내용에는 최소한 아래가 포함되어야 한다.
+
+업무 제목
+
+변경된 상태
+
+누가 변경했는지
+
+해당 업무로 바로 이동할 수 있는 링크
+
+4. 전체 구조 개요
+
+Tasko는 다음 흐름으로 사용된다.
+
+/home
+ → Project 목록
+   → Project 상세
+     → Task 목록
+       → Task 상세 (실시간 채팅 + 상태 변경)
+
+5. /home (대시보드) — 가장 중요한 화면
+5.1 /home의 역할
+
+/home은 Tasko의 메인 대시보드다.
+
+모든 사용자는 로그인 후 /home으로 진입한다.
+
+여기서 프로젝트를 찾고, 필터링하고, 검색한다.
+
+5.2 UI 원칙
+
+모든 UI는 shadcn/ui 기반으로 제작
+
+테이블 + 상단 필터 + 검색창 구조 권장
+
+복잡한 그래프는 필요 없음
+
+5.3 프로젝트 목록
+
+각 프로젝트에는 최소한 다음 정보가 보인다.
+
+프로젝트 제목
+
+클라이언트 이름
+
+특허명
+
+완료 상태
+
+inProgress
+
+done
+
+완료 예정일
+
+5.4 Admin / Member 화면 차이
+Admin
+
+모든 프로젝트 조회 가능
+
+프로젝트 생성 가능
+
+프로젝트 상태 변경 가능
+
+inProgress ↔ done
+
+모든 필터 사용 가능
+
+Member
+
+모든 프로젝트 조회 가능
+
+프로젝트 생성 불가
+
+프로젝트 상태 변경 불가
+
+필터는 조회용으로만 사용
+
+5.5 검색 (매우 중요)
+
+프로젝트 제목 기준 검색은 반드시 있어야 한다
+
+상단에 항상 노출된 검색 input
+
+검색은 실시간 또는 debounce 방식
+
+5.6 프로젝트 필터 UX (중요)
+
+필터는 버튼 하나를 눌러 Drawer / Dropdown 형태로 열리는 구조가 좋다.
+
+필터 예시:
+
+프로젝트 상태
+
+전체
+
+진행중(inProgress)
+
+완료(done)
+
+완료 예정일 기준 정렬
+
+최신순
+
+오래된 순
+
+Admin / Member 모두 사용 가능하지만
+Admin은 상태 변경 권한이 있고 Member는 없음.
+
+6. Project 상세 페이지
+6.1 역할
+
+Project 상세 페이지는
+해당 프로젝트에 포함된 업무(Task)를 관리하는 공간이다.
+
+6.2 Project 수정 / 삭제
+
+프로젝트 생성자가 Admin이므로
+
+Admin만 수정 / 삭제 가능
+
+클라이언트 이름, 특허명, 완료일 수정 가능
+
+삭제는 확인 모달 필수
+
+7. Task(업무)
+7.1 Task 생성
+
+Project 상세 페이지에서 생성
+
+생성자는 로그인된 사용자
+
+할당받을 사람은 선택 가능
+
+단, 프로필 설정이 완료된 사용자만 선택 가능
+
+7.2 Task 생성 시 필수 정보
+
+업무 제목
+
+마감 기한
+
+담당자 선택
+
+7.3 Task 기본 정책
+
+생성 시 무조건 private
+
+접근 가능:
+
+할당자
+
+할당받은 사람
+
+Admin
+
+Admin은 이후 해당 Task를 public으로 변경 가능
+
+7.4 public Task 정책
+
+public이 되면 모든 회원에게 보임
+
+하지만 write 권한은 여전히 할당자와 할당받은 사람만
+
+8. Task 상세 페이지 (핵심 UX)
+8.1 채팅 UI
+
+kmong.com과 유사한 업무 채팅 UX
+
+하단 입력창
+
+상단 메시지 히스토리
+
+모든 메시지는 Supabase Realtime 기반
+
+8.2 실시간 기능
+
+메시지 실시간 반영
+
+읽음 처리
+
+상대방 메시지 작성 중 표시 (카톡 스타일)
+
+9. Task 상태 흐름
+
+업무는 아래 상태를 반드시 따른다.
+
+ASSIGNED
+
+IN_PROGRESS
+
+WAITING_CONFIRM
+
+APPROVED
+
+REJECTED
+
+9.1 상태 변경 규칙
+
+ASSIGNED → IN_PROGRESS
+할당받은 사람이 열람 확인
+
+IN_PROGRESS → WAITING_CONFIRM
+완료 요청
+
+WAITING_CONFIRM → APPROVED / REJECTED
+할당자가 결정
+
+9.2 상태 변경 시 반드시 할 것
+
+상태 업데이트
+
+UI 즉시 반영
+
+nodemailer로 이메일 발송
+
+채팅 타임라인에 SYSTEM 메시지 기록
+
+10. 수정 / 삭제 정책
+10.1 수정
+
+Project, Task 모두 수정 가능
+
+수정 내용은 SYSTEM 메시지로 남김
+
+10.2 삭제
+
+권한 있는 사용자만 가능
+
+확인 절차 필수
+
+데이터 완전 삭제
+
+11. 최종 핵심 요약 (AI가 반드시 이해해야 할 부분)
+
+Tasko는 업무 상태 변경 알림 시스템이다.
+
+이메일이 가장 중요하다.
+
+nodemailer는 필수다.
+
+/home 대시보드와 필터 UX는 서비스의 얼굴이다.
+
+모든 UI는 shadcn으로 만든다.
+
+Admin과 Member의 화면과 권한은 다르다.
+
+Supabase Realtime로 채팅은 실시간이어야 한다. 
+
+또한 채팅은 읽음, 작성 중, 같은 거나 웬만한 문서나 파일들 첨부가 가능한 형태로 작성해야 함.
+
+SMTP:
+- provider: Gmail
+- account: bass.to.tasko@gmail.com
+- app password: wavb nhjc hdig jvrd
+- NodeMailer 사용 필수
+
+수정안 (읽기 / 쓰기 권한 명확화)
+Task 공개 범위 정의
+Task 기본값:
+- 생성 시 is_public = false (무조건 private)
+
+private Task:
+- 조회 가능: assigner, assignee, Admin
+- 쓰기 가능: assigner, assignee
+- Admin은 항상 접근 가능
+
+public Task:
+- 조회 가능: 모든 로그인 사용자
+- 쓰기 가능: assigner, assignee
+- Admin은 public / private 변경 권한만 가짐
+
+
+⚠️ 중요
+
+public = “모두가 수정 가능” ❌
+
+public = “모두가 읽을 수 있음” ✅
+
+Task 상태 정의 (업무 단위)
+tasks.task_status
+- ASSIGNED
+- IN_PROGRESS
+- WAITING_CONFIRM
+- APPROVED
+- REJECTED
+
+
+설명:
+
+Task는 실제 업무 수행 단위다.
+
+Task 상태 변경 시 반드시 이메일 발송 + 채팅 SYSTEM 메시지 생성이 동반된다.
+
+❌ 수정 2: Member가 보는 Project 범위 (홈 대시보드)
+문제
+
+“프로젝트 목록 표시” 문구가
+→ 모든 프로젝트를 Member도 볼 수 있는 것처럼 오해될 수 있음
+
+✅ 수정안 (/home 대시보드 조회 규칙 명시)
+Project 조회 권한 규칙
+Admin:
+- 모든 Project 조회 가능
+- 모든 Project 상세 접근 가능
+- 모든 Project의 상태(IN_PROGRESS / DONE) 변경 가능
+
+Member:
+- 아래 조건 중 하나라도 만족하는 Project만 조회 가능
+  1) 본인이 생성한 Project
+  2) 본인이 할당자(assigner) 또는
+  3) 본인이 할당받은 Task(assignee)가 포함된 Project
+
+  맴버도 본인과 상관없는 프로젝트는 표시가 되지만 프로젝트 상세에서는 내가 속한 업무나 public으로 공개된 업무만 보인다
+
+Project는 ‘존재’를 알리는 단위이고,
+실제 접근 권한과 작업 단위는 Task 기준으로 제한된다.
+
+채팅은 단순 대화가 아니라 업무 기록이며,
+상태 변경, 수정, 결정 내역을 모두 포함한 타임라인이다.

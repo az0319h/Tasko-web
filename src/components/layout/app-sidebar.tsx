@@ -19,6 +19,7 @@ import {
   Ellipsis,
   ChevronDown,
   LogOut,
+  Plus,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -39,6 +40,8 @@ import ChangeEmailDialog from "../dialog/change-email-dialog";
 import { useResolvedThemeMode, useCurrentProfile, useIsAdmin } from "@/hooks";
 import { Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import ProjectFormDialog from "@/components/project/project-form-dialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * 문제 원인 설명:
@@ -67,8 +70,6 @@ const getMenuItems = (isAdmin: boolean) => {
     },
     { id: "chats", key: "layout.sidebar.menu.chats", url: "/chats", icon: MessageCircle },
     { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
-    { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
-    { id: "post", key: "layout.sidebar.menu.post" },
   ];
 
   if (isAdmin) {
@@ -78,6 +79,8 @@ const getMenuItems = (isAdmin: boolean) => {
       url: "/admin/users",
       icon: Users,
     });
+    // Admin만 프로젝트 생성 메뉴 추가
+    items.push({ id: "post", key: "layout.sidebar.menu.post", icon: Plus });
   }
 
   return items;
@@ -96,6 +99,7 @@ export function AppSidebar() {
   const { data: profile } = useCurrentProfile();
   const { data: isAdmin, refetch: refetchAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { isMobile, setOpenMobile, setOpen } = useSidebar();
+  const queryClient = useQueryClient();
 
   // [핵심] 세션/유저 변경에 따라 admin 권한 refetch
   useEffect(() => {
@@ -109,6 +113,12 @@ export function AppSidebar() {
       authListener.subscription.unsubscribe();
     };
   }, [refetchAdmin]);
+
+  // 프로젝트 생성 성공 시 프로젝트 목록 새로고침
+  const handleProjectCreateSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+    queryClient.invalidateQueries({ queryKey: ["project-stats"] });
+  };
 
   // admin여부가 아직 판단 안됐으면 skeleton 등 보여줄 수 있음
   if (isAdminLoading) {
@@ -242,12 +252,18 @@ export function AppSidebar() {
                         </Link>
                       </SidebarMenuButton>
                     ) : (
-                      <Button
-                        type="button"
-                        className="xs:text-14-semibold md:text-16-semibold text-background bg-foreground my-2 w-full cursor-pointer rounded-full py-2 md:my-3 md:py-3"
-                      >
-                        {t(item.key)}
-                      </Button>
+                      <ProjectFormDialog
+                        mode="create"
+                        onSuccess={handleProjectCreateSuccess}
+                        trigger={
+                          <Button
+                            type="button"
+                            className="xs:text-14-semibold md:text-16-semibold text-background bg-foreground my-2 w-full cursor-pointer rounded-full py-2 md:my-3 md:py-3"
+                          >
+                            {t(item.key)}
+                          </Button>
+                        }
+                      />
                     )}
                   </SidebarMenuItem>
                 );
