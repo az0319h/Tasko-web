@@ -56,15 +56,214 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          id: string
+          title: string
+          client_name: string
+          patent_name: string
+          status: Database["public"]["Enums"]["project_status"]
+          due_date: string | null
+          is_public: boolean
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          client_name: string
+          patent_name: string
+          status?: Database["public"]["Enums"]["project_status"]
+          due_date?: string | null
+          is_public?: boolean
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          client_name?: string
+          patent_name?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          due_date?: string | null
+          is_public?: boolean
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      tasks: {
+        Row: {
+          id: string
+          project_id: string
+          title: string
+          description: string | null
+          assigner_id: string
+          assignee_id: string
+          task_status: Database["public"]["Enums"]["task_status"]
+          due_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          title: string
+          description?: string | null
+          assigner_id: string
+          assignee_id: string
+          task_status?: Database["public"]["Enums"]["task_status"]
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          title?: string
+          description?: string | null
+          assigner_id?: string
+          assignee_id?: string
+          task_status?: Database["public"]["Enums"]["task_status"]
+          due_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigner_id_fkey"
+            columns: ["assigner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      messages: {
+        Row: {
+          id: string
+          task_id: string
+          user_id: string
+          content: string
+          message_type: Database["public"]["Enums"]["message_type"]
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          user_id: string
+          content: string
+          message_type?: Database["public"]["Enums"]["message_type"]
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          user_id?: string
+          content?: string
+          message_type?: Database["public"]["Enums"]["message_type"]
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      email_logs: {
+        Row: {
+          id: string
+          task_id: string
+          recipient_email: string
+          recipient_name: string | null
+          subject: string
+          status: string
+          error_message: string | null
+          retry_count: number
+          created_at: string
+          sent_at: string | null
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          recipient_email: string
+          recipient_name?: string | null
+          subject: string
+          status: string
+          error_message?: string | null
+          retry_count?: number
+          created_at?: string
+          sent_at?: string | null
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          recipient_email?: string
+          recipient_name?: string | null
+          subject?: string
+          status?: string
+          error_message?: string | null
+          retry_count?: number
+          created_at?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      is_admin: { Args: { user_id: string }; Returns: boolean }
+      [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      project_status: "inProgress" | "done"
+      task_status: "ASSIGNED" | "IN_PROGRESS" | "WAITING_CONFIRM" | "APPROVED" | "REJECTED"
+      message_type: "USER" | "SYSTEM"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -191,6 +390,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      project_status: ["inProgress", "done"] as const,
+      task_status: ["ASSIGNED", "IN_PROGRESS", "WAITING_CONFIRM", "APPROVED", "REJECTED"] as const,
+      message_type: ["USER", "SYSTEM"] as const,
+    },
   },
 } as const
