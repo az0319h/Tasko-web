@@ -32,8 +32,8 @@ export function canAccessProject(
 
 /**
  * Task 수정 권한 확인
- * - assigner 또는 assignee만 수정 가능
- * - Admin은 수정 불가
+ * - Admin만 Task 수정 가능
+ * - assigner / assignee는 수정 불가
  */
 export function canEditTask(
   task: Task,
@@ -44,13 +44,8 @@ export function canEditTask(
     return false;
   }
 
-  // Admin은 Task 수정 불가
-  if (isAdmin) {
-    return false;
-  }
-
-  // assigner 또는 assignee만 수정 가능
-  return task.assigner_id === userId || task.assignee_id === userId;
+  // Admin만 수정 가능
+  return isAdmin;
 }
 
 /**

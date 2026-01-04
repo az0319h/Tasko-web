@@ -11,8 +11,11 @@ RETURNS TRIGGER AS $$
 DECLARE
   assigner_email TEXT;
   assignee_email TEXT;
+  assigner_name TEXT;
+  assignee_name TEXT;
   changer_name TEXT;
   project_title TEXT;
+  recipients_array TEXT[];
   request_body JSONB;
   function_url TEXT;
 BEGIN
@@ -30,12 +33,12 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Get assigner and assignee emails from profiles
-  SELECT email INTO assigner_email
+  -- Get assigner and assignee emails and names from profiles
+  SELECT email, COALESCE(full_name, email) INTO assigner_email, assigner_name
   FROM public.profiles
   WHERE id = NEW.assigner_id;
 
-  SELECT email INTO assignee_email
+  SELECT email, COALESCE(full_name, email) INTO assignee_email, assignee_name
   FROM public.profiles
   WHERE id = NEW.assignee_id;
 
@@ -49,16 +52,39 @@ BEGIN
   FROM public.projects
   WHERE id = NEW.project_id;
 
+  -- Determine recipients based on status transition
+  IF OLD.task_status = 'ASSIGNED' AND NEW.task_status = 'IN_PROGRESS' THEN
+    -- ASSIGNED → IN_PROGRESS: assigner, assignee 모두에게 발송
+    recipients_array := ARRAY['assigner', 'assignee'];
+  ELSIF OLD.task_status = 'IN_PROGRESS' AND NEW.task_status = 'WAITING_CONFIRM' THEN
+    -- IN_PROGRESS → WAITING_CONFIRM: assigner에게만 발송
+    recipients_array := ARRAY['assigner'];
+  ELSIF OLD.task_status = 'WAITING_CONFIRM' AND NEW.task_status IN ('APPROVED', 'REJECTED') THEN
+    -- WAITING_CONFIRM → APPROVED/REJECTED: assignee에게만 발송
+    recipients_array := ARRAY['assignee'];
+  ELSE
+    -- Should not reach here due to earlier check, but set default
+    recipients_array := ARRAY['assigner', 'assignee'];
+  END IF;
+
   -- Build request body for Edge Function
   request_body := jsonb_build_object(
+    'eventType', 'STATUS_CHANGED',
     'taskId', NEW.id::TEXT,
     'oldStatus', OLD.task_status,
     'newStatus', NEW.task_status,
     'assignerEmail', assigner_email,
     'assigneeEmail', assignee_email,
+    'assignerName', assigner_name,
+    'assigneeName', assignee_name,
     'changerId', auth.uid()::TEXT,
+    'changerName', changer_name,
     'taskTitle', NEW.title,
-    'projectTitle', project_title
+    'taskDescription', NEW.description,
+    'projectTitle', project_title,
+    'projectId', NEW.project_id::TEXT,
+    'dueDate', NEW.due_date::TEXT,
+    'recipients', recipients_array
   );
 
   -- Get Edge Function URL from environment (set via Supabase config)

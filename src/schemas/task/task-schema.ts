@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 /**
- * Task 생성/수정 스키마
- * assigner_id와 assignee_id는 모두 선택값 (Admin만 Task 생성 가능)
+ * Task 생성 스키마
+ * assigner_id와 assignee_id는 필수 필드 (Admin만 Task 생성 가능)
  */
-export const taskSchema = z.object({
+export const taskCreateSchema = z.object({
   title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
   description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
   assigner_id: z.string().uuid("올바른 담당자 ID를 선택해주세요."),
@@ -15,5 +15,26 @@ export const taskSchema = z.object({
   path: ["assignee_id"],
 });
 
-export type TaskFormData = z.infer<typeof taskSchema>;
+/**
+ * Task 수정 스키마
+ * assigner_id와 assignee_id는 수정 불가이므로 제외
+ * 허용 필드: title, description, due_date만
+ */
+export const taskUpdateSchema = z.object({
+  title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
+  description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
+  due_date: z.string().optional().nullable(),
+});
+
+/**
+ * Task 생성/수정 폼 데이터 타입
+ * 생성 모드: taskCreateSchema 사용
+ * 수정 모드: taskUpdateSchema 사용
+ */
+export type TaskCreateFormData = z.infer<typeof taskCreateSchema>;
+export type TaskUpdateFormData = z.infer<typeof taskUpdateSchema>;
+export type TaskFormData = TaskCreateFormData | TaskUpdateFormData;
+
+// 하위 호환성을 위해 taskSchema export (생성 모드용)
+export const taskSchema = taskCreateSchema;
 
