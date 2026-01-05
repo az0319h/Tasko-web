@@ -172,6 +172,11 @@ export type Database = {
           content: string
           message_type: Database["public"]["Enums"]["message_type"]
           created_at: string
+          read_by?: string[] | null
+          file_url?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_size?: number | null
         }
         Insert: {
           id?: string
@@ -180,6 +185,11 @@ export type Database = {
           content: string
           message_type?: Database["public"]["Enums"]["message_type"]
           created_at?: string
+          read_by?: string[] | null
+          file_url?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_size?: number | null
         }
         Update: {
           id?: string
@@ -188,6 +198,11 @@ export type Database = {
           content?: string
           message_type?: Database["public"]["Enums"]["message_type"]
           created_at?: string
+          read_by?: string[] | null
+          file_url?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_size?: number | null
         }
         Relationships: [
           {
@@ -258,12 +273,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mark_message_as_read: {
+        Args: {
+          message_id: string
+          reader_id: string
+        }
+        Returns: void
+      }
+      mark_task_messages_as_read: {
+        Args: {
+          task_id_param: string
+          reader_id: string
+        }
+        Returns: void
+      }
     }
     Enums: {
       project_status: "inProgress" | "done"
       task_status: "ASSIGNED" | "IN_PROGRESS" | "WAITING_CONFIRM" | "APPROVED" | "REJECTED"
-      message_type: "USER" | "SYSTEM"
+      message_type: "USER" | "SYSTEM" | "FILE"
     }
     CompositeTypes: {
       [_ in never]: never

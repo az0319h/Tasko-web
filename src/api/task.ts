@@ -52,11 +52,16 @@ export async function getTasksByProjectId(projectId: string): Promise<TaskWithPr
 
 /**
  * Task 상세 조회
+ * assigner와 assignee의 프로필 정보를 JOIN하여 함께 반환
  */
-export async function getTaskById(id: string): Promise<Task | null> {
+export async function getTaskById(id: string): Promise<TaskWithProfiles | null> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(`
+      *,
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+    `)
     .eq("id", id)
     .single();
 
@@ -67,7 +72,7 @@ export async function getTaskById(id: string): Promise<Task | null> {
     throw new Error(`Task 조회 실패: ${error.message}`);
   }
 
-  return data;
+  return (data || null) as TaskWithProfiles | null;
 }
 
 /**

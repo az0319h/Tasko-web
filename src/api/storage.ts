@@ -1,6 +1,7 @@
 import supabase from "@/lib/supabase";
 
 const AVATARS_BUCKET = "avatars";
+const TASK_FILES_BUCKET = "task-files";
 
 /**
  * 프로필 이미지 업로드
@@ -39,6 +40,66 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
     data: { publicUrl },
   } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(data.path);
 
+  return publicUrl;
+}
+
+/**
+ * Task 채팅 파일 업로드
+ * @param file 업로드할 파일
+ * @param taskId Task ID
+ * @param userId 사용자 ID
+ * @returns 업로드된 파일의 공개 URL 및 파일 정보
+ */
+export async function uploadTaskFile(
+  file: File,
+  taskId: string,
+  userId: string,
+): Promise<{ url: string; fileName: string; fileType: string; fileSize: number }> {
+  // 파일 확장자 추출
+  const fileExt = file.name.split(".").pop();
+  const timestamp = Date.now();
+  const fileName = `${taskId}/${userId}-${timestamp}.${fileExt}`;
+  const filePath = fileName;
+
+  // 파일 업로드
+  const { data, error } = await supabase.storage
+    .from("task-files")
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(`파일 업로드 실패: ${error.message}`);
+  }
+
+  // 공개 URL 반환
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("task-files").getPublicUrl(data.path);
+
+  return {
+    url: publicUrl,
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: file.size,
+  };
+}
+
+/**
+ * Task 채팅 파일 다운로드 URL 생성
+ * @param fileUrl 파일 URL
+ * @returns 다운로드 가능한 URL
+ */
+export function getTaskFileDownloadUrl(fileUrl: string): string {
+  // 이미 공개 URL이면 그대로 반환
+  if (fileUrl.startsWith("http")) {
+    return fileUrl;
+  }
+  // 경로만 있는 경우 공개 URL 생성
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from("task-files").getPublicUrl(fileUrl);
   return publicUrl;
 }
 

@@ -8,6 +8,8 @@ export * from "./queries/use-is-admin";
 export * from "./queries/use-projects";
 export * from "./queries/use-tasks";
 export * from "./queries/use-messages";
+export * from "./queries/use-realtime-messages";
+export * from "./queries/use-typing-indicator";
 export * from "./queries/use-profiles";
 export * from "./mutations/use-profile";
 export * from "./mutations/use-profile-auto";

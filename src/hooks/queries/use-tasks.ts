@@ -18,7 +18,7 @@ export function useTasks(projectId: string | undefined) {
  * Task 상세 조회 훅
  */
 export function useTask(id: string | undefined) {
-  return useQuery<Task | null>({
+  return useQuery<TaskWithProfiles | null>({
     queryKey: ["tasks", "detail", id],
     queryFn: () => (id ? getTaskById(id) : Promise.resolve(null)),
     enabled: !!id,
