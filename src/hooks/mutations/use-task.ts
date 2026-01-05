@@ -89,13 +89,27 @@ export function useUpdateTaskStatus() {
       const previousTasks = queryClient.getQueriesData({ queryKey: ["tasks"] });
 
       // Optimistic update: 모든 관련 Task 목록 쿼리를 업데이트
-      queryClient.setQueriesData<TaskWithProfiles[]>(
+      // 주의: queryKey: ["tasks"]는 prefix 매칭으로 배열 쿼리(["tasks", projectId])와
+      // 단일 객체 쿼리(["tasks", "detail", id]) 모두 매칭되므로 타입 가드 필요
+      queryClient.setQueriesData<TaskWithProfiles[] | TaskWithProfiles | null>(
         { queryKey: ["tasks"] },
         (old) => {
           if (!old) return old;
-          return old.map((task) =>
-            task.id === taskId ? { ...task, task_status: newStatus } : task,
-          );
+          
+          // 배열인 경우 (프로젝트별 Task 목록 쿼리)
+          if (Array.isArray(old)) {
+            return old.map((task) =>
+              task.id === taskId ? { ...task, task_status: newStatus } : task,
+            );
+          }
+          
+          // 단일 객체인 경우 (Task 상세 쿼리)
+          if (typeof old === "object" && old !== null && "id" in old && old.id === taskId) {
+            return { ...old, task_status: newStatus };
+          }
+          
+          // 매칭되지 않는 경우 원본 반환
+          return old;
         },
       );
 

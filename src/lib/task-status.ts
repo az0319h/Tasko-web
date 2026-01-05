@@ -11,7 +11,7 @@ const STATUS_TRANSITION_MATRIX: Record<TaskStatus, TaskStatus[]> = {
   IN_PROGRESS: ["WAITING_CONFIRM"],
   WAITING_CONFIRM: ["APPROVED", "REJECTED"],
   APPROVED: [], // 최종 상태
-  REJECTED: [], // 최종 상태
+  REJECTED: ["IN_PROGRESS"], // 반려 후 재작업 가능
 };
 
 /**
@@ -42,11 +42,12 @@ export function canUserChangeStatus(
     return false;
   }
 
-  // assignee는 ASSIGNED → IN_PROGRESS, IN_PROGRESS → WAITING_CONFIRM만 가능
+  // assignee는 ASSIGNED → IN_PROGRESS, IN_PROGRESS → WAITING_CONFIRM, REJECTED → IN_PROGRESS 가능
   if (userRole === "assignee") {
     return (
       (currentStatus === "ASSIGNED" && newStatus === "IN_PROGRESS") ||
-      (currentStatus === "IN_PROGRESS" && newStatus === "WAITING_CONFIRM")
+      (currentStatus === "IN_PROGRESS" && newStatus === "WAITING_CONFIRM") ||
+      (currentStatus === "REJECTED" && newStatus === "IN_PROGRESS")
     );
   }
 

@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
+import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
@@ -50,6 +51,8 @@ export default function TaskDetailPage() {
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
+  const [pendingNewStatus, setPendingNewStatus] = useState<TaskStatus | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // Draft 상태의 파일들
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set()); // 업로드 중인 파일 이름들
@@ -166,14 +169,21 @@ export default function TaskDetailPage() {
   const canEdit = canEditTask(task, currentUserId, isAdmin);
 
   // 상태 변경 버튼 표시 조건
-  const canChangeToInProgress = isAssignee && task.task_status === "ASSIGNED";
+  const canChangeToInProgress = isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
   const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
   const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
   const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
 
-  // 상태 변경 핸들러
-  const handleStatusChange = async (newStatus: TaskStatus) => {
-    await updateTaskStatus.mutateAsync({ taskId: task.id, newStatus });
+  // 상태 변경 버튼 클릭 핸들러 (Dialog 표시)
+  const handleStatusChangeClick = (newStatus: TaskStatus) => {
+    setPendingNewStatus(newStatus);
+    setStatusChangeDialogOpen(true);
+  };
+
+  // Dialog 확인 후 상태 변경 실행
+  const handleStatusChangeConfirm = async () => {
+    if (!pendingNewStatus) return;
+    await updateTaskStatus.mutateAsync({ taskId: task.id, newStatus: pendingNewStatus });
   };
 
   // Task 수정 핸들러
@@ -451,18 +461,18 @@ export default function TaskDetailPage() {
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => handleStatusChange("IN_PROGRESS")}
+                onClick={() => handleStatusChangeClick("IN_PROGRESS")}
                 disabled={updateTaskStatus.isPending}
               >
                 <Play className="mr-2 h-4 w-4" />
-                시작하기
+                {task.task_status === "REJECTED" ? "다시 업무를 진행하겠습니다" : "시작하기"}
               </Button>
             )}
             {canChangeToWaitingConfirm && (
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => handleStatusChange("WAITING_CONFIRM")}
+                onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
                 disabled={updateTaskStatus.isPending}
               >
                 완료 요청
@@ -472,7 +482,7 @@ export default function TaskDetailPage() {
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => handleStatusChange("APPROVED")}
+                onClick={() => handleStatusChangeClick("APPROVED")}
                 disabled={updateTaskStatus.isPending}
                 className="bg-green-600 hover:bg-green-700"
               >
@@ -484,7 +494,7 @@ export default function TaskDetailPage() {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={() => handleStatusChange("REJECTED")}
+                onClick={() => handleStatusChangeClick("REJECTED")}
                 disabled={updateTaskStatus.isPending}
               >
                 <XCircle className="mr-2 h-4 w-4" />
@@ -839,6 +849,19 @@ export default function TaskDetailPage() {
         taskId={task.id}
         isLoading={deleteTask.isPending}
       />
+
+      {/* 상태 변경 확인 다이얼로그 */}
+      {pendingNewStatus && (
+        <TaskStatusChangeDialog
+          open={statusChangeDialogOpen}
+          onOpenChange={setStatusChangeDialogOpen}
+          currentStatus={task.task_status}
+          newStatus={pendingNewStatus}
+          taskTitle={task.title}
+          onConfirm={handleStatusChangeConfirm}
+          isLoading={updateTaskStatus.isPending}
+        />
+      )}
     </div>
   );
 }

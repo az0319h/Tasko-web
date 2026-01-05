@@ -241,7 +241,7 @@ export async function deleteTask(id: string): Promise<void> {
  * Task 상태 변경
  * - assignee: ASSIGNED → IN_PROGRESS, IN_PROGRESS → WAITING_CONFIRM만 가능
  * - assigner: WAITING_CONFIRM → APPROVED/REJECTED만 가능
- * - Admin: 상태 변경 불가
+ * - Admin이 assigner/assignee인 경우에도 상태 변경 가능
  */
 export async function updateTaskStatus(
   taskId: string,
@@ -255,65 +255,79 @@ export async function updateTaskStatus(
   const userId = session.session.user.id;
 
   // 현재 Task 조회
+  // 주의: RLS SELECT 정책으로 인해 조회가 실패할 수 있으나,
+  // UPDATE 정책(assigner/assignee만 가능)은 별도로 작동하므로 UPDATE는 시도함
   const { data: task, error: fetchError } = await supabase
     .from("tasks")
     .select("*")
     .eq("id", taskId)
-    .single();
+    .maybeSingle();
 
-  if (fetchError || !task) {
-    throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
+  // Task 조회 실패 시에도 UPDATE는 시도 (UPDATE 정책이 별도로 검증)
+  // 단, 조회 성공 시 추가 검증 수행
+  if (task) {
+    // 현재 상태와 새 상태가 같은지 확인
+    if (task.task_status === newStatus) {
+      throw new Error("이미 해당 상태입니다.");
+    }
+
+    // 상태 전환 유효성 검증
+    if (!isValidStatusTransition(task.task_status, newStatus)) {
+      throw new Error(
+        getStatusTransitionErrorMessage(task.task_status, newStatus),
+      );
+    }
+
+    // 사용자 역할 확인
+    const isAssigner = task.assigner_id === userId;
+    const isAssignee = task.assignee_id === userId;
+
+    if (!isAssigner && !isAssignee) {
+      throw new Error("이 Task의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
+    }
+
+    // 역할별 권한 검증
+    const userRole = isAssignee ? "assignee" : "assigner";
+    if (!canUserChangeStatus(userRole, task.task_status, newStatus)) {
+      throw new Error(
+        getStatusTransitionErrorMessage(task.task_status, newStatus, userRole),
+      );
+    }
+  } else if (fetchError && fetchError.code !== "PGRST116") {
+    // PGRST116이 아닌 다른 에러는 즉시 실패
+    throw new Error(`Task 조회 실패: ${fetchError.message}`);
   }
-
-  // Admin 권한 확인 (Admin은 상태 변경 불가)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
-    .single();
-
-  if (profile?.role === "admin") {
-    throw new Error("Admin은 Task 상태를 변경할 수 없습니다.");
-  }
-
-  // 현재 상태와 새 상태가 같은지 확인
-  if (task.task_status === newStatus) {
-    throw new Error("이미 해당 상태입니다.");
-  }
-
-  // 상태 전환 유효성 검증
-  if (!isValidStatusTransition(task.task_status, newStatus)) {
-    throw new Error(
-      getStatusTransitionErrorMessage(task.task_status, newStatus),
-    );
-  }
-
-  // 사용자 역할 확인
-  const isAssigner = task.assigner_id === userId;
-  const isAssignee = task.assignee_id === userId;
-
-  if (!isAssigner && !isAssignee) {
-    throw new Error("이 Task의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
-  }
-
-  // 역할별 권한 검증
-  const userRole = isAssignee ? "assignee" : "assigner";
-  if (!canUserChangeStatus(userRole, task.task_status, newStatus)) {
-    throw new Error(
-      getStatusTransitionErrorMessage(task.task_status, newStatus, userRole),
-    );
-  }
+  // PGRST116 에러(RLS로 인한 조회 실패)는 무시하고 UPDATE 시도
+  // UPDATE 정책이 assigner/assignee만 허용하므로 안전함
 
   // 상태 업데이트
+  // 주의: UPDATE 후 SELECT 시 RLS 정책으로 인해 0 rows가 반환될 수 있으므로
+  // .maybeSingle()을 사용하여 null을 허용하고, 실패 시 기존 task 데이터를 기반으로 반환
   const { data: updatedTask, error: updateError } = await supabase
     .from("tasks")
     .update({ task_status: newStatus })
     .eq("id", taskId)
     .select()
-    .single();
+    .maybeSingle();
 
   if (updateError) {
-    throw new Error(`상태 변경 실패: ${updateError.message}`);
+    // RLS 정책 차단 시 더 명확한 에러 메시지 제공
+    if (updateError.code === "42501" || updateError.message.includes("permission denied") || updateError.message.includes("policy")) {
+      throw new Error("상태 변경 권한이 없습니다. 이 Task의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
+    }
+    // 기타 에러는 원본 메시지 사용
+    throw new Error(`상태 변경 실패: ${updateError.message}${updateError.code ? ` (코드: ${updateError.code})` : ""}`);
+  }
+
+  // RLS 정책으로 인해 SELECT 결과가 null일 수 있음
+  // UPDATE는 성공했으므로 기존 task 데이터를 기반으로 업데이트된 상태 반환
+  if (!updatedTask) {
+    if (!task) {
+      // Task 조회도 실패했지만 UPDATE는 성공했으므로, 최소한의 Task 객체 반환
+      // UPDATE 정책이 통과했다는 것은 Task가 존재하고 사용자가 권한이 있다는 의미
+      throw new Error("상태 변경은 성공했으나 결과를 조회할 수 없습니다. 페이지를 새로고침해주세요.");
+    }
+    return { ...task, task_status: newStatus } as Task;
   }
 
   return updatedTask;

@@ -35,6 +35,7 @@ import { CustomDropdown, CustomDropdownItem } from "@/components/common/custom-d
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
+import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import type { TaskCreateFormData, TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskWithProfiles } from "@/api/task";
 import type { Database } from "@/database.type";
@@ -80,7 +81,14 @@ export default function ProjectDetailPage() {
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
   const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false);
+  const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    taskId: string;
+    currentStatus: TaskStatus;
+    newStatus: TaskStatus;
+    taskTitle: string;
+  } | null>(null);
 
   // Task 상태 필터 (URL 쿼리 파라미터에서 읽기)
   const statusFilter = (searchParams.get("status") as TaskStatus | null) || "ALL";
@@ -294,7 +302,16 @@ export default function ProjectDetailPage() {
                         setDeleteTaskDialogOpen(true);
                       }}
                       onStatusChange={(taskId, newStatus) => {
-                        updateTaskStatus.mutate({ taskId, newStatus });
+                        const task = tasks?.find((t) => t.id === taskId);
+                        if (task) {
+                          setPendingStatusChange({
+                            taskId,
+                            currentStatus: task.task_status,
+                            newStatus,
+                            taskTitle: task.title,
+                          });
+                          setStatusChangeDialogOpen(true);
+                        }
                       }}
                       onEdit={(taskId) => {
                         setSelectedTask(taskId);
@@ -345,6 +362,26 @@ export default function ProjectDetailPage() {
         onConfirm={handleDeleteTask}
         isLoading={deleteTask.isPending}
       />
+
+      {/* 상태 변경 확인 다이얼로그 */}
+      {pendingStatusChange && (
+        <TaskStatusChangeDialog
+          open={statusChangeDialogOpen}
+          onOpenChange={setStatusChangeDialogOpen}
+          currentStatus={pendingStatusChange.currentStatus}
+          newStatus={pendingStatusChange.newStatus}
+          taskTitle={pendingStatusChange.taskTitle}
+          onConfirm={async () => {
+            await updateTaskStatus.mutateAsync({
+              taskId: pendingStatusChange.taskId,
+              newStatus: pendingStatusChange.newStatus,
+            });
+            setStatusChangeDialogOpen(false);
+            setPendingStatusChange(null);
+          }}
+          isLoading={updateTaskStatus.isPending}
+        />
+      )}
     </div>
   );
 }
@@ -381,8 +418,9 @@ function TaskTableRow({
   // 상태 변경 버튼 표시 조건
   // - assignee: ASSIGNED → IN_PROGRESS 가능
   // - assignee: IN_PROGRESS → WAITING_CONFIRM 가능
+  // - assignee: REJECTED → IN_PROGRESS 가능 (재작업)
   // - assigner: WAITING_CONFIRM → APPROVED/REJECTED 가능
-  const canChangeToInProgress = isAssignee && task.task_status === "ASSIGNED";
+  const canChangeToInProgress = isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
   const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
   const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
   const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
@@ -420,7 +458,7 @@ function TaskTableRow({
               className="h-7 text-xs"
             >
               <Play className="mr-1 h-3 w-3" />
-              시작
+              {task.task_status === "REJECTED" ? "다시 진행" : "시작"}
             </Button>
           )}
           {canChangeToWaitingConfirm && (
