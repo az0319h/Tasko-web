@@ -13,6 +13,8 @@ import ProfileSetupPage from "./pages/profile-setup-page";
 import ForgotPasswordPage from "./pages/forgot-password-page";
 import SignupPage from "./pages/signup-page";
 import AdminUsersPage from "./pages/admin-users-page";
+import ProjectDetailPage from "./pages/project-detail-page";
+import TaskDetailPage from "./pages/task-detail-page";
 
 export default function RootRoute() {
   return (
@@ -30,6 +32,8 @@ export default function RootRoute() {
         <Route element={<ProfileRequiredLayout />}>
           <Route element={<GlobalLayout />}>
             <Route path="/" element={<IndexPage />} />
+            <Route path="/projects/:id" element={<ProjectDetailPage />} />
+            <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
 
             <Route element={<AdminOnlyLayout />}>

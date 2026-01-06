@@ -14,6 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      email_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          recipient_email: string
+          recipient_name: string | null
+          retry_count: number
+          sent_at: string | null
+          status: string
+          subject: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email: string
+          recipient_name?: string | null
+          retry_count?: number
+          sent_at?: string | null
+          status: string
+          subject: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email?: string | null
+          recipient_name?: string | null
+          retry_count?: number
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          created_at: string
+          deleted_at: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          message_type: Database["public"]["Enums"]["message_type"]
+          read_by: Json | null
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          message_type?: Database["public"]["Enums"]["message_type"]
+          read_by?: Json | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          message_type?: Database["public"]["Enums"]["message_type"]
+          read_by?: Json | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -56,15 +163,139 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          client_name: string
+          created_at: string
+          created_by: string
+          due_date: string | null
+          id: string
+          is_public: boolean
+          patent_name: string
+          status: Database["public"]["Enums"]["project_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_name: string
+          created_at?: string
+          created_by: string
+          due_date?: string | null
+          id?: string
+          is_public?: boolean
+          patent_name: string
+          status?: Database["public"]["Enums"]["project_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string
+          created_at?: string
+          created_by?: string
+          due_date?: string | null
+          id?: string
+          is_public?: boolean
+          patent_name?: string
+          status?: Database["public"]["Enums"]["project_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          assignee_id: string
+          assigner_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          project_id: string
+          task_status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_id: string
+          assigner_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          project_id: string
+          task_status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_id?: string
+          assigner_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          project_id?: string
+          task_status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_assigner_id_fkey"
+            columns: ["assigner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      can_access_profile: { Args: { target_user_id: string }; Returns: boolean }
+      has_project_access: {
+        Args: { project_id: string; user_id: string }
+        Returns: boolean
+      }
+      has_task_in_project: {
+        Args: { project_id: string; user_id: string }
+        Returns: boolean
+      }
       is_admin: { Args: { user_id: string }; Returns: boolean }
+      mark_message_as_read: {
+        Args: { message_id: string; reader_id: string }
+        Returns: undefined
+      }
+      mark_task_messages_as_read: {
+        Args: { reader_id: string; task_id_param: string }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      message_type: "USER" | "SYSTEM" | "FILE"
+      project_status: "inProgress" | "done"
+      task_status:
+        | "ASSIGNED"
+        | "IN_PROGRESS"
+        | "WAITING_CONFIRM"
+        | "APPROVED"
+        | "REJECTED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -191,6 +422,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      message_type: ["USER", "SYSTEM", "FILE"],
+      project_status: ["inProgress", "done"],
+      task_status: [
+        "ASSIGNED",
+        "IN_PROGRESS",
+        "WAITING_CONFIRM",
+        "APPROVED",
+        "REJECTED",
+      ],
+    },
   },
 } as const

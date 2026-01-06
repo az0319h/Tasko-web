@@ -13,16 +13,18 @@ export async function checkAdminPermission(): Promise<boolean> {
 
   if (!user) return false;
 
-  const { data, error } = await supabase.rpc("is_admin", {
-    user_id: user.id,
-  });
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
 
   if (error) {
     console.error("Admin permission check error:", error);
     return false;
   }
 
-  return data ?? false;
+  return data?.role === "admin";
 }
 
 /**
