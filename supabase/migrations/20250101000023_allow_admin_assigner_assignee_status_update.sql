@@ -30,3 +30,4 @@ WITH CHECK (
 COMMENT ON POLICY "tasks_update_status_assigner_assignee" ON public.tasks IS
 'Task UPDATE 정책 (상태 변경용): assigner 또는 assignee만 task_status 필드 수정 가능. Admin이 assigner/assignee인 경우에도 상태 변경 가능. 다른 필드는 변경 불가 (애플리케이션 레벨에서 제어).';
 
+

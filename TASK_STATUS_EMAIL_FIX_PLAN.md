@@ -426,3 +426,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
    - 로깅 추가 → 중간
    - 에러 처리 강화 → 낮음
 
+

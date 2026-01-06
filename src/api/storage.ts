@@ -44,6 +44,54 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
 }
 
 /**
+ * 파일 확장자에 따른 올바른 MIME type 매핑
+ * 브라우저가 인식하지 못하는 파일 형식(예: .hwp)의 경우 올바른 MIME type으로 변환
+ */
+const MIME_TYPE_MAP: Record<string, string> = {
+  // 문서 파일
+  hwp: "application/x-hwp",
+  hwpx: "application/x-hwpx",
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // 프레젠테이션 파일
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // 스프레드시트 파일
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv",
+  // 압축 파일
+  zip: "application/zip",
+  rar: "application/x-rar-compressed",
+  "7z": "application/x-7z-compressed",
+};
+
+/**
+ * 파일 확장자로부터 올바른 MIME type 가져오기
+ * @param fileName 파일명
+ * @param originalMimeType 브라우저가 인식한 원본 MIME type
+ * @returns 올바른 MIME type
+ */
+function getCorrectMimeType(fileName: string, originalMimeType: string): string {
+  const fileExt = fileName.split(".").pop()?.toLowerCase();
+  if (!fileExt) return originalMimeType;
+
+  // 확장자 기반 MIME type이 있으면 사용
+  if (MIME_TYPE_MAP[fileExt]) {
+    return MIME_TYPE_MAP[fileExt];
+  }
+
+  // 이미지 파일은 원본 MIME type 유지
+  if (originalMimeType.startsWith("image/")) {
+    return originalMimeType;
+  }
+
+  // 그 외는 원본 MIME type 유지
+  return originalMimeType;
+}
+
+/**
  * Task 채팅 파일 업로드
  * @param file 업로드할 파일
  * @param taskId Task ID
@@ -61,12 +109,26 @@ export async function uploadTaskFile(
   const fileName = `${taskId}/${userId}-${timestamp}.${fileExt}`;
   const filePath = fileName;
 
+  // 올바른 MIME type 가져오기
+  const correctMimeType = getCorrectMimeType(file.name, file.type);
+  
+  // MIME type이 변경된 경우 새 File 객체 생성
+  let fileToUpload = file;
+  if (file.type !== correctMimeType) {
+    console.log(`[Storage] MIME type corrected: ${file.type} → ${correctMimeType} for ${file.name}`);
+    fileToUpload = new File([file], file.name, {
+      type: correctMimeType,
+      lastModified: file.lastModified,
+    });
+  }
+
   // 파일 업로드
   const { data, error } = await supabase.storage
     .from("task-files")
-    .upload(filePath, file, {
+    .upload(filePath, fileToUpload, {
       cacheControl: "3600",
       upsert: false,
+      contentType: correctMimeType, // 명시적으로 MIME type 지정
     });
 
   if (error) {
@@ -81,7 +143,7 @@ export async function uploadTaskFile(
   return {
     url: publicUrl,
     fileName: file.name,
-    fileType: file.type,
+    fileType: correctMimeType, // 올바른 MIME type 반환
     fileSize: file.size,
   };
 }
@@ -158,5 +220,45 @@ export async function getAvatarUrl(userId: string): Promise<string | null> {
   } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(filePath);
 
   return publicUrl;
+}
+
+/**
+ * Task 파일 삭제
+ * @param fileUrl 삭제할 파일의 URL
+ */
+export async function deleteTaskFile(fileUrl: string): Promise<void> {
+  try {
+    const urlObj = new URL(fileUrl);
+    const pathParts = urlObj.pathname.split("/");
+    const bucketIndex = pathParts.findIndex((part) => part === TASK_FILES_BUCKET);
+    
+    if (bucketIndex === -1) {
+      throw new Error("Invalid file URL");
+    }
+    
+    const path = pathParts.slice(bucketIndex + 1).join("/");
+    const { error } = await supabase.storage
+      .from(TASK_FILES_BUCKET)
+      .remove([path]);
+
+    if (error) throw error;
+  } catch (err: any) {
+    // URL 파싱 실패 시 기존 방식으로 시도
+    const urlParts = fileUrl.split("/");
+    const pathIndex = urlParts.findIndex((part) => part === TASK_FILES_BUCKET);
+    
+    if (pathIndex === -1) {
+      throw new Error(`파일 삭제 실패: Invalid file URL`);
+    }
+    
+    const path = urlParts.slice(pathIndex + 1).join("/");
+    const { error: storageError } = await supabase.storage
+      .from(TASK_FILES_BUCKET)
+      .remove([path]);
+
+    if (storageError) {
+      throw new Error(`파일 삭제 실패: ${storageError.message}`);
+    }
+  }
 }
 

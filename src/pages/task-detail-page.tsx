@@ -15,6 +15,8 @@ import {
   useMarkTaskMessagesAsRead,
   useRealtimeMessages,
   useTypingIndicator,
+  useChatPresence,
+  useDeleteMessage,
 } from "@/hooks";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import { canEditTask } from "@/lib/project-permissions";
@@ -24,9 +26,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
+import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
+import { isMessageReadByCounterpart } from "@/api/message";
 import { uploadTaskFile, getTaskFileDownloadUrl } from "@/api/storage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,11 +52,14 @@ export default function TaskDetailPage() {
   const updateTask = useUpdateTask();
   const updateTaskStatus = useUpdateTaskStatus();
   const deleteTask = useDeleteTask();
+  const deleteMessage = useDeleteMessage();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
   const [pendingNewStatus, setPendingNewStatus] = useState<TaskStatus | null>(null);
+  const [messageDeleteDialogOpen, setMessageDeleteDialogOpen] = useState(false);
+  const [pendingDeleteMessage, setPendingDeleteMessage] = useState<MessageWithProfile | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // Draft 상태의 파일들
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set()); // 업로드 중인 파일 이름들
@@ -61,21 +68,73 @@ export default function TaskDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevIsPresentRef = useRef<boolean>(false); // 이전 Presence 상태 추적
+  const lastMarkAsReadTimeRef = useRef<number>(0); // 마지막 읽음 처리 시간 (중복 호출 방지용)
 
   const currentUserId = currentProfile?.id;
 
-  // Realtime 구독 활성화
-  useRealtimeMessages(taskId, !!taskId);
+  // Presence 추적 (채팅 화면에 사용자가 존재함을 실시간으로 추적)
+  const { isPresent } = useChatPresence(taskId, !!taskId);
+
+  // Realtime 구독 활성화 (Presence 상태 전달)
+  useRealtimeMessages(taskId, !!taskId, isPresent);
 
   // Typing indicator
   const { typingUsers, sendTyping, stopTyping } = useTypingIndicator(taskId, !!taskId);
 
-  // 채팅 화면 진입 시 모든 메시지 읽음 처리
+  // 케이스 1: 초기 로드 시 읽음 처리 (taskId 변경 시)
+  // taskId가 변경되면 초기 로드로 간주하고, Presence가 활성화되어 있을 때 읽음 처리
   useEffect(() => {
-    if (taskId && currentUserId) {
-      markMessagesAsRead.mutate(taskId);
+    if (taskId && currentUserId && isPresent) {
+      // taskId가 변경되면 초기 로드로 간주
+      const now = Date.now();
+      // 1초 이내 중복 호출 방지
+      if (now - lastMarkAsReadTimeRef.current > 1000) {
+        lastMarkAsReadTimeRef.current = now;
+        console.log(`[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load)`);
+        markMessagesAsRead.mutate(taskId, {
+          onSuccess: () => {
+            console.log(`[TaskDetail] ✅ Case 1: Successfully marked all messages as read for task ${taskId}`);
+          },
+          onError: (error) => {
+            console.error(`[TaskDetail] ❌ Case 1: Failed to mark messages as read:`, error);
+            lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
+          },
+        });
+      }
     }
-  }, [taskId, currentUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId, currentUserId]); // taskId 변경 시에만 실행 (isPresent는 체크만 하고 의존성에는 포함하지 않음)
+
+  // 케이스 2: 채팅 화면 재진입 시 읽음 처리 (Presence false → true 전환)
+  useEffect(() => {
+    if (taskId && currentUserId && isPresent && !prevIsPresentRef.current) {
+      // Presence가 false → true로 전환된 경우 (재진입)
+      const now = Date.now();
+      // 1초 이내 중복 호출 방지
+      if (now - lastMarkAsReadTimeRef.current > 1000) {
+        lastMarkAsReadTimeRef.current = now;
+        console.log(`[TaskDetail] 📖 Case 2: Marking all messages as read for task ${taskId} (presence reactivated)`);
+        markMessagesAsRead.mutate(taskId, {
+          onSuccess: () => {
+            console.log(`[TaskDetail] ✅ Case 2: Successfully marked all messages as read for task ${taskId}`);
+          },
+          onError: (error) => {
+            console.error(`[TaskDetail] ❌ Case 2: Failed to mark messages as read:`, error);
+            lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
+          },
+        });
+      }
+    }
+    // 이전 Presence 상태 업데이트
+    prevIsPresentRef.current = isPresent;
+  }, [taskId, currentUserId, isPresent, markMessagesAsRead]);
+
+  // taskId 변경 시 ref 리셋
+  useEffect(() => {
+    prevIsPresentRef.current = false;
+    lastMarkAsReadTimeRef.current = 0;
+  }, [taskId]);
 
   // 새 메시지 수신 시 스크롤 하단으로 이동
   useEffect(() => {
@@ -205,6 +264,17 @@ export default function TaskDetailPage() {
     navigate(`/projects/${task.project_id}`);
   };
 
+  // 메시지 삭제 핸들러
+  const handleDeleteMessageClick = (message: MessageWithProfile) => {
+    setPendingDeleteMessage(message);
+    setMessageDeleteDialogOpen(true);
+  };
+
+  const handleDeleteMessageConfirm = async () => {
+    if (!pendingDeleteMessage) return;
+    await deleteMessage.mutateAsync(pendingDeleteMessage.id);
+  };
+
   // 메시지 전송 핸들러 (텍스트 + 파일 통합)
   const handleSendMessage = async () => {
     if (!taskId || createMessageWithFiles.isPending) return;
@@ -250,12 +320,21 @@ export default function TaskDetailPage() {
           content,
           files: uploadedFiles,
         });
+        
+        // 전송 성공 후 입력창에 포커스 복원
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 0);
       }
     } catch (error: any) {
       // 에러 발생 시 입력 복원
       setMessageInput(content || "");
       setAttachedFiles(filesToUpload);
       toast.error(error.message || "메시지 전송에 실패했습니다.");
+      // 에러 발생 시에도 포커스 유지 (사용자가 바로 수정할 수 있도록)
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -346,11 +425,20 @@ export default function TaskDetailPage() {
     return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
   };
 
-  // 메시지가 읽혔는지 확인
+  // 메시지가 상대방(assigner 또는 assignee)에 의해 읽혔는지 확인
   const isMessageRead = (message: MessageWithProfile): boolean => {
-    if (!currentUserId || message.user_id === currentUserId) return false; // 본인 메시지는 읽음 표시 안 함
-    const readBy = message.read_by || [];
-    return Array.isArray(readBy) && readBy.includes(currentUserId);
+    if (!currentUserId || !task || !task.assigner_id || !task.assignee_id) {
+      return false;
+    }
+    try {
+      return isMessageReadByCounterpart(message, currentUserId, {
+        assigner_id: task.assigner_id,
+        assignee_id: task.assignee_id,
+      });
+    } catch (error) {
+      console.error("읽음 상태 확인 중 에러:", error);
+      return false;
+    }
   };
 
   // SYSTEM 메시지의 이벤트 타입 판단
@@ -647,19 +735,38 @@ export default function TaskDetailPage() {
                                   {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
                                 </p>
                               </div>
-                              <a
-                                href={getTaskFileDownloadUrl(message.file_url || "")}
-                                download={message.file_name}
-                                className="ml-2"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Download className="h-4 w-4" />
-                              </a>
+                              <div className="flex items-center gap-1">
+                                <a
+                                  href={getTaskFileDownloadUrl(message.file_url || "")}
+                                  download={message.file_name}
+                                  className="ml-2"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </a>
+                                {isMine && (
+                                  <button
+                                    onClick={() => handleDeleteMessageClick(message)}
+                                    className="p-1 hover:bg-primary/20 rounded"
+                                    aria-label="메시지 삭제"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <span className="text-xs text-muted-foreground mt-1 px-1">
-                            {formatMessageTime(message.created_at)}
-                          </span>
+                          <div className="flex items-center gap-1 mt-1 px-1">
+                            <span className="text-xs text-muted-foreground">
+                              {formatMessageTime(message.created_at)}
+                            </span>
+                            {/* 읽음 표시 (본인이 보낸 메시지만) */}
+                            {isMine && isMessageRead(message) && (
+                              <span className="text-xs text-muted-foreground">
+                                읽음
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -688,24 +795,35 @@ export default function TaskDetailPage() {
                             {message.sender?.full_name || message.sender?.email || "사용자"}
                           </span>
                         )}
-                        <div
-                          className={cn(
-                            "rounded-lg px-4 py-2",
-                            isMine
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-foreground"
+                        <div className="relative group">
+                          <div
+                            className={cn(
+                              "rounded-lg px-4 py-2",
+                              isMine
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-foreground"
+                            )}
+                          >
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          </div>
+                          {isMine && (
+                            <button
+                              onClick={() => handleDeleteMessageClick(message)}
+                              className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
+                              aria-label="메시지 삭제"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
                           )}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         </div>
                         <div className="flex items-center gap-1 mt-1 px-1">
                           <span className="text-xs text-muted-foreground">
                             {formatMessageTime(message.created_at)}
                           </span>
                           {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                          {isMine && (
+                          {isMine && isMessageRead(message) && (
                             <span className="text-xs text-muted-foreground">
-                              {isMessageRead(message) ? "✓✓" : "✓"}
+                              읽음
                             </span>
                           )}
                         </div>
@@ -754,7 +872,7 @@ export default function TaskDetailPage() {
                 multiple
                 className="hidden"
                 onChange={handleFileSelect}
-                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.zip,.rar,.7z"
               />
               <Paperclip className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
@@ -862,6 +980,15 @@ export default function TaskDetailPage() {
           isLoading={updateTaskStatus.isPending}
         />
       )}
+
+      {/* 메시지 삭제 확인 다이얼로그 */}
+      <MessageDeleteDialog
+        open={messageDeleteDialogOpen}
+        onOpenChange={setMessageDeleteDialogOpen}
+        message={pendingDeleteMessage}
+        onConfirm={handleDeleteMessageConfirm}
+        isLoading={deleteMessage.isPending}
+      />
     </div>
   );
 }

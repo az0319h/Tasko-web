@@ -136,3 +136,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Update comment
 COMMENT ON FUNCTION public.send_task_status_change_email() IS 'Trigger function that sends email notifications when task status changes via Edge Function. Uses hardcoded URL and Service Role Key (same as task creation trigger). Includes REJECTED → IN_PROGRESS transition (업무 재진행 시작 알림).';
 
+

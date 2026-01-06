@@ -7,7 +7,17 @@
 -- Bucket name: task-files
 -- Public: true (for easy file access)
 -- File size limit: 10MB (enforced at application level)
--- Allowed MIME types: image/*, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+-- Allowed MIME types:
+--   문서: image/*, application/pdf, application/msword (.doc), 
+--         application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx),
+--         application/x-hwp (.hwp), application/x-hwpx (.hwpx)
+--   프레젠테이션: application/vnd.ms-powerpoint (.ppt),
+--                application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx)
+--   스프레드시트: application/vnd.ms-excel (.xls),
+--                application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx),
+--                text/csv (.csv)
+--   압축 파일: application/zip (.zip), application/x-rar-compressed (.rar),
+--             application/x-7z-compressed (.7z)
 
 -- Create or update the bucket (bucket already exists, so we update it)
 UPDATE storage.buckets
@@ -15,12 +25,31 @@ SET
   public = true,
   file_size_limit = 10485760, -- 10MB in bytes
   allowed_mime_types = ARRAY[
+    -- 이미지 파일
     'image/*',
+    -- 문서 파일
     'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    'application/msword',  -- .doc
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  -- .docx
+    'application/x-hwp',  -- .hwp (한글 문서)
+    'application/haansofthwp',  -- .hwp (대체 MIME type)
+    'application/x-hwpx',  -- .hwpx (한글 신버전)
+    'application/haansofthwpx',  -- .hwpx (대체 MIME type)
+    -- 프레젠테이션 파일
+    'application/vnd.ms-powerpoint',  -- .ppt
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',  -- .pptx
+    -- 스프레드시트 파일
+    'application/vnd.ms-excel',  -- .xls
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  -- .xlsx
+    'text/csv',  -- .csv
+    'application/csv',  -- .csv (대체 MIME type)
+    -- 압축 파일
+    'application/zip',  -- .zip
+    'application/x-rar-compressed',  -- .rar
+    'application/vnd.rar',  -- .rar (대체 MIME type)
+    'application/x-7z-compressed',  -- .7z
+    -- 브라우저가 인식하지 못하는 파일 형식 (확장자 기반 검증 필요)
+    'application/octet-stream'  -- .hwp, .hwpx 등이 브라우저에서 이 타입으로 인식될 수 있음
   ]
 WHERE id = 'task-files';
 

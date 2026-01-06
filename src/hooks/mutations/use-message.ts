@@ -5,6 +5,7 @@ import {
   createMessageWithFiles,
   markMessageAsRead,
   markTaskMessagesAsRead,
+  deleteMessage,
   type MessageInsert,
 } from "@/api/message";
 import { toast } from "sonner";
@@ -158,6 +159,58 @@ export function useMarkTaskMessagesAsRead() {
     onSuccess: (_, taskId) => {
       // 읽음 처리 후 메시지 목록 무효화
       queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+    },
+  });
+}
+
+/**
+ * 메시지 삭제 뮤테이션 훅 (optimistic update 적용)
+ */
+export function useDeleteMessage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (messageId: string) => deleteMessage(messageId),
+    onMutate: async (messageId) => {
+      // 진행 중인 쿼리 취소
+      await queryClient.cancelQueries({ queryKey: ["messages"] });
+
+      // 모든 메시지 쿼리에서 해당 메시지 찾기
+      const queryCache = queryClient.getQueryCache();
+      const messageQueries = queryCache.findAll({ queryKey: ["messages"] });
+
+      // 이전 값 백업 (롤백용)
+      const previousMessagesMap = new Map();
+      messageQueries.forEach((query) => {
+        const data = queryClient.getQueryData(query.queryKey);
+        if (data) {
+          previousMessagesMap.set(query.queryKey, data);
+        }
+      });
+
+      // Optimistic update: 메시지 목록에서 제거
+      messageQueries.forEach((query) => {
+        queryClient.setQueryData(query.queryKey, (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.filter((msg: any) => msg.id !== messageId);
+        });
+      });
+
+      return { previousMessagesMap };
+    },
+    onError: (error, messageId, context) => {
+      // 롤백: 모든 쿼리 복원
+      if (context?.previousMessagesMap) {
+        context.previousMessagesMap.forEach((data, queryKey) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      toast.error(error.message || "메시지 삭제에 실패했습니다.");
+    },
+    onSuccess: () => {
+      // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      toast.success("메시지가 삭제되었습니다.");
     },
   });
 }
