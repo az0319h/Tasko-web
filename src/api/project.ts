@@ -8,6 +8,7 @@ export type ProjectUpdate = TablesUpdate<"projects">;
 /**
  * 프로젝트 목록 조회
  * RLS 정책에 따라 Admin은 모든 프로젝트, Member는 Public 프로젝트 또는 Task 참여한 Private 프로젝트만 조회
+ * 전체 데이터를 한 번에 반환 (클라이언트 사이드에서 필터링/페이지네이션 처리)
  */
 export async function getProjects(): Promise<Project[]> {
   const { data, error } = await supabase

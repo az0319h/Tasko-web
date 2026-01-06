@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { Search, Plus, Filter, Pencil, Trash2 } from "lucide-react";
 import {
   useProjects,
@@ -24,14 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { CustomDropdown, CustomDropdownItem } from "@/components/common/custom-dropdown";
 import DefaultSpinner from "@/components/common/default-spinner";
+import { TablePagination } from "@/components/common/table-pagination";
 import type { Project } from "@/api/project";
 import type { ProjectFormData } from "@/schemas/project/project-schema";
 
@@ -61,8 +54,8 @@ type SortOrder = "newest" | "oldest";
  * 홈 대시보드 - 프로젝트 목록 페이지
  */
 export default function IndexPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { data: projects, isLoading } = useProjects();
+  // 전체 데이터 fetch (최초 1회만)
+  const { data: allProjects = [], isLoading } = useProjects();
   const { data: isAdmin } = useIsAdmin();
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
@@ -74,60 +67,18 @@ export default function IndexPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  // URL에서 필터 상태 읽기
-  const searchQuery = searchParams.get("search") || "";
-  const statusFilter = (searchParams.get("status") || "all") as ProjectStatusFilter;
-  const sortOrder = (searchParams.get("sort") || "newest") as SortOrder;
-
-  // 로컬 상태
-  const [localSearch, setLocalSearch] = useState(searchQuery);
-  const debouncedSearch = useDebounce(localSearch, 300);
-
+  // 검색 및 필터 상태 (로컬 상태)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  // URL 업데이트
-  const updateSearchParams = (updates: {
-    search?: string;
-    status?: ProjectStatusFilter;
-    sort?: SortOrder;
-  }) => {
-    const newParams = new URLSearchParams(searchParams);
-    
-    if (updates.search !== undefined) {
-      if (updates.search) {
-        newParams.set("search", updates.search);
-      } else {
-        newParams.delete("search");
-      }
-    }
-    
-    if (updates.status !== undefined) {
-      if (updates.status === "all") {
-        newParams.delete("status");
-      } else {
-        newParams.set("status", updates.status);
-      }
-    }
-    
-    if (updates.sort !== undefined) {
-      if (updates.sort === "newest") {
-        newParams.delete("sort");
-      } else {
-        newParams.set("sort", updates.sort);
-      }
-    }
-    
-    setSearchParams(newParams, { replace: true });
-  };
-
-  // debounced 검색어를 URL에 반영
-  useEffect(() => {
-    if (debouncedSearch !== searchQuery) {
-      updateSearchParams({ search: debouncedSearch });
-    }
-  }, [debouncedSearch, searchQuery]);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  
+  // 검색어 debounce (서버 재요청 없이 로컬 상태만)
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   // 프로젝트 생성 핸들러
   const handleCreateProject = async (data: ProjectFormData) => {
@@ -197,11 +148,9 @@ export default function IndexPage() {
     setDeleteDialogOpen(true);
   };
 
-  // 필터링 및 정렬된 프로젝트 목록
+  // 클라이언트 사이드 필터링 및 정렬 (useMemo로 최적화)
   const filteredProjects = useMemo(() => {
-    if (!projects) return [];
-
-    let filtered = [...projects];
+    let filtered = [...allProjects];
 
     // 검색 필터
     if (debouncedSearch) {
@@ -229,51 +178,57 @@ export default function IndexPage() {
     });
 
     return filtered;
-  }, [projects, debouncedSearch, statusFilter, sortOrder]);
+  }, [allProjects, debouncedSearch, statusFilter, sortOrder]);
 
-  // 페이지네이션된 프로젝트 목록
+  // 클라이언트 사이드 페이지네이션 (slice 방식)
   const paginatedProjects = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return filteredProjects.slice(startIndex, endIndex);
-  }, [filteredProjects, currentPage]);
+  }, [filteredProjects, currentPage, itemsPerPage]);
 
   // 총 페이지 수
-  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage) || 1;
 
-  // 페이지 변경 시 URL 업데이트
-  useEffect(() => {
-    const pageParam = searchParams.get("page");
-    const page = pageParam ? parseInt(pageParam, 10) : 1;
-    if (page !== currentPage && page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    } else if (pageParam && (page < 1 || page > totalPages)) {
-      // 잘못된 페이지 번호면 1페이지로 리다이렉트
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete("page");
-      setSearchParams(newParams, { replace: true });
-      setCurrentPage(1);
-    }
-  }, [searchParams, totalPages, currentPage, setSearchParams]);
-
-  // 필터/검색 변경 시 1페이지로 리셋
+  // 검색어/필터 변경 시 1페이지로 리셋
   useEffect(() => {
     setCurrentPage(1);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.delete("page");
-    setSearchParams(newParams, { replace: true });
-  }, [debouncedSearch, statusFilter, sortOrder, setSearchParams]);
+  }, [debouncedSearch, statusFilter, sortOrder]);
+
+  // 잘못된 페이지 번호 체크 및 리셋
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  // 검색어 변경 핸들러
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    // useEffect에서 자동으로 페이지 리셋됨
+  };
+
+  // 상태 필터 변경 핸들러
+  const handleStatusFilterChange = (value: ProjectStatusFilter) => {
+    setStatusFilter(value);
+    // useEffect에서 자동으로 페이지 리셋됨
+  };
+
+  // 정렬 변경 핸들러
+  const handleSortOrderChange = (value: SortOrder) => {
+    setSortOrder(value);
+    // useEffect에서 자동으로 페이지 리셋됨
+  };
 
   // 페이지 변경 핸들러
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    const newParams = new URLSearchParams(searchParams);
-    if (page === 1) {
-      newParams.delete("page");
-    } else {
-      newParams.set("page", page.toString());
-    }
-    setSearchParams(newParams, { replace: true });
+  };
+
+  // 페이지 크기 변경 핸들러
+  const handlePageSizeChange = (newPageSize: number) => {
+    setItemsPerPage(newPageSize);
+    setCurrentPage(1); // 페이지 크기 변경 시 1페이지로
   };
 
   if (isLoading) {
@@ -308,8 +263,8 @@ export default function IndexPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="프로젝트 제목, 클라이언트명, 특허명으로 검색..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -317,7 +272,7 @@ export default function IndexPage() {
           <Select
             value={statusFilter}
             onValueChange={(value) =>
-              updateSearchParams({ status: value as ProjectStatusFilter })
+              handleStatusFilterChange(value as ProjectStatusFilter)
             }
           >
             <SelectTrigger className="w-[140px]">
@@ -333,7 +288,7 @@ export default function IndexPage() {
           <Select
             value={sortOrder}
             onValueChange={(value) =>
-              updateSearchParams({ sort: value as SortOrder })
+              handleSortOrderChange(value as SortOrder)
             }
           >
             <SelectTrigger className="w-[140px]">
@@ -409,54 +364,16 @@ export default function IndexPage() {
       />
 
       {/* 페이지네이션 */}
-      {totalPages > 1 && (
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              />
-            </PaginationItem>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-              // 처음 3페이지, 마지막 3페이지, 현재 페이지 주변만 표시
-              if (
-                page === 1 ||
-                page === totalPages ||
-                (page >= currentPage - 1 && page <= currentPage + 1)
-              ) {
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      onClick={() => handlePageChange(page)}
-                      isActive={page === currentPage}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              } else if (
-                page === currentPage - 2 ||
-                page === currentPage + 2
-              ) {
-                return (
-                  <PaginationItem key={page}>
-                    <span className="flex h-9 w-9 items-center justify-center">
-                      ...
-                    </span>
-                  </PaginationItem>
-                );
-              }
-              return null;
-            })}
-            <PaginationItem>
-              <PaginationNext
-                onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+      {filteredProjects.length > 0 && (
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={itemsPerPage}
+          totalItems={filteredProjects.length}
+          selectedCount={selectedRows.size}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
       )}
 
       {/* 프로젝트 삭제 다이얼로그 */}

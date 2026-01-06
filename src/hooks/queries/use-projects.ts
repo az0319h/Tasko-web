@@ -5,6 +5,7 @@ import type { Project } from "@/api/project";
 /**
  * 프로젝트 목록 조회 훅
  * RLS 정책에 따라 권한별로 다른 프로젝트 목록을 반환
+ * 전체 데이터를 한 번에 fetch (클라이언트 사이드에서 필터링/페이지네이션 처리)
  */
 export function useProjects() {
   return useQuery<Project[]>({
