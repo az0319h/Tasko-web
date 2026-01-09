@@ -53,7 +53,7 @@ export async function getMessagesByTaskId(taskId: string): Promise<MessageWithPr
 
 /**
  * 메시지 생성
- * Task 접근 권한이 있으면 메시지 작성 가능
+ * 지시자 또는 담당자만 메시지 작성 가능
  */
 export async function createMessage(message: MessageInsert): Promise<Message> {
   const { data: session } = await supabase.auth.getSession();
@@ -61,11 +61,29 @@ export async function createMessage(message: MessageInsert): Promise<Message> {
     throw new Error("인증이 필요합니다.");
   }
 
+  const userId = session.session.user.id;
+
+  // Task 조회하여 지시자/담당자 확인
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("assigner_id, assignee_id")
+    .eq("id", message.task_id)
+    .single();
+
+  if (taskError || !task) {
+    throw new Error("Task를 찾을 수 없습니다.");
+  }
+
+  // 지시자 또는 담당자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id) {
+    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  }
+
   const { data, error } = await supabase
     .from("messages")
     .insert({
       ...message,
-      user_id: session.session.user.id,
+      user_id: userId,
       read_by: [], // 초기값: 빈 배열
     })
     .select()
@@ -81,6 +99,7 @@ export async function createMessage(message: MessageInsert): Promise<Message> {
 /**
  * 파일 메시지 생성
  * Supabase Storage에 업로드된 파일의 URL을 포함하여 메시지 생성
+ * 지시자 또는 담당자만 메시지 작성 가능
  */
 export async function createFileMessage(
   taskId: string,
@@ -94,11 +113,29 @@ export async function createFileMessage(
     throw new Error("인증이 필요합니다.");
   }
 
+  const userId = session.session.user.id;
+
+  // Task 조회하여 지시자/담당자 확인
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("assigner_id, assignee_id")
+    .eq("id", taskId)
+    .single();
+
+  if (taskError || !task) {
+    throw new Error("Task를 찾을 수 없습니다.");
+  }
+
+  // 지시자 또는 담당자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id) {
+    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  }
+
   const { data, error } = await supabase
     .from("messages")
     .insert({
       task_id: taskId,
-      user_id: session.session.user.id,
+      user_id: userId,
       content: fileName, // 파일명을 content로 사용
       message_type: "FILE",
       file_url: fileUrl,
@@ -120,6 +157,7 @@ export async function createFileMessage(
 /**
  * 텍스트와 파일을 함께 포함한 메시지 생성
  * 텍스트가 있으면 텍스트 메시지로, 파일이 있으면 파일 메시지로 각각 생성
+ * 지시자 또는 담당자만 메시지 작성 가능
  */
 export async function createMessageWithFiles(
   taskId: string,
@@ -131,6 +169,24 @@ export async function createMessageWithFiles(
     throw new Error("인증이 필요합니다.");
   }
 
+  const userId = session.session.user.id;
+
+  // Task 조회하여 지시자/담당자 확인
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("assigner_id, assignee_id")
+    .eq("id", taskId)
+    .single();
+
+  if (taskError || !task) {
+    throw new Error("Task를 찾을 수 없습니다.");
+  }
+
+  // 지시자 또는 담당자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id) {
+    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  }
+
   const messages: Message[] = [];
 
   // 파일 메시지들을 먼저 생성 (UI에서 파일이 먼저 표시되도록)
@@ -139,7 +195,7 @@ export async function createMessageWithFiles(
       .from("messages")
       .insert({
         task_id: taskId,
-        user_id: session.session.user.id,
+        user_id: userId,
         content: file.fileName,
         message_type: "FILE",
         file_url: file.url,
@@ -163,7 +219,7 @@ export async function createMessageWithFiles(
       .from("messages")
       .insert({
         task_id: taskId,
-        user_id: session.session.user.id,
+        user_id: userId,
         content: content.trim(),
         message_type: "USER",
         read_by: [],
@@ -193,7 +249,7 @@ export async function markMessageAsRead(messageId: string): Promise<void> {
   const { error } = await supabase.rpc("mark_message_as_read", {
     message_id: messageId,
     reader_id: session.session.user.id,
-  });
+  } as any);
 
   if (error) {
     throw new Error(`메시지 읽음 처리 실패: ${error.message}`);
@@ -212,8 +268,8 @@ export async function markTaskMessagesAsRead(taskId: string): Promise<void> {
 
   const { error } = await supabase.rpc("mark_task_messages_as_read", {
     task_id_param: taskId,
-    reader_id: session.session.user.id,
-  });
+    reader_id_param: session.session.user.id,
+  } as any);
 
   if (error) {
     throw new Error(`메시지 읽음 처리 실패: ${error.message}`);

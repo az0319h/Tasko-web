@@ -43,7 +43,7 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
-          recipient_email?: string | null
+          recipient_email?: string
           recipient_name?: string | null
           retry_count?: number
           sent_at?: string | null
@@ -63,7 +63,7 @@ export type Database = {
       }
       messages: {
         Row: {
-          content: string
+          content: string | null
           created_at: string
           deleted_at: string | null
           file_name: string | null
@@ -77,7 +77,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          content: string
+          content?: string | null
           created_at?: string
           deleted_at?: string | null
           file_name?: string | null
@@ -91,7 +91,7 @@ export type Database = {
           user_id: string
         }
         Update: {
-          content?: string
+          content?: string | null
           created_at?: string
           deleted_at?: string | null
           file_name?: string | null
@@ -163,6 +163,55 @@ export type Database = {
         }
         Relationships: []
       }
+      project_participants: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string
+          invited_by: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_participants_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_participants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           client_name: string
@@ -170,9 +219,6 @@ export type Database = {
           created_by: string
           due_date: string | null
           id: string
-          is_public: boolean
-          patent_name: string
-          status: Database["public"]["Enums"]["project_status"]
           title: string
           updated_at: string
         }
@@ -182,9 +228,6 @@ export type Database = {
           created_by: string
           due_date?: string | null
           id?: string
-          is_public?: boolean
-          patent_name: string
-          status?: Database["public"]["Enums"]["project_status"]
           title: string
           updated_at?: string
         }
@@ -194,9 +237,6 @@ export type Database = {
           created_by?: string
           due_date?: string | null
           id?: string
-          is_public?: boolean
-          patent_name?: string
-          status?: Database["public"]["Enums"]["project_status"]
           title?: string
           updated_at?: string
         }
@@ -204,37 +244,37 @@ export type Database = {
       }
       tasks: {
         Row: {
-          assignee_id: string
-          assigner_id: string
+          assignee_id: string | null
+          assigner_id: string | null
           created_at: string
-          description: string | null
           due_date: string | null
           id: string
           project_id: string
+          task_category: Database["public"]["Enums"]["task_category"]
           task_status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
         }
         Insert: {
-          assignee_id: string
-          assigner_id: string
+          assignee_id?: string | null
+          assigner_id?: string | null
           created_at?: string
-          description?: string | null
           due_date?: string | null
           id?: string
           project_id: string
+          task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
         }
         Update: {
-          assignee_id?: string
-          assigner_id?: string
+          assignee_id?: string | null
+          assigner_id?: string | null
           created_at?: string
-          description?: string | null
           due_date?: string | null
           id?: string
           project_id?: string
+          task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -269,27 +309,79 @@ export type Database = {
     }
     Functions: {
       can_access_profile: { Args: { target_user_id: string }; Returns: boolean }
+      create_project_with_participants: {
+        Args: {
+          p_client_name: string
+          p_due_date: string
+          p_opportunity: string
+          p_participant_ids: string[]
+        }
+        Returns: string
+      }
+      get_active_profiles: {
+        Args: never
+        Returns: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          is_active: boolean | null
+          phone: string | null
+          position: string | null
+          profile_completed: boolean | null
+          role: string | null
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_project_summaries: {
+        Args: never
+        Returns: {
+          client_name: string
+          created_at: string
+          due_date: string
+          id: string
+          opportunity: string
+          task_counts: Json
+        }[]
+      }
       has_project_access: {
         Args: { project_id: string; user_id: string }
         Returns: boolean
       }
-      has_task_in_project: {
-        Args: { project_id: string; user_id: string }
+      is_admin: { Args: { user_id: string }; Returns: boolean }
+      is_project_participant: {
+        Args: { query_project_id: string; query_user_id: string }
         Returns: boolean
       }
-      is_admin: { Args: { user_id: string }; Returns: boolean }
       mark_message_as_read: {
-        Args: { message_id: string; reader_id: string }
+        Args: { message_id_param: string; reader_id_param: string }
         Returns: undefined
       }
       mark_task_messages_as_read: {
-        Args: { reader_id: string; task_id_param: string }
+        Args: { reader_id_param: string; task_id_param: string }
         Returns: undefined
+      }
+      search_profiles_for_invite: {
+        Args: { search_term: string }
+        Returns: {
+          avatar_url: string
+          email: string
+          full_name: string
+          id: string
+          role: string
+        }[]
       }
     }
     Enums: {
       message_type: "USER" | "SYSTEM" | "FILE"
-      project_status: "inProgress" | "done"
+      task_category: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
       task_status:
         | "ASSIGNED"
         | "IN_PROGRESS"
@@ -424,7 +516,7 @@ export const Constants = {
   public: {
     Enums: {
       message_type: ["USER", "SYSTEM", "FILE"],
-      project_status: ["inProgress", "done"],
+      task_category: ["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"],
       task_status: [
         "ASSIGNED",
         "IN_PROGRESS",

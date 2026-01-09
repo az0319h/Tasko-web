@@ -61,45 +61,69 @@ export function useRealtimeMessages(
             filter: `task_id=eq.${taskId}`,
           },
           async (payload: RealtimePostgresChangesPayload<any>) => {
-            console.log(`[Realtime] Message change detected for task ${taskId}:`, payload.eventType);
+            console.log(`[Realtime] Message change detected for task ${taskId}:`, payload.eventType, payload);
 
-            // ⚠️ 중요: INSERT 이벤트에서만 읽음 처리 실행
-            // UPDATE(read_by 변경) 이벤트는 읽음 처리 로직을 절대 실행하지 않음
-            if (payload.eventType === "INSERT" && isPresent && currentProfile?.id) {
+            // INSERT 이벤트: 새 메시지가 생성됨
+            if (payload.eventType === "INSERT") {
               const newMessage = payload.new;
               const messageUserId = newMessage?.user_id;
               const messageId = newMessage?.id;
 
-              // 상대방 메시지인 경우에만 읽음 처리
-              if (messageUserId && messageUserId !== currentProfile.id && messageId) {
+              console.log(`[Realtime] 📨 New message inserted: ${messageId} from user ${messageUserId}`);
+
+              // 먼저 쿼리 무효화하여 새 메시지 즉시 표시
+              queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+
+              // 상대방 메시지이고 현재 사용자가 채팅 화면에 있는 경우 읽음 처리
+              if (
+                isPresent &&
+                currentProfile?.id &&
+                messageUserId &&
+                messageUserId !== currentProfile.id &&
+                messageId
+              ) {
                 // Guard: 이미 읽은 메시지인지 확인
-                const readBy = newMessage?.read_by;
-                const isAlreadyRead = Array.isArray(readBy) && readBy.includes(currentProfile.id);
+                const readBy = newMessage?.read_by || [];
+                const isAlreadyRead = Array.isArray(readBy) && readBy.some((id: string) => String(id) === String(currentProfile.id));
 
                 if (!isAlreadyRead) {
                   try {
                     console.log(`[Realtime] 📖 Marking message as read (real-time): ${messageId}`);
                     await markMessageAsRead(messageId);
-                    // 읽음 처리 후 쿼리 무효화하여 UI 즉시 반영
+                    // 읽음 처리 후 쿼리 다시 무효화하여 읽음 상태 반영
                     queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
                   } catch (error) {
                     console.error(`[Realtime] ❌ Failed to mark message as read:`, error);
-                    // 읽음 처리 실패해도 쿼리 무효화는 진행 (메시지 목록 갱신)
-                    queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+                    // 읽음 처리 실패해도 쿼리 무효화는 이미 진행됨
                   }
                 } else {
                   console.log(`[Realtime] ⏭️ Message ${messageId} already read, skipping`);
-                  // 이미 읽은 메시지이면 쿼리만 무효화
-                  queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
                 }
-              } else {
-                // 본인 메시지이거나 Presence 상태가 아니면 쿼리만 무효화
-                queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
               }
-            } else {
-              // UPDATE, DELETE 이벤트 또는 INSERT이지만 Presence 상태가 아닌 경우
-              // ⚠️ UPDATE 이벤트는 읽음 처리 로직을 절대 실행하지 않음 (무한 루프 방지)
-              // 메시지 변경 시 쿼리 무효화하여 최신 데이터 가져오기
+            }
+            // UPDATE 이벤트: 메시지가 업데이트됨 (읽음 상태 변경 등)
+            else if (payload.eventType === "UPDATE") {
+              const updatedMessage = payload.new;
+              const messageId = updatedMessage?.id;
+
+              console.log(`[Realtime] 🔄 Message updated: ${messageId}`, {
+                read_by: updatedMessage?.read_by,
+                content: updatedMessage?.content?.substring(0, 50),
+              });
+
+              // 읽음 상태가 변경된 경우 UI 즉시 업데이트
+              // ⚠️ 중요: 읽음 처리 로직은 실행하지 않음 (무한 루프 방지)
+              // 단순히 쿼리만 무효화하여 최신 읽음 상태를 가져옴
+              queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+            }
+            // DELETE 이벤트: 메시지가 삭제됨
+            else if (payload.eventType === "DELETE") {
+              const deletedMessage = payload.old;
+              const messageId = deletedMessage?.id;
+
+              console.log(`[Realtime] 🗑️ Message deleted: ${messageId}`);
+
+              // 삭제된 메시지 제거를 위해 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
             }
           },

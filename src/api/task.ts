@@ -53,8 +53,21 @@ export async function getTasksByProjectId(projectId: string): Promise<TaskWithPr
 /**
  * Task 상세 조회
  * assigner와 assignee의 프로필 정보를 JOIN하여 함께 반환
+ * 
+ * 권한별 접근 제어:
+ * - Admin: 모든 Task 상세 접근 가능
+ * - Member (assigner/assignee): 자신의 Task 상세 접근 가능
+ * - Member (기타): 제한된 정보만 반환 (description 마스킹)
  */
 export async function getTaskById(id: string): Promise<TaskWithProfiles | null> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  const userId = session.session.user.id;
+
+  // Task 조회
   const { data, error } = await supabase
     .from("tasks")
     .select(`
@@ -72,44 +85,95 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
     throw new Error(`Task 조회 실패: ${error.message}`);
   }
 
-  return (data || null) as TaskWithProfiles | null;
-}
-
-/**
- * Task 생성 (Admin만 가능)
- * - assigner_id와 assignee_id는 모두 선택값 (자동 설정되지 않음)
- * - assigner와 assignee는 모두 해당 프로젝트에 속한 사용자여야 함
- */
-export async function createTask(task: TaskInsert): Promise<Task> {
-  const { data: session } = await supabase.auth.getSession();
-  if (!session.session) {
-    throw new Error("인증이 필요합니다.");
+  if (!data) {
+    return null;
   }
 
   // Admin 권한 확인
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
-    .eq("id", session.session.user.id)
+    .eq("id", userId)
     .single();
 
-  if (profile?.role !== "admin") {
-    throw new Error("Task 생성은 Admin만 가능합니다.");
+  const isAdmin = profile?.role === "admin";
+  const isAssigner = data.assigner_id === userId;
+  const isAssignee = data.assignee_id === userId;
+
+  // 권한 검증 및 필드 제어
+  if (!isAdmin && !isAssigner && !isAssignee) {
+    // 일반 멤버가 자신의 Task가 아닌 경우: 제한된 정보만 반환
+    // description을 null로 마스킹하여 상세 내용 접근 차단
+    return {
+      ...data,
+      description: null,
+    } as TaskWithProfiles;
   }
 
-  // assigner와 assignee가 모두 설정되어 있는지 확인
-  if (!task.assigner_id || !task.assignee_id) {
-    throw new Error("담당자와 할당받은 사람을 모두 선택해주세요.");
+  // Admin 또는 assigner/assignee: 모든 필드 반환
+  return data as TaskWithProfiles;
+}
+
+/**
+ * Task 생성 (프로젝트 참여자 또는 Admin 가능)
+ * - assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
+ * - assignee_id는 필수 입력값
+ * - assigner와 assignee는 모두 해당 프로젝트에 속한 사용자여야 함
+ */
+export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise<Task> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  const currentUserId = session.session.user.id;
+
+  // Admin 권한 확인
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", currentUserId)
+    .single();
+
+  const isAdmin = profile?.role === "admin";
+
+  // Admin이 아닌 경우 프로젝트 참여자인지 확인
+  if (!isAdmin) {
+    const { getProjectParticipants } = await import("@/api/project");
+    const participants = await getProjectParticipants(task.project_id);
+    const isParticipant = participants.some((p) => p.user_id === currentUserId);
+
+    if (!isParticipant) {
+      throw new Error("프로젝트 참여자만 Task를 생성할 수 있습니다.");
+    }
+  }
+
+  // assignee_id가 설정되어 있는지 확인
+  if (!task.assignee_id) {
+    throw new Error("할당받은 사람을 선택해주세요.");
   }
 
   // assigner와 assignee가 같은지 확인
-  if (task.assigner_id === task.assignee_id) {
-    throw new Error("담당자와 할당받은 사람은 같을 수 없습니다.");
+  if (currentUserId === task.assignee_id) {
+    throw new Error("자기 자신에게 Task를 할당할 수 없습니다.");
+  }
+
+  // assigner_id를 현재 로그인한 사용자로 자동 설정
+  // task_category는 마이그레이션에 추가되었지만 타입 정의에 없으므로 타입 단언 사용
+  // description이 null이거나 undefined일 때는 객체에서 제거 (스키마 캐시 문제 방지)
+  const taskWithAssigner: any = {
+    ...task,
+    assigner_id: currentUserId,
+  };
+  
+  // description이 null이거나 undefined이면 객체에서 제거
+  if (taskWithAssigner.description === null || taskWithAssigner.description === undefined) {
+    delete taskWithAssigner.description;
   }
 
   const { data, error } = await supabase
     .from("tasks")
-    .insert(task)
+    .insert(taskWithAssigner as any)
     .select()
     .single();
 
@@ -121,9 +185,8 @@ export async function createTask(task: TaskInsert): Promise<Task> {
 }
 
 /**
- * Task 수정 (Admin만 가능)
- * - Admin만 Task 수정 가능
- * - assigner / assignee는 수정 불가
+ * Task 수정 (지시자만 가능)
+ * - 지시자(assigner)만 Task 수정 가능
  * - 허용 필드: title, description, due_date만 수정 가능
  * - assigner_id, assignee_id, task_status는 수정 불가
  */
@@ -135,15 +198,20 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
 
   const userId = session.session.user.id;
 
-  // Admin 권한 확인
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", userId)
+  // 현재 Task 조회 (존재 여부 및 권한 확인)
+  const { data: task, error: fetchError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", id)
     .single();
 
-  if (profile?.role !== "admin") {
-    throw new Error("Task 수정은 Admin만 가능합니다.");
+  if (fetchError || !task) {
+    throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
+  }
+
+  // 지시자(assigner) 권한 확인
+  if (task.assigner_id !== userId) {
+    throw new Error("Task 수정은 지시자만 가능합니다.");
   }
 
   // 수정 불가 필드 차단
@@ -153,17 +221,6 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
 
   if (updates.task_status !== undefined) {
     throw new Error("Task 상태는 수정할 수 없습니다. 상태 변경은 별도의 워크플로우를 사용하세요.");
-  }
-
-  // 현재 Task 조회 (존재 여부 확인)
-  const { data: task, error: fetchError } = await supabase
-    .from("tasks")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (fetchError || !task) {
-    throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
   }
 
   // 허용된 필드만 명시적으로 포함 (whitelist 방식)
@@ -176,8 +233,8 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   }
   
   // description 수정 허용 (null도 허용)
-  if (updates.description !== undefined) {
-    allowedUpdates.description = updates.description;
+  if ("description" in updates && updates.description !== undefined) {
+    (allowedUpdates as any).description = updates.description;
   }
   
   // due_date 수정 허용 (null도 허용)
@@ -198,7 +255,7 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   console.log("[updateTask] Allowed updates:", allowedUpdates);
   console.log("[updateTask] Task ID:", id);
   console.log("[updateTask] User ID:", userId);
-  console.log("[updateTask] Is Admin:", true); // Admin만 수정 가능하므로 항상 true
+  console.log("[updateTask] Is Assigner:", task.assigner_id === userId);
 
   // 상태 업데이트
   const { data: updatedTask, error: updateError } = await supabase
@@ -227,7 +284,7 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
 }
 
 /**
- * Task 삭제 (Admin만 가능)
+ * Task 삭제 (지시자만 가능)
  */
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id);
@@ -235,6 +292,96 @@ export async function deleteTask(id: string): Promise<void> {
   if (error) {
     throw new Error(`Task 삭제 실패: ${error.message}`);
   }
+}
+
+/**
+ * 멤버용 Task 목록 조회
+ * 현재 사용자가 담당자 또는 지시자인 Task만 조회
+ * 모든 프로젝트에서 Task 조회 (프로젝트별이 아님)
+ * 
+ * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: true)
+ * @returns TaskWithProfiles[]
+ */
+export async function getTasksForMember(
+  excludeApproved: boolean = true,
+): Promise<TaskWithProfiles[]> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  const userId = session.session.user.id;
+
+  let query = supabase
+    .from("tasks")
+    .select(`
+      *,
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+    `)
+    .or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`);
+
+  // APPROVED 제외 옵션
+  if (excludeApproved) {
+    query = query.neq("task_status", "APPROVED");
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Task 목록 조회 실패: ${error.message}`);
+  }
+
+  return (data || []) as TaskWithProfiles[];
+}
+
+/**
+ * Admin용 Task 목록 조회
+ * 모든 Task 조회 (APPROVED 제외 옵션)
+ * 
+ * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: true)
+ * @returns TaskWithProfiles[]
+ */
+export async function getTasksForAdmin(
+  excludeApproved: boolean = true,
+): Promise<TaskWithProfiles[]> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  // Admin 권한 확인
+  const userId = session.session.user.id;
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .single();
+
+  if (profile?.role !== "admin") {
+    throw new Error("Admin 권한이 필요합니다.");
+  }
+
+  let query = supabase
+    .from("tasks")
+    .select(`
+      *,
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+    `);
+
+  // APPROVED 제외 옵션
+  if (excludeApproved) {
+    query = query.neq("task_status", "APPROVED");
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`Task 목록 조회 실패: ${error.message}`);
+  }
+
+  return (data || []) as TaskWithProfiles[];
 }
 
 /**
