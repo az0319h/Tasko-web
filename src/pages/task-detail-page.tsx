@@ -14,12 +14,10 @@ import {
   useCreateMessageWithFiles,
   useMarkTaskMessagesAsRead,
   useRealtimeMessages,
-  useTypingIndicator,
   useChatPresence,
   useDeleteMessage,
 } from "@/hooks";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
-import { canEditTask } from "@/lib/project-permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,9 +76,6 @@ export default function TaskDetailPage() {
 
   // Realtime 구독 활성화 (Presence 상태 전달)
   useRealtimeMessages(taskId, !!taskId, isPresent);
-
-  // Typing indicator
-  const { typingUsers, sendTyping, stopTyping } = useTypingIndicator(taskId, !!taskId);
 
   // 케이스 1: 초기 로드 시 읽음 처리 (taskId 변경 시)
   // taskId가 변경되면 초기 로드로 간주하고, Presence가 활성화되어 있을 때 읽음 처리
@@ -141,19 +136,63 @@ export default function TaskDetailPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 입력 중 상태 전송 (debounce)
+  // 케이스 3: 메시지 목록이 변경되고 채팅 화면에 있을 때 읽음 처리
+  // 상대방이 메시지를 보냈거나, 메시지가 업데이트되었을 때 읽음 처리
+  // ⚠️ 주의: 너무 자주 실행되지 않도록 디바운싱 적용
   useEffect(() => {
-    if (!messageInput.trim()) {
-      stopTyping();
+    if (!taskId || !currentUserId || !isPresent || messages.length === 0 || !task) {
       return;
     }
 
-    const timer = setTimeout(() => {
-      sendTyping();
-    }, 500);
+    // 지시자/담당자 확인
+    const isCurrentUserAssigner = currentUserId === task.assigner_id;
+    const isCurrentUserAssignee = currentUserId === task.assignee_id;
 
-    return () => clearTimeout(timer);
-  }, [messageInput, sendTyping, stopTyping]);
+    // 지시자/담당자가 아니면 읽음 처리 안 함
+    if (!isCurrentUserAssigner && !isCurrentUserAssignee) {
+      return;
+    }
+
+    // 상대방 ID 확인
+    const counterpartId = isCurrentUserAssigner ? task.assignee_id : task.assigner_id;
+
+    // 상대방이 보낸 읽지 않은 메시지가 있는지 확인
+    const hasUnreadMessages = messages.some((message) => {
+      // 상대방이 보낸 메시지만 확인
+      if (message.user_id !== counterpartId) {
+        return false;
+      }
+
+      // 읽음 상태 확인
+      const readBy = message.read_by || [];
+      if (!Array.isArray(readBy)) {
+        return true; // read_by가 배열이 아니면 읽지 않은 것으로 간주
+      }
+
+      // 현재 사용자가 읽었는지 확인
+      return !readBy.some((id: string) => String(id) === String(currentUserId));
+    });
+
+    // 읽지 않은 메시지가 있고, 최근에 읽음 처리를 하지 않았다면 실행
+    if (hasUnreadMessages) {
+      const now = Date.now();
+      // 3초 이내 중복 호출 방지 (디바운싱)
+      if (now - lastMarkAsReadTimeRef.current > 3000) {
+        lastMarkAsReadTimeRef.current = now;
+        console.log(`[TaskDetail] 📖 Case 3: Marking all messages as read for task ${taskId} (message list updated)`);
+        markMessagesAsRead.mutate(taskId, {
+          onSuccess: () => {
+            console.log(`[TaskDetail] ✅ Case 3: Successfully marked all messages as read for task ${taskId}`);
+          },
+          onError: (error) => {
+            console.error(`[TaskDetail] ❌ Case 3: Failed to mark messages as read:`, error);
+            lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
+          },
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, taskId, currentUserId, isPresent, task]); // messages와 task가 변경될 때마다 실행
 
   // 권한 체크: assigner, assignee, Admin만 접근 가능
   useEffect(() => {
@@ -225,7 +264,12 @@ export default function TaskDetailPage() {
   // 현재 사용자가 assigner인지 assignee인지 확인
   const isAssigner = currentUserId === task.assigner_id;
   const isAssignee = currentUserId === task.assignee_id;
-  const canEdit = canEditTask(task, currentUserId, isAdmin);
+  // 수정 권한: 지시자만 수정 가능
+  const canEdit = isAssigner;
+  // 삭제 권한: 지시자만 삭제 가능
+  const canDelete = isAssigner;
+  // 채팅 작성 권한: 지시자 또는 담당자만 작성 가능
+  const canSendMessage = isAssigner || isAssignee;
 
   // 상태 변경 버튼 표시 조건
   const canChangeToInProgress = isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
@@ -251,7 +295,6 @@ export default function TaskDetailPage() {
       id: task.id,
       updates: {
         title: data.title,
-        description: data.description || null,
         due_date: data.due_date || null,
       },
     });
@@ -291,7 +334,6 @@ export default function TaskDetailPage() {
     // 입력 초기화 (전송 전에 미리 초기화하여 중복 전송 방지)
     setMessageInput("");
     setAttachedFiles([]);
-    stopTyping();
 
     try {
       // 파일이 있으면 먼저 업로드
@@ -444,7 +486,7 @@ export default function TaskDetailPage() {
   // SYSTEM 메시지의 이벤트 타입 판단
   const getSystemEventType = (message: MessageWithProfile): "APPROVAL_REQUEST" | "APPROVED" | "REJECTED" | null => {
     if (message.message_type !== "SYSTEM") return null;
-    const content = message.content.toLowerCase();
+    const content = (message.content || "").toLowerCase();
     if (content.includes("승인 요청") || content.includes("waiting_confirm")) {
       return "APPROVAL_REQUEST";
     }
@@ -469,7 +511,17 @@ export default function TaskDetailPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* 뒤로가기 버튼 */}
-      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
+      <Button 
+        variant="ghost" 
+        onClick={() => {
+          if (task?.project_id) {
+            navigate(`/projects/${task.project_id}`);
+          } else {
+            navigate(-1);
+          }
+        }} 
+        className="mb-4"
+      >
         <ArrowLeft className="mr-2 h-4 w-4" />
         돌아가기
       </Button>
@@ -485,7 +537,7 @@ export default function TaskDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* 수정 버튼 */}
+              {/* 수정 버튼 (지시자만) */}
               {canEdit && (
                 <Button
                   variant="outline"
@@ -496,8 +548,8 @@ export default function TaskDetailPage() {
                   수정
                 </Button>
               )}
-              {/* 삭제 버튼 (Admin만) */}
-              {isAdmin && (
+              {/* 삭제 버튼 (지시자만) */}
+              {canDelete && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -512,10 +564,10 @@ export default function TaskDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Task 설명 */}
-          {task.description && (
+          {((task as any).description) && (
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-1">설명</h3>
-              <p className="text-sm">{task.description}</p>
+              <p className="text-sm">{(task as any).description}</p>
             </div>
           )}
 
@@ -601,7 +653,7 @@ export default function TaskDetailPage() {
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
           {/* 메시지 리스트 영역 */}
           <div
-            className="flex-1 overflow-y-auto p-4 space-y-4"
+            className="flex-1 overflow-y-auto p-4 space-y-4 relative"
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
@@ -833,58 +885,63 @@ export default function TaskDetailPage() {
                 );
               })
             )}
-            {/* 입력 중 표시 */}
-            {typingUsers.length > 0 && (
-              <div className="flex justify-start">
-                <div className="bg-muted/50 border border-muted rounded-lg px-4 py-2 max-w-md">
-                  <p className="text-xs text-muted-foreground italic">
-                    {typingUsers.length === 1
-                      ? `${typingUsers[0]}님이 입력 중...`
-                      : `${typingUsers.join(", ")}님이 입력 중...`}
-                  </p>
-                </div>
-              </div>
-            )}
             {/* 스크롤 앵커 */}
             <div ref={messagesEndRef} />
           </div>
 
           {/* 입력 영역 */}
           <div className="border-t p-4 space-y-2">
-            {/* 첨부파일 영역 (드래그 앤 드롭) */}
-            <div
-              className={cn(
-                "border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer",
-                dragActive
-                  ? "border-primary bg-primary/5"
-                  : "border-muted hover:border-primary/50",
-                createMessageWithFiles.isPending && "opacity-50 pointer-events-none"
-              )}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileSelect}
-                accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.zip,.rar,.7z"
-              />
-              <Paperclip className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                파일을 드래그하여 놓거나 클릭하여 선택하세요
-              </p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                이미지, PDF, 문서 등 다양한 파일 형식 지원 (최대 10MB, 여러 파일 선택 가능)
-              </p>
-            </div>
+            {/* 채팅 작성 권한이 없는 경우 안내 메시지 */}
+            {!canSendMessage && (
+              <div className="bg-muted/50 border border-muted rounded-lg p-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  지시자 또는 담당자만 메시지를 작성할 수 있습니다.
+                </p>
+                {isAdmin && (
+                  <p className="text-xs text-muted-foreground/70 mt-1">
+                    관리자 권한으로 이 Task를 조회할 수 있지만, 채팅 작성은 지시자 또는 담당자만 가능합니다.
+                  </p>
+                )}
+              </div>
+            )}
 
-            {/* 첨부된 파일 목록 (Draft 상태) */}
-            {attachedFiles.length > 0 && (
+            {/* 첨부파일 영역 (드래그 앤 드롭) - 지시자/담당자만 표시 */}
+            {canSendMessage && (
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer",
+                  dragActive
+                    ? "border-primary bg-primary/5"
+                    : "border-muted hover:border-primary/50",
+                  createMessageWithFiles.isPending && "opacity-50 pointer-events-none"
+                )}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={handleFileSelect}
+                  accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.zip,.rar,.7z"
+                  disabled={!canSendMessage}
+                />
+                <Paperclip className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  파일을 드래그하여 놓거나 클릭하여 선택하세요
+                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  이미지, PDF, 문서 등 다양한 파일 형식 지원 (최대 10MB, 여러 파일 선택 가능)
+                </p>
+              </div>
+            )}
+
+            {/* 첨부된 파일 목록 (Draft 상태) - 지시자/담당자만 표시 */}
+            {canSendMessage && attachedFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-lg">
                 {attachedFiles.map((file, index) => (
                   <div
@@ -909,42 +966,44 @@ export default function TaskDetailPage() {
               </div>
             )}
 
-            {/* 텍스트 입력 및 전송 */}
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <textarea
-                  ref={textareaRef}
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  placeholder="메시지를 입력하세요. (Enter: 전송 / Shift+Enter: 줄바꿈)"
-                  className="w-full min-h-[60px] max-h-[120px] p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                  onKeyDown={(e) => {
-                    // Enter 키: 메시지 전송
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                    // Shift+Enter: 줄바꿈 (기본 동작 유지)
-                  }}
-                  disabled={createMessageWithFiles.isPending}
-                />
+            {/* 텍스트 입력 및 전송 - 지시자/담당자만 표시 */}
+            {canSendMessage && (
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <textarea
+                    ref={textareaRef}
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    placeholder="메시지를 입력하세요. (Enter: 전송 / Shift+Enter: 줄바꿈)"
+                    className="w-full min-h-[60px] max-h-[120px] p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    onKeyDown={(e) => {
+                      // Enter 키: 메시지 전송
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                      // Shift+Enter: 줄바꿈 (기본 동작 유지)
+                    }}
+                    disabled={createMessageWithFiles.isPending}
+                  />
+                </div>
+                <Button
+                  size="icon"
+                  className="h-[60px] w-[60px]"
+                  disabled={
+                    (!messageInput.trim() && attachedFiles.length === 0) ||
+                    createMessageWithFiles.isPending
+                  }
+                  onClick={handleSendMessage}
+                >
+                  {createMessageWithFiles.isPending ? (
+                    <div className="h-5 w-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </Button>
               </div>
-              <Button
-                size="icon"
-                className="h-[60px] w-[60px]"
-                disabled={
-                  (!messageInput.trim() && attachedFiles.length === 0) ||
-                  createMessageWithFiles.isPending
-                }
-                onClick={handleSendMessage}
-              >
-                {createMessageWithFiles.isPending ? (
-                  <div className="h-5 w-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </Button>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

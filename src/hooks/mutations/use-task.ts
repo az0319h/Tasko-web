@@ -12,14 +12,14 @@ import type { TaskStatus } from "@/lib/task-status";
 import { toast } from "sonner";
 
 /**
- * Task 생성 뮤테이션 훅 (Admin만 가능)
- * assigner_id와 assignee_id는 모두 선택값
+ * Task 생성 뮤테이션 훅 (프로젝트 참여자 또는 Admin 가능)
+ * assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
  */
 export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (task: TaskInsert) => createTask(task),
+    mutationFn: (task: Omit<TaskInsert, "assigner_id">) => createTask(task),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks", data.project_id] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });

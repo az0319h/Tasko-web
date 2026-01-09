@@ -19,6 +19,7 @@ describe("useUpdateTaskStatus optimistic update logic", () => {
     description: null,
     assigner_id: "user-1",
     assignee_id: "user-2",
+    task_category: "REVIEW",
     task_status: status,
     due_date: null,
     created_at: "2024-01-01T00:00:00Z",
@@ -33,7 +34,7 @@ describe("useUpdateTaskStatus optimistic update logic", () => {
       full_name: "User 2",
       email: "user2@example.com",
     },
-  });
+  } as TaskWithProfiles);
 
   // setQueriesData 콜백 로직 (실제 코드에서 추출)
   const optimisticUpdateCallback = (

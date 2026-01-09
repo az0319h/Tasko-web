@@ -19,6 +19,7 @@ import {
   Ellipsis,
   ChevronDown,
   LogOut,
+  FileText,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -68,7 +69,6 @@ const getMenuItems = (isAdmin: boolean) => {
     { id: "chats", key: "layout.sidebar.menu.chats", url: "/chats", icon: MessageCircle },
     { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
     { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
-    { id: "post", key: "layout.sidebar.menu.post" },
   ];
 
   if (isAdmin) {
@@ -78,6 +78,8 @@ const getMenuItems = (isAdmin: boolean) => {
       url: "/admin/users",
       icon: Users,
     });
+    // 관리자만 게시 버튼 표시
+    items.push({ id: "post", key: "layout.sidebar.menu.post", icon: FileText });
   }
 
   return items;

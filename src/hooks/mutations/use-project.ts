@@ -11,12 +11,19 @@ import { toast } from "sonner";
 /**
  * 프로젝트 생성 뮤테이션 훅
  * created_by는 자동으로 현재 사용자로 설정됨
+ * 프로젝트 생성 시 관리자가 자동으로 참여자로 추가됨
  */
 export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (project: Omit<ProjectInsert, "created_by">) => createProject(project),
+    mutationFn: ({
+      project,
+      participantIds,
+    }: {
+      project: Omit<ProjectInsert, "created_by">;
+      participantIds?: string[];
+    }) => createProject(project, participantIds),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("프로젝트가 생성되었습니다.");

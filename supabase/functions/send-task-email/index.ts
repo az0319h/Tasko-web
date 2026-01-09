@@ -364,9 +364,22 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  console.log("[send-task-email] Request received:", {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries()),
+  });
+
   try {
     // Parse request body
     const emailData: EmailRequest = await req.json();
+    console.log("[send-task-email] Email data received:", {
+      eventType: emailData.eventType,
+      taskId: emailData.taskId,
+      recipients: emailData.recipients,
+      assignerEmail: emailData.assignerEmail,
+      assigneeEmail: emailData.assigneeEmail,
+    });
 
     // Validate required fields
     if (
@@ -409,7 +422,13 @@ Deno.serve(async (req: Request) => {
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPass = Deno.env.get("SMTP_PASS");
 
+    console.log("[send-task-email] SMTP config check:", {
+      smtpUserExists: !!smtpUser,
+      smtpPassExists: !!smtpPass,
+    });
+
     if (!smtpUser || !smtpPass) {
+      console.error("[send-task-email] SMTP credentials not configured");
       return new Response(JSON.stringify({ error: "SMTP credentials not configured" }), {
         status: 500,
         headers: {
@@ -431,8 +450,28 @@ Deno.serve(async (req: Request) => {
     });
 
     // Create Supabase client for logging
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    console.log("[send-task-email] Supabase config check:", {
+      supabaseUrlExists: !!supabaseUrl,
+      supabaseServiceKeyExists: !!supabaseServiceKey,
+    });
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("[send-task-email] Supabase credentials not configured");
+      return new Response(
+        JSON.stringify({ error: "Supabase credentials not configured" }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        },
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Determine recipients based on recipients array
@@ -460,11 +499,18 @@ Deno.serve(async (req: Request) => {
         // Generate role-specific email template
         const { subject, html } = getEmailTemplate(emailData, recipient.role);
 
+        console.log(`[send-task-email] Sending email to ${recipient.email} (${recipient.role})`);
         const result = await sendEmail(transporter, recipient.email, subject, html);
+        console.log(`[send-task-email] Email result for ${recipient.email}:`, {
+          success: result.success,
+          error: result.error,
+        });
 
         // Log email attempt
-        await supabase.from("email_logs").insert({
-          task_id: emailData.taskId,
+        // Note: Supabase JS client should automatically convert UUID strings to UUID type
+        // But if there's a type mismatch error, we need to ensure the string is a valid UUID format
+        const { error: logError } = await supabase.from("email_logs").insert({
+          task_id: emailData.taskId, // This should be a valid UUID string, Supabase will convert it
           recipient_email: recipient.email,
           recipient_name: recipient.name,
           subject,
@@ -473,6 +519,10 @@ Deno.serve(async (req: Request) => {
           sent_at: result.success ? new Date().toISOString() : null,
         });
 
+        if (logError) {
+          console.error(`[send-task-email] Failed to log email for ${recipient.email}:`, logError);
+        }
+
         return { ...result, recipient: recipient.email, role: recipient.role };
       }),
     );
@@ -480,6 +530,13 @@ Deno.serve(async (req: Request) => {
     // Check if all emails were sent successfully
     const allSuccess = results.every((r) => r.success);
     const failedRecipients = results.filter((r) => !r.success).map((r) => r.recipient);
+
+    console.log("[send-task-email] Final results:", {
+      allSuccess,
+      totalRecipients: results.length,
+      failedCount: failedRecipients.length,
+      failedRecipients,
+    });
 
     return new Response(
       JSON.stringify({
@@ -498,7 +555,7 @@ Deno.serve(async (req: Request) => {
       },
     );
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("[send-task-email] Error sending email:", error);
     return new Response(
       JSON.stringify({
         error: "Internal server error",

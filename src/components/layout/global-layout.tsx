@@ -9,17 +9,18 @@ export default function GlobalLayout() {
   const mode = useResolvedThemeMode();
   return (
     <SidebarProvider>
-      <div className="mx-auto flex min-h-screen w-full max-w-400 overflow-x-hidden">
+      <div className="mx-auto flex h-screen w-full max-w-400 overflow-hidden">
         <AppSidebar />
-        <div className="flex flex-1 flex-col">
-          <main className="flex-1">
-            <div className="flex items-center justify-between border-b p-4 md:hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <main className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b p-4 md:hidden">
               <Link to={"/"}>로고</Link>
               <SidebarTrigger className="md:hidden" />
             </div>
-            <Outlet />
+            <div className="flex-1 overflow-y-auto px-4 md:px-5">
+              <Outlet />
+            </div>
           </main>
-          <footer>footer</footer>
         </div>
       </div>
     </SidebarProvider>

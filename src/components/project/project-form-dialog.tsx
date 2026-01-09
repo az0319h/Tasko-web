@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { projectSchema, type ProjectFormData } from "@/schemas/project/project-schema";
+import { projectCreateSchema, projectUpdateSchema, type ProjectCreateFormData, type ProjectUpdateFormData, type ProjectFormData } from "@/schemas/project/project-schema";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Search } from "lucide-react";
+import { useProfiles, useCurrentProfile } from "@/hooks";
+import { useDebounce } from "@/hooks/use-debounce";
 import type { Project } from "@/api/project";
 
 interface ProjectFormDialogProps {
@@ -37,6 +39,14 @@ export function ProjectFormDialog({
   isAdmin = false,
 }: ProjectFormDialogProps) {
   const isEdit = !!project;
+  const { data: profiles } = useProfiles();
+  const { data: currentProfile } = useCurrentProfile();
+
+  // 생성 모드와 수정 모드에 따라 다른 스키마 사용
+  const formSchema = isEdit ? projectUpdateSchema : projectCreateSchema;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
   const {
     register,
@@ -46,42 +56,67 @@ export function ProjectFormDialog({
     watch,
     setValue,
   } = useForm<ProjectFormData>({
-    resolver: zodResolver(projectSchema),
-    defaultValues: {
-      title: "",
-      client_name: "",
-      patent_name: "",
-      due_date: null,
-      is_public: true,
-      status: "inProgress" as const,
-    },
+    resolver: zodResolver(formSchema),
+    defaultValues: isEdit
+      ? {
+          title: "",
+          client_name: "",
+          due_date: null,
+        }
+      : {
+          title: "",
+          client_name: "",
+          due_date: null,
+          participant_ids: [],
+        },
   });
 
-  const isPublic = watch("is_public");
-  const status = watch("status");
+  const participantIds = !isEdit ? (watch("participant_ids" as keyof ProjectCreateFormData) as string[] | undefined) : undefined;
 
-  // 프로젝트가 변경되면 폼 초기화
-  useEffect(() => {
-    if (project) {
-      reset({
-        title: project.title,
-        client_name: project.client_name,
-        patent_name: project.patent_name,
-        due_date: project.due_date ? new Date(project.due_date).toISOString().split("T")[0] : null,
-        is_public: project.is_public,
-        status: project.status,
-      });
-    } else {
-      reset({
-        title: "",
-        client_name: "",
-        patent_name: "",
-        due_date: null,
-        is_public: true,
-        status: "inProgress" as const,
-      });
+  // 프로필 목록 필터링 (프로필 완료된 사용자, 활성 상태 사용자만, 현재 로그인한 관리자 제외)
+  const availableProfiles = useMemo(() => {
+    const filtered = profiles?.filter(
+      (profile) =>
+        profile.profile_completed &&
+        profile.is_active &&
+        profile.id !== currentProfile?.id
+    ) || [];
+
+    // 검색 필터링
+    if (!debouncedSearch.trim()) {
+      return filtered;
     }
-  }, [project, reset]);
+
+    const query = debouncedSearch.toLowerCase();
+    return filtered.filter((profile) => {
+      const name = (profile.full_name || "").toLowerCase();
+      const email = (profile.email || "").toLowerCase();
+      return name.includes(query) || email.includes(query);
+    });
+  }, [profiles, currentProfile?.id, debouncedSearch]);
+
+  // 다이얼로그가 열릴 때 폼 초기화
+  useEffect(() => {
+    if (open) {
+      if (project && isEdit) {
+        // 수정 모드: 프로젝트 데이터로 폼 초기화
+        reset({
+          title: project.title,
+          client_name: project.client_name,
+          due_date: project.due_date ? new Date(project.due_date).toISOString().split("T")[0] : null,
+        });
+      } else if (!project && !isEdit) {
+        // 생성 모드: 빈 폼으로 초기화
+        reset({
+          title: "",
+          client_name: "",
+          due_date: null,
+          participant_ids: [],
+        });
+        setSearchQuery("");
+      }
+    }
+  }, [open, project, isEdit, reset]);
 
   const onFormSubmit = async (data: ProjectFormData) => {
     try {
@@ -109,11 +144,10 @@ export function ProjectFormDialog({
       reset({
         title: "",
         client_name: "",
-        patent_name: "",
         due_date: null,
-        is_public: true,
-        status: "inProgress" as const,
+        ...(isEdit ? {} : { participant_ids: [] }),
       });
+      setSearchQuery("");
     }
   };
 
@@ -129,12 +163,12 @@ export function ProjectFormDialog({
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">
-              제목 <span className="text-destructive">*</span>
+              기회 <span className="text-destructive">*</span>
             </Label>
             <Input
               id="title"
               {...register("title")}
-              placeholder="프로젝트 제목을 입력하세요"
+              placeholder="기회를 입력하세요"
               aria-invalid={errors.title ? "true" : "false"}
             />
             {errors.title && <p className="text-destructive text-sm">{errors.title.message}</p>}
@@ -142,12 +176,12 @@ export function ProjectFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="client_name">
-              클라이언트명 <span className="text-destructive">*</span>
+              고객명 <span className="text-destructive">*</span>
             </Label>
             <Input
               id="client_name"
               {...register("client_name")}
-              placeholder="클라이언트명을 입력하세요"
+              placeholder="고객명을 입력하세요"
               aria-invalid={errors.client_name ? "true" : "false"}
             />
             {errors.client_name && (
@@ -156,67 +190,78 @@ export function ProjectFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="patent_name">
-              특허명 <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="patent_name"
-              {...register("patent_name")}
-              placeholder="특허명을 입력하세요"
-              aria-invalid={errors.patent_name ? "true" : "false"}
-            />
-            {errors.patent_name && (
-              <p className="text-destructive text-sm">{errors.patent_name.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="due_date">완료예정일</Label>
+            <Label htmlFor="due_date">완료 예정일</Label>
             <Input
               id="due_date"
               type="date"
+              min={new Date().toISOString().split("T")[0]}
               {...register("due_date")}
               aria-invalid={errors.due_date ? "true" : "false"}
             />
             {errors.due_date && (
               <p className="text-destructive text-sm">{errors.due_date.message}</p>
             )}
+            <p className="text-muted-foreground text-xs">
+              오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다.
+            </p>
           </div>
 
-          <div className="flex items-center justify-between space-x-2">
-            <div className="space-y-0.5">
-              <Label htmlFor="is_public">공개 프로젝트</Label>
+          {/* 생성 모드에서만 초대 사용자 선택 필드 표시 */}
+          {!isEdit && (
+            <div className="space-y-2">
+              <Label htmlFor="participant_ids">
+                초대 사용자 <span className="text-destructive">*</span>
+              </Label>
               <p className="text-muted-foreground text-sm">
-                공개 프로젝트는 모든 사용자가 조회할 수 있습니다.
+                프로젝트에 참여할 사용자를 선택하세요. (최소 1명 이상)
               </p>
-            </div>
-            <Switch
-              id="is_public"
-              checked={isPublic}
-              onCheckedChange={(checked) => setValue("is_public", checked)}
-              className="m-0"
-            />
-          </div>
-
-          {/* Admin만 프로젝트 상태 변경 가능 */}
-          {isAdmin && (
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-0.5">
-                <Label htmlFor="status">
-                  프로젝트 상태 <span className="text-destructive">*</span>
-                </Label>
-                <p className="text-muted-foreground text-sm">
-                  {status === "done" ? "완료된 프로젝트입니다." : "진행 중인 프로젝트입니다."}
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Switch
-                  id="status"
-                  checked={status === "done"}
-                  onCheckedChange={(checked) => setValue("status", checked ? "done" : "inProgress")}
-                  aria-invalid={errors.status ? "true" : "false"}
+              {/* 검색 입력 */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="이름 또는 이메일로 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
                 />
               </div>
+              <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
+                {availableProfiles.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {debouncedSearch ? "검색 결과가 없습니다." : "선택 가능한 사용자가 없습니다."}
+                  </p>
+                ) : (
+                  availableProfiles.map((profile) => {
+                    const isSelected = participantIds?.includes(profile.id) || false;
+                    return (
+                      <label
+                        key={profile.id}
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const currentIds = participantIds || [];
+                            if (e.target.checked) {
+                              setValue("participant_ids" as keyof ProjectCreateFormData, [...currentIds, profile.id] as any);
+                            } else {
+                              setValue("participant_ids" as keyof ProjectCreateFormData, currentIds.filter((id) => id !== profile.id) as any);
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span className="text-sm">
+                          {profile.full_name ? `${profile.full_name} (${profile.email})` : profile.email}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {!isEdit && "participant_ids" in errors && errors.participant_ids && (
+                <p className="text-destructive text-sm">{errors.participant_ids.message}</p>
+              )}
             </div>
           )}
 
@@ -229,7 +274,13 @@ export function ProjectFormDialog({
             >
               취소
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button
+              type="submit"
+              disabled={
+                isLoading ||
+                (!isEdit && (!participantIds || participantIds.length === 0))
+              }
+            >
               {isLoading ? "처리 중..." : isEdit ? "수정" : "생성"}
             </Button>
           </DialogFooter>

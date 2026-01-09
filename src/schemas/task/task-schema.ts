@@ -1,18 +1,23 @@
 import { z } from "zod";
 
 /**
+ * Task 카테고리 타입
+ */
+export type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+
+/**
  * Task 생성 스키마
- * assigner_id와 assignee_id는 필수 필드 (Admin만 Task 생성 가능)
+ * assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
+ * task_category는 필수 필드 (생성 후 변경 불가)
  */
 export const taskCreateSchema = z.object({
   title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
   description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
-  assigner_id: z.string().uuid("올바른 담당자 ID를 선택해주세요."),
   assignee_id: z.string().uuid("올바른 할당받은 사람 ID를 선택해주세요."),
+  task_category: z.enum(["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"], {
+    message: "카테고리를 선택해주세요.",
+  }),
   due_date: z.string().optional().nullable(),
-}).refine((data) => data.assigner_id !== data.assignee_id, {
-  message: "담당자와 할당받은 사람은 같을 수 없습니다.",
-  path: ["assignee_id"],
 });
 
 /**
