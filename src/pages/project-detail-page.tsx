@@ -14,6 +14,8 @@ import {
   useDeleteProject,
   useProjectParticipants,
 } from "@/hooks";
+import { useCreateMessageWithFiles } from "@/hooks/mutations/use-message";
+import { uploadTaskFile } from "@/api/storage";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,6 +40,17 @@ import { toast } from "sonner";
 
 type TaskStatus = Database["public"]["Enums"]["task_status"];
 
+/**
+ * 프로젝트 상세 페이지용 상태 필터 옵션 (승인됨 포함)
+ */
+const PROJECT_STATUS_FILTER_OPTIONS: { value: TaskStatus | "ALL"; label: string }[] = [
+  { value: "ALL", label: "전체" },
+  { value: "ASSIGNED", label: "할당됨" },
+  { value: "IN_PROGRESS", label: "진행 중" },
+  { value: "WAITING_CONFIRM", label: "확인 대기" },
+  { value: "APPROVED", label: "승인됨" },
+  { value: "REJECTED", label: "거부됨" },
+];
 
 /**
  * 날짜 포맷 유틸리티
@@ -67,6 +80,7 @@ export default function ProjectDetailPage() {
   const deleteTask = useDeleteTask();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
+  const createMessageWithFiles = useCreateMessageWithFiles();
 
   // 다이얼로그 상태
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
@@ -90,20 +104,72 @@ export default function ProjectDetailPage() {
 
   // Task 생성 핸들러
   // assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
-  const handleCreateTask = async (data: TaskCreateFormData | TaskUpdateFormData) => {
-    if (!id) return;
+  const handleCreateTask = async (
+    data: TaskCreateFormData | TaskUpdateFormData,
+    files?: File[]
+  ) => {
+    if (!id || !currentProfile?.id) return;
+    
     // 생성 모드에서는 TaskCreateFormData만 전달됨
     const createData = data as TaskCreateFormData;
     // description은 제거 (UI에서 제거되었고, API에서도 제거하여 스키마 캐시 문제 방지)
     const { description, ...taskData } = createData;
-    await createTask.mutateAsync({
+    
+    // 1. Task 생성
+    const newTask = await createTask.mutateAsync({
       project_id: id,
       title: taskData.title,
       assignee_id: taskData.assignee_id,
       due_date: taskData.due_date || null,
       task_category: taskData.task_category,
     });
+    
     setCreateTaskDialogOpen(false);
+    
+    // 2. 파일이 있으면 업로드 및 메시지 생성
+    if (files && files.length > 0 && newTask.id) {
+      try {
+        const uploadedFiles: Array<{
+          url: string;
+          fileName: string;
+          fileType: string;
+          fileSize: number;
+        }> = [];
+        
+        // 파일들을 순차적으로 업로드
+        for (const file of files) {
+          try {
+            // Task 생성자(assigner)의 ID로 파일 업로드
+            // assigner_id는 Task 생성 시 자동으로 설정되므로 null이 아님
+            if (!newTask.assigner_id) {
+              throw new Error("Task 생성자 정보를 찾을 수 없습니다.");
+            }
+            const fileInfo = await uploadTaskFile(
+              file,
+              newTask.id,
+              newTask.assigner_id
+            );
+            uploadedFiles.push(fileInfo);
+          } catch (error: any) {
+            toast.error(`${file.name} 업로드 실패: ${error.message}`);
+          }
+        }
+        
+        // 업로드 성공한 파일들을 파일 메시지로 생성
+        if (uploadedFiles.length > 0) {
+          await createMessageWithFiles.mutateAsync({
+            taskId: newTask.id,
+            content: null, // 메시지 텍스트 없음
+            files: uploadedFiles,
+          });
+        }
+      } catch (error: any) {
+        toast.error(`파일 업로드 중 오류가 발생했습니다: ${error.message}`);
+      }
+    }
+    
+    // 3. Task 상세 페이지로 이동
+    navigate(`/tasks/${newTask.id}`);
   };
 
   // Task 수정 핸들러
@@ -353,6 +419,7 @@ export default function ProjectDetailPage() {
             currentUserId={currentProfile?.id}
             isAdmin={isAdmin}
             projectId={id || ""}
+            statusFilterOptions={PROJECT_STATUS_FILTER_OPTIONS}
             onTaskCreate={(category) => {
               setPreSelectedCategory(category);
               setCreateTaskDialogOpen(true);

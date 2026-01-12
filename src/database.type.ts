@@ -63,6 +63,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          bundle_id: string | null
           content: string | null
           created_at: string
           deleted_at: string | null
@@ -71,12 +72,14 @@ export type Database = {
           file_type: string | null
           file_url: string | null
           id: string
+          is_log_anchor: boolean
           message_type: Database["public"]["Enums"]["message_type"]
           read_by: Json | null
           task_id: string
           user_id: string
         }
         Insert: {
+          bundle_id?: string | null
           content?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -85,12 +88,14 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           id?: string
+          is_log_anchor?: boolean
           message_type?: Database["public"]["Enums"]["message_type"]
           read_by?: Json | null
           task_id: string
           user_id: string
         }
         Update: {
+          bundle_id?: string | null
           content?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -99,6 +104,7 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           id?: string
+          is_log_anchor?: boolean
           message_type?: Database["public"]["Enums"]["message_type"]
           read_by?: Json | null
           task_id?: string
@@ -242,6 +248,84 @@ export type Database = {
         }
         Relationships: []
       }
+      task_chat_log_items: {
+        Row: {
+          id: string
+          log_id: string
+          message_id: string
+          position: number
+        }
+        Insert: {
+          id?: string
+          log_id: string
+          message_id: string
+          position: number
+        }
+        Update: {
+          id?: string
+          log_id?: string
+          message_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_chat_log_items_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "task_chat_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_chat_log_items_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_chat_logs: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          log_type: Database["public"]["Enums"]["chat_log_type"]
+          task_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          log_type: Database["public"]["Enums"]["chat_log_type"]
+          task_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          log_type?: Database["public"]["Enums"]["chat_log_type"]
+          task_id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_chat_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_chat_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_id: string | null
@@ -318,6 +402,14 @@ export type Database = {
         }
         Returns: string
       }
+      create_task_chat_log_deprecated: {
+        Args: {
+          p_created_by: string
+          p_new_status: Database["public"]["Enums"]["task_status"]
+          p_task_id: string
+        }
+        Returns: string
+      }
       get_active_profiles: {
         Args: never
         Returns: {
@@ -380,6 +472,7 @@ export type Database = {
       }
     }
     Enums: {
+      chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
       task_category: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
       task_status:
@@ -515,6 +608,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
       task_category: ["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"],
       task_status: [

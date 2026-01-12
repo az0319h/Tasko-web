@@ -2,6 +2,13 @@ import { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ProjectCard } from "@/components/project/project-card";
 import type { TaskWithProfiles } from "@/api/task";
 import type { Project } from "@/api/project";
@@ -9,6 +16,7 @@ import type { TaskStatus } from "@/lib/task-status";
 
 type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 type RoleFilter = "ALL" | "MY_ASSIGNER" | "MY_ASSIGNEE" | "MY_TASKS";
+type SortOrder = "dueDateAsc" | "dueDateDesc" | "createdAt";
 
 interface KanbanBoardWithProjectsProps {
   tasks: TaskWithProfiles[];
@@ -40,6 +48,12 @@ const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: "MY_TASKS", label: "내가 관련된 Task" },
 ];
 
+const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: "dueDateAsc", label: "마감일 빠른 순" },
+  { value: "dueDateDesc", label: "마감일 느린 순" },
+  { value: "createdAt", label: "생성일 순" },
+];
+
 /**
  * 프로젝트별로 그룹화된 칸반 보드 컴포넌트
  * 멤버 대시보드에서 사용
@@ -55,6 +69,7 @@ export function KanbanBoardWithProjects({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "ALL">("ALL");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("dueDateAsc");
 
   // 프로젝트 맵 생성 (빠른 조회를 위해)
   const projectMap = useMemo(() => {
@@ -90,7 +105,7 @@ export function KanbanBoardWithProjects({
   }, [roleFilteredTasks, statusFilter]);
 
   // 3단계: 검색 필터링
-  const filteredTasks = useMemo(() => {
+  const searchedTasks = useMemo(() => {
     if (!searchQuery.trim()) return statusFilteredTasks;
 
     const query = searchQuery.toLowerCase();
@@ -109,6 +124,32 @@ export function KanbanBoardWithProjects({
       return titleMatch || assigneeMatch || assignerMatch || projectTitleMatch || projectClientMatch;
     });
   }, [statusFilteredTasks, searchQuery, projectMap]);
+
+  // 4단계: 정렬 적용
+  const filteredTasks = useMemo(() => {
+    const sorted = [...searchedTasks];
+
+    sorted.sort((a, b) => {
+      if (sortOrder === "dueDateAsc") {
+        // 마감일 빠른 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else if (sortOrder === "dueDateDesc") {
+        // 마감일 느린 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      } else {
+        // 생성일 순
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+
+    return sorted;
+  }, [searchedTasks, sortOrder]);
 
   // 프로젝트별, 카테고리별 Task 그룹화
   const tasksByProjectAndCategory = useMemo(() => {
@@ -219,15 +260,29 @@ export function KanbanBoardWithProjects({
         </TabsList>
       </Tabs>
 
-      {/* 검색 바 */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="프로젝트, Task 제목, 담당자명 또는 지시자명으로 검색..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+      {/* 검색 바 및 정렬 */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="프로젝트, Task 제목, 담당자명 또는 지시자명으로 검색..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+          <SelectTrigger className="w-full md:w-[180px]">
+            <SelectValue placeholder="정렬" />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* 칸반 보드 - 카테고리별 컬럼 */}

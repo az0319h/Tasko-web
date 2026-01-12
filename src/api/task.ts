@@ -450,6 +450,10 @@ export async function updateTaskStatus(
   // 상태 업데이트
   // 주의: UPDATE 후 SELECT 시 RLS 정책으로 인해 0 rows가 반환될 수 있으므로
   // .maybeSingle()을 사용하여 null을 허용하고, 실패 시 기존 task 데이터를 기반으로 반환
+  
+  // 참고: 채팅 로그는 이제 파일 업로드 기반으로 자동 생성됨 (트리거 기반)
+  // 상태 변경 시 로그 생성 로직은 제거됨
+
   const { data: updatedTask, error: updateError } = await supabase
     .from("tasks")
     .update({ task_status: newStatus })

@@ -1,5 +1,6 @@
 import supabase from "@/lib/supabase";
 import type { Tables, TablesInsert } from "@/database.type";
+import type { TaskStatus } from "@/lib/task-status";
 
 export type Message = Tables<"messages"> & {
   read_by?: string[] | null;
@@ -7,6 +8,47 @@ export type Message = Tables<"messages"> & {
   file_name?: string | null;
   file_type?: string | null;
   file_size?: number | null;
+};
+
+// New chat log types (replacing old message_logs)
+import type { Database } from "@/database.type";
+
+export type ChatLogType = Database["public"]["Enums"]["chat_log_type"];
+
+export type ChatLog = Database["public"]["Tables"]["task_chat_logs"]["Row"];
+
+export type ChatLogWithItems = ChatLog & {
+  items: Array<{
+    id: string;
+    log_id: string;
+    message_id: string;
+    position: number;
+    message: MessageWithProfile;
+  }>;
+  creator: {
+    id: string;
+    full_name: string | null;
+    email: string;
+  };
+};
+
+// Legacy types (deprecated, will be removed after migration)
+export type MessageLog = {
+  id: string;
+  task_id: string;
+  title: string;
+  status: TaskStatus;
+  system_message_id: string;
+  previous_system_message_id: string | null;
+  file_count: number;
+  text_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MessageLogWithSystemMessage = MessageLog & {
+  system_message: MessageWithProfile;
+  previous_system_message: MessageWithProfile | null;
 };
 
 export type MessageInsert = Omit<TablesInsert<"messages">, "user_id"> & {
@@ -49,6 +91,118 @@ export async function getMessagesByTaskId(taskId: string): Promise<MessageWithPr
   }
 
   return (data || []) as MessageWithProfile[];
+}
+
+/**
+ * Task의 채팅 로그 목록 조회 (새 시스템)
+ * 로그와 참조된 메시지들을 함께 조회
+ */
+export async function getChatLogsByTaskId(taskId: string): Promise<ChatLogWithItems[]> {
+  // 로그 조회 (FK 이름은 Supabase가 자동 생성하므로 직접 지정하지 않음)
+  const { data: logs, error: logsError } = await supabase
+    .from("task_chat_logs")
+    .select(`
+      id,
+      task_id,
+      created_by,
+      log_type,
+      title,
+      created_at
+    `)
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+
+  if (logsError) {
+    throw new Error(`채팅 로그 조회 실패: ${logsError.message}`);
+  }
+
+  if (!logs || logs.length === 0) {
+    return [];
+  }
+
+  // 각 로그의 creator 프로필 조회
+  const creatorIds = [...new Set(logs.map((log) => log.created_by))];
+  const { data: creators, error: creatorsError } = await supabase
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", creatorIds);
+
+  if (creatorsError) {
+    throw new Error(`프로필 조회 실패: ${creatorsError.message}`);
+  }
+
+  const creatorMap = new Map(
+    (creators || []).map((c) => [c.id, { id: c.id, full_name: c.full_name, email: c.email }])
+  );
+
+  // 각 로그의 items 조회
+  const logsWithItems: ChatLogWithItems[] = await Promise.all(
+    logs.map(async (log) => {
+      const { data: items, error: itemsError } = await supabase
+        .from("task_chat_log_items")
+        .select("id, log_id, message_id, position")
+        .eq("log_id", log.id)
+        .order("position", { ascending: true });
+
+      if (itemsError) {
+        throw new Error(`로그 아이템 조회 실패: ${itemsError.message}`);
+      }
+
+      if (!items || items.length === 0) {
+        return {
+          ...log,
+          items: [],
+          creator: creatorMap.get(log.created_by) || { id: log.created_by, full_name: null, email: "" },
+        } as ChatLogWithItems;
+      }
+
+      // 메시지 조회
+      const messageIds = items.map((item) => item.message_id);
+      const { data: messages, error: messagesError } = await supabase
+        .from("messages")
+        .select(`
+          *,
+          sender:profiles!messages_user_id_fkey(id, full_name, email)
+        `)
+        .in("id", messageIds)
+        .is("deleted_at", null);
+
+      if (messagesError) {
+        throw new Error(`메시지 조회 실패: ${messagesError.message}`);
+      }
+
+      const messageMap = new Map((messages || []).map((m) => [m.id, m as MessageWithProfile]));
+
+      return {
+        ...log,
+        items: items
+          .map((item) => ({
+            id: item.id,
+            log_id: item.log_id,
+            message_id: item.message_id,
+            position: item.position,
+            message: messageMap.get(item.message_id)!,
+          }))
+          .filter((item) => item.message !== undefined)
+          .sort((a, b) => a.position - b.position),
+        creator: creatorMap.get(log.created_by) || { id: log.created_by, full_name: null, email: "" },
+      } as ChatLogWithItems;
+    })
+  );
+
+  return logsWithItems;
+}
+
+/**
+ * Task의 메시지 로그(그룹) 목록 조회 (레거시, deprecated)
+ * @deprecated Use getChatLogsByTaskId instead
+ * 이 함수는 더 이상 사용되지 않으며, message_logs 테이블이 제거되었습니다.
+ */
+export async function getMessageLogsByTaskId(taskId: string): Promise<MessageLogWithSystemMessage[]> {
+  // 레거시 함수: message_logs 테이블이 제거되어 빈 배열 반환
+  // 새로운 시스템에서는 getChatLogsByTaskId를 사용하세요.
+  console.warn("getMessageLogsByTaskId is deprecated. Use getChatLogsByTaskId instead.");
+  return [];
 }
 
 /**
@@ -157,12 +311,14 @@ export async function createFileMessage(
 /**
  * 텍스트와 파일을 함께 포함한 메시지 생성
  * 텍스트가 있으면 텍스트 메시지로, 파일이 있으면 파일 메시지로 각각 생성
+ * 파일이 포함된 경우 bundle_id를 생성하고, 마지막 파일 메시지에 is_log_anchor=true 설정
  * 지시자 또는 담당자만 메시지 작성 가능
  */
 export async function createMessageWithFiles(
   taskId: string,
   content: string | null,
   files: Array<{ url: string; fileName: string; fileType: string; fileSize: number }>,
+  bundleId?: string, // Optional: 프론트엔드에서 생성한 bundle_id
 ): Promise<Message[]> {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) {
@@ -187,10 +343,42 @@ export async function createMessageWithFiles(
     throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
   }
 
+  // 파일이 포함된 경우 bundle_id 생성 (프론트엔드에서 전달하지 않은 경우)
+  // 텍스트만 전송하는 경우 bundle_id는 null (로그 생성 안 됨)
+  const hasFiles = files.length > 0;
+  const finalBundleId = hasFiles ? (bundleId || crypto.randomUUID()) : null;
+
   const messages: Message[] = [];
 
-  // 파일 메시지들을 먼저 생성 (UI에서 파일이 먼저 표시되도록)
-  for (const file of files) {
+  // 중요: 텍스트 메시지를 먼저 생성 (트리거 실행 시점에 bundle_id로 조회 가능하도록)
+  // 파일이 포함된 경우 텍스트 메시지에도 bundle_id 설정
+  if (content && content.trim()) {
+    const { data: textMessage, error: textError } = await supabase
+      .from("messages")
+      .insert({
+        task_id: taskId,
+        user_id: userId,
+        content: content.trim(),
+        message_type: "USER",
+        read_by: [],
+        bundle_id: finalBundleId, // 파일이 있으면 같은 bundle_id
+        is_log_anchor: false, // 텍스트는 anchor가 될 수 없음
+      })
+      .select()
+      .single();
+
+    if (textError) {
+      throw new Error(`텍스트 메시지 생성 실패: ${textError.message}`);
+    }
+    messages.push(textMessage as Message);
+  }
+
+  // 파일 메시지들을 나중에 생성 (마지막 파일 메시지에만 is_log_anchor=true 설정)
+  // 마지막 파일 메시지가 insert될 때 트리거가 실행되며, 이 시점에 텍스트 메시지도 이미 DB에 있음
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const isLastFile = i === files.length - 1;
+    
     const { data: fileMessage, error: fileError } = await supabase
       .from("messages")
       .insert({
@@ -203,6 +391,8 @@ export async function createMessageWithFiles(
         file_type: file.fileType,
         file_size: file.fileSize,
         read_by: [],
+        bundle_id: finalBundleId,
+        is_log_anchor: isLastFile && hasFiles, // 마지막 파일만 anchor
       })
       .select()
       .single();
@@ -211,26 +401,6 @@ export async function createMessageWithFiles(
       throw new Error(`파일 메시지 생성 실패: ${fileError.message}`);
     }
     messages.push(fileMessage as Message);
-  }
-
-  // 텍스트 메시지가 있으면 나중에 생성 (UI에서 텍스트가 파일 아래에 표시되도록)
-  if (content && content.trim()) {
-    const { data: textMessage, error: textError } = await supabase
-      .from("messages")
-      .insert({
-        task_id: taskId,
-        user_id: userId,
-        content: content.trim(),
-        message_type: "USER",
-        read_by: [],
-      })
-      .select()
-      .single();
-
-    if (textError) {
-      throw new Error(`텍스트 메시지 생성 실패: ${textError.message}`);
-    }
-    messages.push(textMessage as Message);
   }
 
   return messages;

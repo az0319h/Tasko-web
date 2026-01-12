@@ -12,6 +12,11 @@ export * from "./queries/use-realtime-messages";
 export * from "./queries/use-chat-presence";
 export * from "./queries/use-profiles";
 export * from "./queries/use-project-participants";
+// Deprecated: message_logs 테이블이 제거되어 더 이상 사용되지 않음
+// export * from "./queries/use-message-logs";
+// export * from "./queries/use-realtime-message-logs";
+export * from "./queries/use-chat-logs";
+export * from "./queries/use-realtime-chat-logs";
 export * from "./mutations/use-profile";
 export * from "./mutations/use-profile-auto";
 export * from "./mutations/use-profile-setup";
