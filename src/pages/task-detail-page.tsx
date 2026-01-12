@@ -16,8 +16,11 @@ import {
   useRealtimeMessages,
   useChatPresence,
   useDeleteMessage,
+  useChatLogs,
+  useRealtimeChatLogs,
 } from "@/hooks";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
+import { ChatLogGroup } from "@/components/task/chat-log-group";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,6 +46,7 @@ export default function TaskDetailPage() {
   const { data: currentProfile } = useCurrentProfile();
   const { data: isAdmin = false } = useIsAdmin();
   const { data: messages = [], isLoading: messagesLoading } = useMessages(taskId);
+  const { data: chatLogs = [], isLoading: logsLoading } = useChatLogs(taskId);
   const createMessage = useCreateMessage();
   const createFileMessage = useCreateFileMessage();
   const createMessageWithFiles = useCreateMessageWithFiles();
@@ -62,6 +66,7 @@ export default function TaskDetailPage() {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // Draft 상태의 파일들
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set()); // 업로드 중인 파일 이름들
   const [dragActive, setDragActive] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +81,9 @@ export default function TaskDetailPage() {
 
   // Realtime 구독 활성화 (Presence 상태 전달)
   useRealtimeMessages(taskId, !!taskId, isPresent);
+  
+  // 채팅 로그 리얼타임 구독 활성화
+  useRealtimeChatLogs(taskId, !!taskId);
 
   // 케이스 1: 초기 로드 시 읽음 처리 (taskId 변경 시)
   // taskId가 변경되면 초기 로드로 간주하고, Presence가 활성화되어 있을 때 읽음 처리
@@ -135,6 +143,20 @@ export default function TaskDetailPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 마지막 로그만 기본 펼침 상태로 설정 (UX 개선: 최신 로그는 자동으로 열어서 확인 가능)
+  useEffect(() => {
+    if (chatLogs.length > 0) {
+      // 가장 마지막 로그(최신 로그)의 ID를 찾아서 펼침 상태로 설정
+      const lastLog = chatLogs[chatLogs.length - 1];
+      setExpandedGroups((prev) => {
+        const newSet = new Set(prev);
+        // 기존 펼침 상태는 유지하되, 마지막 로그는 항상 포함
+        newSet.add(lastLog.id);
+        return newSet;
+      });
+    }
+  }, [chatLogs]);
 
   // 케이스 3: 메시지 목록이 변경되고 채팅 화면에 있을 때 읽음 처리
   // 상대방이 메시지를 보냈거나, 메시지가 업데이트되었을 때 읽음 처리
@@ -356,11 +378,15 @@ export default function TaskDetailPage() {
       }
 
       // 텍스트와 파일을 함께 전송
+      // 파일이 포함된 경우 bundleId 생성 (로그 생성용)
+      const bundleId = uploadedFiles.length > 0 ? crypto.randomUUID() : undefined;
+      
       if (content || uploadedFiles.length > 0) {
         await createMessageWithFiles.mutateAsync({
           taskId,
           content,
           files: uploadedFiles,
+          bundleId,
         });
         
         // 전송 성공 후 입력창에 포커스 복원
@@ -481,6 +507,243 @@ export default function TaskDetailPage() {
       console.error("읽음 상태 확인 중 에러:", error);
       return false;
     }
+  };
+
+  // 로그에 참조된 메시지 ID 집합 생성 (삭제 버튼 숨김용)
+  const loggedMessageIds = new Set<string>();
+  chatLogs.forEach((log) => {
+    log.items.forEach((item) => {
+      loggedMessageIds.add(item.message_id);
+    });
+  });
+
+  // 메시지 아이템 렌더링 함수
+  const renderMessageItem = (message: MessageWithProfile) => {
+    const isMine = message.user_id === currentUserId;
+    const isLoggedMessage = loggedMessageIds.has(message.id); // 로그에 포함된 메시지인지 확인
+    const eventType = getSystemEventType(message);
+
+    // SYSTEM 메시지 처리
+    if (message.message_type === "SYSTEM") {
+      // 중요한 이벤트 (승인 요청/승인/반려) 강조 UI
+      if (eventType === "APPROVAL_REQUEST") {
+        return (
+          <div key={message.id} className="flex justify-center my-4">
+            <div className="bg-blue-50 dark:bg-blue-950 border-2 border-blue-200 dark:border-blue-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  승인 요청
+                </p>
+              </div>
+              <p className="text-sm text-blue-800 dark:text-blue-200 text-center">
+                {message.content}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
+                {formatMessageTime(message.created_at)}
+              </p>
+            </div>
+          </div>
+        );
+      }
+      if (eventType === "APPROVED") {
+        return (
+          <div key={message.id} className="flex justify-center my-4">
+            <div className="bg-green-50 dark:bg-green-950 border-2 border-green-200 dark:border-green-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <p className="text-sm font-semibold text-green-900 dark:text-green-100">
+                  업무 승인
+                </p>
+              </div>
+              <p className="text-sm text-green-800 dark:text-green-200 text-center">
+                {message.content}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2">
+                {formatMessageTime(message.created_at)}
+              </p>
+            </div>
+          </div>
+        );
+      }
+      if (eventType === "REJECTED") {
+        return (
+          <div key={message.id} className="flex justify-center my-4">
+            <div className="bg-red-50 dark:bg-red-950 border-2 border-red-200 dark:border-red-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+                  업무 반려
+                </p>
+              </div>
+              <p className="text-sm text-red-800 dark:text-red-200 text-center">
+                {message.content}
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2">
+                {formatMessageTime(message.created_at)}
+              </p>
+            </div>
+          </div>
+        );
+      }
+      // 일반 SYSTEM 메시지
+      return (
+        <div key={message.id} className="flex justify-center my-2">
+          <div className="bg-muted/50 border border-muted rounded-lg px-4 py-2 max-w-md">
+            <p className="text-sm text-muted-foreground text-center">{message.content}</p>
+            <p className="text-xs text-muted-foreground/70 text-center mt-1">
+              {formatMessageTime(message.created_at)}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // FILE 메시지 처리
+    if (message.message_type === "FILE") {
+      return (
+        <div
+          key={message.id}
+          className={cn("flex mb-4", isMine ? "justify-end" : "justify-start")}
+        >
+          <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
+            {!isMine && (
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <span className="text-xs font-medium">
+                  {message.sender?.full_name?.charAt(0).toUpperCase() ||
+                    message.sender?.email?.charAt(0).toUpperCase() ||
+                    "U"}
+                </span>
+              </div>
+            )}
+            <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
+              {!isMine && (
+                <span className="text-xs text-muted-foreground mb-1 px-1">
+                  {message.sender?.full_name || message.sender?.email || "사용자"}
+                </span>
+              )}
+              <div
+                className={cn(
+                  "rounded-lg px-4 py-3 border-2",
+                  isMine
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-foreground border-muted"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{getFileIcon(message.file_type || "")}</span>
+                  <div className="flex-1 min-w-0">
+                    <a
+                      href={getTaskFileDownloadUrl(message.file_url || "")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium truncate block hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {message.file_name || message.content}
+                    </a>
+                    <p className="text-xs opacity-70 mt-1">
+                      {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={getTaskFileDownloadUrl(message.file_url || "")}
+                      download={message.file_name}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                    {isMine && !isLoggedMessage && (
+                      <button
+                        onClick={() => handleDeleteMessageClick(message)}
+                        className="p-1 hover:bg-primary/20 rounded"
+                        aria-label="메시지 삭제"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mt-1 px-1">
+                <span className="text-xs text-muted-foreground">
+                  {formatMessageTime(message.created_at)}
+                </span>
+                {/* 읽음 표시 (본인이 보낸 메시지만) */}
+                {isMine && isMessageRead(message) && (
+                  <span className="text-xs text-muted-foreground">
+                    읽음
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // USER 메시지: 좌/우 말풍선 구분
+    return (
+      <div
+        key={message.id}
+        className={cn("flex mb-4", isMine ? "justify-end" : "justify-start")}
+      >
+        <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
+          {!isMine && (
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <span className="text-xs font-medium">
+                {message.sender?.full_name?.charAt(0).toUpperCase() ||
+                  message.sender?.email?.charAt(0).toUpperCase() ||
+                  "U"}
+              </span>
+            </div>
+          )}
+          <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
+            {!isMine && (
+              <span className="text-xs text-muted-foreground mb-1 px-1">
+                {message.sender?.full_name || message.sender?.email || "사용자"}
+              </span>
+            )}
+            <div className="relative group">
+              <div
+                className={cn(
+                  "rounded-lg px-4 py-2",
+                  isMine
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                )}
+              >
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              </div>
+              {isMine && !isLoggedMessage && (
+                <button
+                  onClick={() => handleDeleteMessageClick(message)}
+                  className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
+                  aria-label="메시지 삭제"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1 mt-1 px-1">
+              <span className="text-xs text-muted-foreground">
+                {formatMessageTime(message.created_at)}
+              </span>
+              {/* 읽음 표시 (본인이 보낸 메시지만) */}
+              {isMine && isMessageRead(message) && (
+                <span className="text-xs text-muted-foreground">
+                  읽음
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // SYSTEM 메시지의 이벤트 타입 판단
@@ -646,20 +909,19 @@ export default function TaskDetailPage() {
       </Card>
 
       {/* 채팅 영역 */}
-      <Card className="flex flex-col" style={{ height: "calc(100vh - 400px)", minHeight: "500px" }}>
+      <Card className="flex flex-col" style={{ minHeight: "70vh" }}>
         <CardHeader className="border-b">
           <CardTitle className="text-lg">채팅</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-          {/* 메시지 리스트 영역 */}
           <div
-            className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+            className="flex-1 overflow-y-auto p-4 relative"
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
           >
-            {messagesLoading ? (
+            {messagesLoading || logsLoading ? (
               <div className="flex justify-center items-center h-full">
                 <Skeleton className="h-8 w-48" />
               </div>
@@ -668,222 +930,82 @@ export default function TaskDetailPage() {
                 <p className="text-sm text-muted-foreground">아직 메시지가 없습니다.</p>
               </div>
             ) : (
-              messages.map((message) => {
-                const isMine = message.user_id === currentUserId;
-                const eventType = getSystemEventType(message);
-
-                // SYSTEM 메시지 처리
-                if (message.message_type === "SYSTEM") {
-                  // 중요한 이벤트 (승인 요청/승인/반려) 강조 UI
-                  if (eventType === "APPROVAL_REQUEST") {
-                    return (
-                      <div key={message.id} className="flex justify-center">
-                        <div className="bg-blue-50 dark:bg-blue-950 border-2 border-blue-200 dark:border-blue-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-                          <div className="flex items-center justify-center gap-2 mb-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                              승인 요청
-                            </p>
-                          </div>
-                          <p className="text-sm text-blue-800 dark:text-blue-200 text-center">
-                            {message.content}
-                          </p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
-                            {formatMessageTime(message.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (eventType === "APPROVED") {
-                    return (
-                      <div key={message.id} className="flex justify-center">
-                        <div className="bg-green-50 dark:bg-green-950 border-2 border-green-200 dark:border-green-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-                          <div className="flex items-center justify-center gap-2 mb-2">
-                            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                            <p className="text-sm font-semibold text-green-900 dark:text-green-100">
-                              업무 승인
-                            </p>
-                          </div>
-                          <p className="text-sm text-green-800 dark:text-green-200 text-center">
-                            {message.content}
-                          </p>
-                          <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2">
-                            {formatMessageTime(message.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (eventType === "REJECTED") {
-                    return (
-                      <div key={message.id} className="flex justify-center">
-                        <div className="bg-red-50 dark:bg-red-950 border-2 border-red-200 dark:border-red-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-                          <div className="flex items-center justify-center gap-2 mb-2">
-                            <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                            <p className="text-sm font-semibold text-red-900 dark:text-red-100">
-                              업무 반려
-                            </p>
-                          </div>
-                          <p className="text-sm text-red-800 dark:text-red-200 text-center">
-                            {message.content}
-                          </p>
-                          <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2">
-                            {formatMessageTime(message.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  // 일반 SYSTEM 메시지
-                  return (
-                    <div key={message.id} className="flex justify-center">
-                      <div className="bg-muted/50 border border-muted rounded-lg px-4 py-2 max-w-md">
-                        <p className="text-sm text-muted-foreground text-center">{message.content}</p>
-                        <p className="text-xs text-muted-foreground/70 text-center mt-1">
-                          {formatMessageTime(message.created_at)}
-                        </p>
-                      </div>
-                    </div>
+              <div className="space-y-1">
+                {/* 일반 메시지 (로그에 참조되지 않은 메시지, SYSTEM 제외) */}
+                {(() => {
+                  const regularMessages = messages.filter(
+                    (msg) => !loggedMessageIds.has(msg.id) && msg.message_type !== "SYSTEM"
                   );
-                }
 
-                // FILE 메시지 처리
-                if (message.message_type === "FILE") {
+                  // SYSTEM 메시지 (상태 변경 알림)
+                  const systemMessages = messages.filter((msg) => msg.message_type === "SYSTEM");
+
+                  // 타임라인 구성: 로그와 SYSTEM 메시지를 시간순으로 배치
+                  const timeline: Array<{ type: "log" | "system" | "regular"; data: any; timestamp: number }> = [];
+
+                  // 로그 추가 (로그 박스)
+                  chatLogs.forEach((log) => {
+                    timeline.push({
+                      type: "log",
+                      data: log,
+                      timestamp: new Date(log.created_at).getTime(),
+                    });
+                  });
+
+                  // SYSTEM 메시지 추가 (상태 변경 알림)
+                  systemMessages.forEach((msg) => {
+                    timeline.push({
+                      type: "system",
+                      data: msg,
+                      timestamp: new Date(msg.created_at).getTime(),
+                    });
+                  });
+
+                  // 타임라인 정렬 (로그와 SYSTEM 메시지)
+                  timeline.sort((a, b) => {
+                    if (a.timestamp === b.timestamp) {
+                      // 같은 시간이면 로그가 먼저 (로그 박스가 SYSTEM 메시지보다 먼저 표시)
+                      return a.type === "log" ? -1 : 1;
+                    }
+                    return a.timestamp - b.timestamp;
+                  });
+
+                  // 렌더링: 타임라인 + 일반 메시지
                   return (
-                    <div
-                      key={message.id}
-                      className={cn("flex", isMine ? "justify-end" : "justify-start")}
-                    >
-                      <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
-                        {!isMine && (
-                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-medium">
-                              {message.sender?.full_name?.charAt(0).toUpperCase() ||
-                                message.sender?.email?.charAt(0).toUpperCase() ||
-                                "U"}
-                            </span>
-                          </div>
-                        )}
-                        <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
-                          {!isMine && (
-                            <span className="text-xs text-muted-foreground mb-1 px-1">
-                              {message.sender?.full_name || message.sender?.email || "사용자"}
-                            </span>
-                          )}
-                          <div
-                            className={cn(
-                              "rounded-lg px-4 py-3 border-2",
-                              isMine
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-muted text-foreground border-muted"
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{getFileIcon(message.file_type || "")}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{message.file_name || message.content}</p>
-                                <p className="text-xs opacity-70 mt-1">
-                                  {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <a
-                                  href={getTaskFileDownloadUrl(message.file_url || "")}
-                                  download={message.file_name}
-                                  className="ml-2"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </a>
-                                {isMine && (
-                                  <button
-                                    onClick={() => handleDeleteMessageClick(message)}
-                                    className="p-1 hover:bg-primary/20 rounded"
-                                    aria-label="메시지 삭제"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
+                    <>
+                      {/* 타임라인 (로그 박스 + SYSTEM 메시지) */}
+                      {timeline.map((item) => {
+                        if (item.type === "log") {
+                          const log = item.data;
+                          return (
+                            <div key={log.id}>
+                              <ChatLogGroup
+                                log={log}
+                                isExpanded={expandedGroups.has(log.id)}
+                                onToggle={() => {
+                                  const newSet = new Set(expandedGroups);
+                                  if (newSet.has(log.id)) newSet.delete(log.id);
+                                  else newSet.add(log.id);
+                                  setExpandedGroups(newSet);
+                                }}
+                                renderMessage={renderMessageItem}
+                              />
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1 px-1">
-                            <span className="text-xs text-muted-foreground">
-                              {formatMessageTime(message.created_at)}
-                            </span>
-                            {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                            {isMine && isMessageRead(message) && (
-                              <span className="text-xs text-muted-foreground">
-                                읽음
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
+                          );
+                        } else {
+                          // SYSTEM 메시지
+                          return <div key={item.data.id}>{renderMessageItem(item.data)}</div>;
+                        }
+                      })}
 
-                // USER 메시지: 좌/우 말풍선 구분
-                return (
-                  <div
-                    key={message.id}
-                    className={cn("flex", isMine ? "justify-end" : "justify-start")}
-                  >
-                    <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
-                      {!isMine && (
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-medium">
-                            {message.sender?.full_name?.charAt(0).toUpperCase() ||
-                              message.sender?.email?.charAt(0).toUpperCase() ||
-                              "U"}
-                          </span>
-                        </div>
-                      )}
-                      <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
-                        {!isMine && (
-                          <span className="text-xs text-muted-foreground mb-1 px-1">
-                            {message.sender?.full_name || message.sender?.email || "사용자"}
-                          </span>
-                        )}
-                        <div className="relative group">
-                          <div
-                            className={cn(
-                              "rounded-lg px-4 py-2",
-                              isMine
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-foreground"
-                            )}
-                          >
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          </div>
-                          {isMine && (
-                            <button
-                              onClick={() => handleDeleteMessageClick(message)}
-                              className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
-                              aria-label="메시지 삭제"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 mt-1 px-1">
-                          <span className="text-xs text-muted-foreground">
-                            {formatMessageTime(message.created_at)}
-                          </span>
-                          {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                          {isMine && isMessageRead(message) && (
-                            <span className="text-xs text-muted-foreground">
-                              읽음
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+                      {/* 일반 메시지 (로그에 참조되지 않은 메시지) */}
+                      {regularMessages.map((msg) => (
+                        <div key={msg.id}>{renderMessageItem(msg)}</div>
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
             )}
             {/* 스크롤 앵커 */}
             <div ref={messagesEndRef} />

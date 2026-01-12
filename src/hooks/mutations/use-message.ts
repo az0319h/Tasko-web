@@ -100,11 +100,13 @@ export function useCreateMessageWithFiles() {
       taskId,
       content,
       files,
+      bundleId,
     }: {
       taskId: string;
       content: string | null;
       files: Array<{ url: string; fileName: string; fileType: string; fileSize: number }>;
-    }) => createMessageWithFiles(taskId, content, files),
+      bundleId?: string;
+    }) => createMessageWithFiles(taskId, content, files, bundleId),
     onMutate: async ({ taskId }) => {
       // 진행 중인 쿼리 취소
       await queryClient.cancelQueries({ queryKey: ["messages", taskId] });
