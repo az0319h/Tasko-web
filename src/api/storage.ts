@@ -61,6 +61,8 @@ const MIME_TYPE_MAP: Record<string, string> = {
   xls: "application/vnd.ms-excel",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   csv: "text/csv",
+  // 텍스트 파일
+  txt: "text/plain",
   // 압축 파일
   zip: "application/zip",
   rar: "application/x-rar-compressed",
