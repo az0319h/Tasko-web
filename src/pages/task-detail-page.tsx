@@ -1049,7 +1049,7 @@ export default function TaskDetailPage() {
                   multiple
                   className="hidden"
                   onChange={handleFileSelect}
-                  accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.zip,.rar,.7z"
+                  accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
                   disabled={!canSendMessage}
                 />
                 <Paperclip className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />

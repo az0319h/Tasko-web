@@ -16,6 +16,7 @@
 --   스프레드시트: application/vnd.ms-excel (.xls),
 --                application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx),
 --                text/csv (.csv)
+--   텍스트 파일: text/plain (.txt)
 --   압축 파일: application/zip (.zip), application/x-rar-compressed (.rar),
 --             application/x-7z-compressed (.7z)
 
@@ -43,6 +44,8 @@ SET
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  -- .xlsx
     'text/csv',  -- .csv
     'application/csv',  -- .csv (대체 MIME type)
+    -- 텍스트 파일
+    'text/plain',  -- .txt
     -- 압축 파일
     'application/zip',  -- .zip
     'application/x-rar-compressed',  -- .rar
