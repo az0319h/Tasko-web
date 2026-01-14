@@ -48,11 +48,18 @@ export function MessageDeleteDialog({
             <br />
             {isFileMessage ? (
               <>
-                파일명: <strong>{messagePreview}</strong>
+                파일명:{" "}
+                <strong className="break-all" style={{ wordBreak: "break-all", overflowWrap: "break-word" }}>
+                  {messagePreview}
+                </strong>
               </>
             ) : (
               <>
-                메시지: <strong>{messagePreview}{message?.content && message.content.length > 50 ? "..." : ""}</strong>
+                메시지:{" "}
+                <strong className="break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word" }}>
+                  {messagePreview}
+                  {message?.content && message.content.length > 50 ? "..." : ""}
+                </strong>
               </>
             )}
             <br />

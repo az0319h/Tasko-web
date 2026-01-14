@@ -25,6 +25,11 @@ export type TaskWithProfiles = Task & {
     full_name: string | null;
     email: string;
   } | null;
+  project?: {
+    id: string;
+    title: string;
+    client_name: string;
+  } | null;
 };
 
 /**
@@ -67,13 +72,14 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
 
   const userId = session.session.user.id;
 
-  // Task 조회
+  // Task 조회 (project 정보 포함)
   const { data, error } = await supabase
     .from("tasks")
     .select(`
       *,
       assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email),
+      project:projects!tasks_project_id_fkey(id, title, client_name)
     `)
     .eq("id", id)
     .single();
