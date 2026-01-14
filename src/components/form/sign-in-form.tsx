@@ -82,7 +82,7 @@ export function SigninForm({ ...props }: React.ComponentProps<typeof Card>) {
             alt="logo_character"
             className="size-10"
           />
-          <CardTitle className="text-20-medium text-center">Sign in to Tasko</CardTitle>
+          <CardTitle className="text-20-medium text-center">Tasko 계정으로 로그인하세요</CardTitle>
         </div>
       </CardHeader>
 

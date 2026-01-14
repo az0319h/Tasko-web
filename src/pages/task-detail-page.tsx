@@ -36,7 +36,8 @@ import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import { ChatLogGroup } from "@/components/task/chat-log-group";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import DefaultSpinner from "@/components/common/default-spinner";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
@@ -259,33 +260,7 @@ export default function TaskDetailPage() {
   if (isLoading) {
     return (
       <div className="container w-full">
-        <Skeleton className="mb-4 h-8 w-20 sm:w-28" />
-        <div className="flex flex-col gap-4 xl:flex-row xl:gap-6">
-          <div className="w-full xl:w-[380px] xl:shrink-0">
-            <Card>
-              <CardHeader className="pb-3 sm:pb-4">
-                <Skeleton className="h-6 w-3/4 sm:h-8" />
-                <Skeleton className="mt-2 h-5 w-20" />
-              </CardHeader>
-              <CardContent className="space-y-4 pt-0">
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                  <Skeleton className="h-12" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          <Card className="h-[10vh] flex-1">
-            <CardHeader className="border-b px-4 py-3 sm:px-6 sm:py-4">
-              <Skeleton className="h-5 w-16 sm:h-6" />
-            </CardHeader>
-            <CardContent className="flex h-64 items-center justify-center">
-              <Skeleton className="h-8 w-32" />
-            </CardContent>
-          </Card>
-        </div>
+        <DefaultSpinner />
       </div>
     );
   }
@@ -1206,7 +1181,7 @@ export default function TaskDetailPage() {
             >
               {messagesLoading || logsLoading ? (
                 <div className="flex h-full items-center justify-center">
-                  <Skeleton className="h-8 w-48" />
+                  <Spinner />
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center">

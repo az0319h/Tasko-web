@@ -28,7 +28,6 @@ export default function ProfilePage() {
 
   return (
     <>
-      <SEO title="프로필" description="내 프로필을 확인할 수 있습니다." />
       <div className="container mx-auto max-w-2xl px-4 py-8">
         <Card>
           <CardHeader>
@@ -41,10 +40,7 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="mb-6 flex justify-center">
-              <ProfileAvatar
-                avatarUrl={profile?.avatar_url}
-                size={120}
-              />
+              <ProfileAvatar avatarUrl={profile?.avatar_url} size={120} />
             </div>
             <div className="space-y-6">
               {/* Email */}

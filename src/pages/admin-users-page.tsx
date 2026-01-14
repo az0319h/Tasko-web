@@ -33,9 +33,7 @@ export default function AdminUsersPage() {
   const { mutate: toggleUserStatus, isPending: isToggling } = useToggleUserStatus({
     onSuccess: (_, variables) => {
       toast.success(
-        variables.isActive
-          ? "사용자가 활성화되었습니다."
-          : "사용자가 비활성화되었습니다.",
+        variables.isActive ? "사용자가 활성화되었습니다." : "사용자가 비활성화되었습니다.",
         {
           position: "bottom-right",
         },
@@ -86,7 +84,7 @@ export default function AdminUsersPage() {
       <div className="container mx-auto px-4 py-8">
         <Card>
           <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">사용자 목록을 불러올 수 없습니다.</p>
+            <p className="text-muted-foreground text-center">사용자 목록을 불러올 수 없습니다.</p>
           </CardContent>
         </Card>
       </div>
@@ -95,7 +93,6 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <SEO title="사용자 관리" description="사용자를 관리할 수 있습니다." />
       <div className="container mx-auto px-4 py-8">
         <Card>
           <CardHeader>
@@ -128,7 +125,7 @@ export default function AdminUsersPage() {
                   </thead>
                   <tbody>
                     {users.map((user) => (
-                      <tr key={user.id} className="border-b hover:bg-muted/50">
+                      <tr key={user.id} className="hover:bg-muted/50 border-b">
                         <td className="px-4 py-3 text-sm">{user.email}</td>
                         <td className="px-4 py-3 text-sm">{user.full_name || "-"}</td>
                         <td className="px-4 py-3 text-sm">{user.position || "-"}</td>
@@ -166,7 +163,7 @@ export default function AdminUsersPage() {
                             {user.profile_completed ? "완료" : "미완료"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                        <td className="text-muted-foreground px-4 py-3 text-sm">
                           {formatDate(user.created_at)}
                         </td>
                         <td className="px-4 py-3 text-sm">
@@ -184,7 +181,7 @@ export default function AdminUsersPage() {
                 </table>
               </div>
             ) : (
-              <p className="py-8 text-center text-muted-foreground">등록된 사용자가 없습니다.</p>
+              <p className="text-muted-foreground py-8 text-center">등록된 사용자가 없습니다.</p>
             )}
           </CardContent>
         </Card>
@@ -198,8 +195,7 @@ export default function AdminUsersPage() {
                   `정말로 ${pendingToggle.email} 사용자를 ${
                     pendingToggle.newStatus ? "활성화" : "비활성화"
                   }하시겠습니까?`}
-                {pendingToggle?.newStatus === false &&
-                  " 비활성화된 사용자는 로그인할 수 없습니다."}
+                {pendingToggle?.newStatus === false && " 비활성화된 사용자는 로그인할 수 없습니다."}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -223,4 +219,3 @@ export default function AdminUsersPage() {
     </>
   );
 }
-
