@@ -17,7 +17,7 @@ export default function GlobalLayout() {
               <Link to={"/"}>로고</Link>
               <SidebarTrigger className="md:hidden" />
             </div>
-            <div className="flex-1 overflow-y-auto px-4 md:px-5">
+            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-5">
               <Outlet />
             </div>
           </main>

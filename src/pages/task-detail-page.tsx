@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Play, CheckCircle, XCircle, Pencil, Trash2, Paperclip, Send, Download, File, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Play,
+  CheckCircle,
+  XCircle,
+  Pencil,
+  Trash2,
+  Paperclip,
+  Send,
+  Download,
+  File,
+  X,
+  Plus,
+} from "lucide-react";
 import {
   useTask,
   useIsAdmin,
@@ -81,7 +94,7 @@ export default function TaskDetailPage() {
 
   // Realtime 구독 활성화 (Presence 상태 전달)
   useRealtimeMessages(taskId, !!taskId, isPresent);
-  
+
   // 채팅 로그 리얼타임 구독 활성화
   useRealtimeChatLogs(taskId, !!taskId);
 
@@ -94,10 +107,14 @@ export default function TaskDetailPage() {
       // 1초 이내 중복 호출 방지
       if (now - lastMarkAsReadTimeRef.current > 1000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(`[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load)`);
+        console.log(
+          `[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load)`,
+        );
         markMessagesAsRead.mutate(taskId, {
           onSuccess: () => {
-            console.log(`[TaskDetail] ✅ Case 1: Successfully marked all messages as read for task ${taskId}`);
+            console.log(
+              `[TaskDetail] ✅ Case 1: Successfully marked all messages as read for task ${taskId}`,
+            );
           },
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 1: Failed to mark messages as read:`, error);
@@ -117,10 +134,14 @@ export default function TaskDetailPage() {
       // 1초 이내 중복 호출 방지
       if (now - lastMarkAsReadTimeRef.current > 1000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(`[TaskDetail] 📖 Case 2: Marking all messages as read for task ${taskId} (presence reactivated)`);
+        console.log(
+          `[TaskDetail] 📖 Case 2: Marking all messages as read for task ${taskId} (presence reactivated)`,
+        );
         markMessagesAsRead.mutate(taskId, {
           onSuccess: () => {
-            console.log(`[TaskDetail] ✅ Case 2: Successfully marked all messages as read for task ${taskId}`);
+            console.log(
+              `[TaskDetail] ✅ Case 2: Successfully marked all messages as read for task ${taskId}`,
+            );
           },
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 2: Failed to mark messages as read:`, error);
@@ -201,10 +222,14 @@ export default function TaskDetailPage() {
       // 3초 이내 중복 호출 방지 (디바운싱)
       if (now - lastMarkAsReadTimeRef.current > 3000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(`[TaskDetail] 📖 Case 3: Marking all messages as read for task ${taskId} (message list updated)`);
+        console.log(
+          `[TaskDetail] 📖 Case 3: Marking all messages as read for task ${taskId} (message list updated)`,
+        );
         markMessagesAsRead.mutate(taskId, {
           onSuccess: () => {
-            console.log(`[TaskDetail] ✅ Case 3: Successfully marked all messages as read for task ${taskId}`);
+            console.log(
+              `[TaskDetail] ✅ Case 3: Successfully marked all messages as read for task ${taskId}`,
+            );
           },
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 3: Failed to mark messages as read:`, error);
@@ -233,18 +258,34 @@ export default function TaskDetailPage() {
   // 로딩 상태
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-8 w-48" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </CardContent>
-        </Card>
+      <div className="container w-full">
+        <Skeleton className="mb-4 h-8 w-20 sm:w-28" />
+        <div className="flex flex-col gap-4 xl:flex-row xl:gap-6">
+          <div className="w-full xl:w-[380px] xl:shrink-0">
+            <Card>
+              <CardHeader className="pb-3 sm:pb-4">
+                <Skeleton className="h-6 w-3/4 sm:h-8" />
+                <Skeleton className="mt-2 h-5 w-20" />
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <Skeleton className="h-12" />
+                  <Skeleton className="h-12" />
+                  <Skeleton className="h-12" />
+                  <Skeleton className="h-12" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <Card className="h-[10vh] flex-1">
+            <CardHeader className="border-b px-4 py-3 sm:px-6 sm:py-4">
+              <Skeleton className="h-5 w-16 sm:h-6" />
+            </CardHeader>
+            <CardContent className="flex h-64 items-center justify-center">
+              <Skeleton className="h-8 w-32" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -252,12 +293,16 @@ export default function TaskDetailPage() {
   // 에러 상태
   if (error) {
     return (
-      <div className="container mx-auto py-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-destructive">Task를 불러오는 중 오류가 발생했습니다.</p>
-            <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
-            <Button onClick={() => navigate(-1)} className="mt-4">
+      <div className="container w-full">
+        <Card className="mx-auto max-w-lg">
+          <CardContent className="py-8 text-center sm:py-12">
+            <p className="text-destructive text-sm font-medium sm:text-base">
+              Task를 불러오는 중 오류가 발생했습니다.
+            </p>
+            <p className="text-muted-foreground mt-2 text-xs break-words sm:text-sm">
+              {error.message}
+            </p>
+            <Button onClick={() => navigate(-1)} className="mt-4" size="sm">
               돌아가기
             </Button>
           </CardContent>
@@ -269,12 +314,14 @@ export default function TaskDetailPage() {
   // 데이터 없음
   if (!task) {
     return (
-      <div className="container mx-auto py-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-lg font-medium">Task를 찾을 수 없습니다</p>
-            <p className="text-sm text-muted-foreground mt-2">요청하신 Task가 존재하지 않거나 접근 권한이 없습니다.</p>
-            <Button onClick={() => navigate(-1)} className="mt-4">
+      <div className="container w-full">
+        <Card className="mx-auto">
+          <CardContent className="py-8 text-center sm:py-12">
+            <p className="text-base font-medium sm:text-lg">Task를 찾을 수 없습니다</p>
+            <p className="text-muted-foreground mt-2 text-xs sm:text-sm">
+              요청하신 Task가 존재하지 않거나 접근 권한이 없습니다.
+            </p>
+            <Button onClick={() => navigate(-1)} className="mt-4" size="sm">
               돌아가기
             </Button>
           </CardContent>
@@ -294,7 +341,8 @@ export default function TaskDetailPage() {
   const canSendMessage = isAssigner || isAssignee;
 
   // 상태 변경 버튼 표시 조건
-  const canChangeToInProgress = isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
+  const canChangeToInProgress =
+    isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
   const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
   const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
   const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
@@ -343,7 +391,7 @@ export default function TaskDetailPage() {
   // 메시지 전송 핸들러 (텍스트 + 파일 통합)
   const handleSendMessage = async () => {
     if (!taskId || createMessageWithFiles.isPending) return;
-    
+
     const hasText = messageInput.trim().length > 0;
     const hasFiles = attachedFiles.length > 0;
 
@@ -359,28 +407,37 @@ export default function TaskDetailPage() {
 
     try {
       // 파일이 있으면 먼저 업로드
-      const uploadedFiles: Array<{ url: string; fileName: string; fileType: string; fileSize: number }> = [];
-      
+      const uploadedFiles: Array<{
+        url: string;
+        fileName: string;
+        fileType: string;
+        fileSize: number;
+      }> = [];
+
       if (filesToUpload.length > 0) {
-        setUploadingFiles(new Set(filesToUpload.map(f => f.name)));
-        
+        setUploadingFiles(new Set(filesToUpload.map((f) => f.name)));
+
         for (const file of filesToUpload) {
           try {
-            const { url, fileName, fileType, fileSize } = await uploadTaskFile(file, taskId, currentUserId!);
+            const { url, fileName, fileType, fileSize } = await uploadTaskFile(
+              file,
+              taskId,
+              currentUserId!,
+            );
             uploadedFiles.push({ url, fileName, fileType, fileSize });
           } catch (error: any) {
             toast.error(`${file.name} 업로드 실패: ${error.message}`);
             // 실패한 파일은 제외하고 계속 진행
           }
         }
-        
+
         setUploadingFiles(new Set());
       }
 
       // 텍스트와 파일을 함께 전송
       // 파일이 포함된 경우 bundleId 생성 (로그 생성용)
       const bundleId = uploadedFiles.length > 0 ? crypto.randomUUID() : undefined;
-      
+
       if (content || uploadedFiles.length > 0) {
         await createMessageWithFiles.mutateAsync({
           taskId,
@@ -388,7 +445,7 @@ export default function TaskDetailPage() {
           files: uploadedFiles,
           bundleId,
         });
-        
+
         // 전송 성공 후 입력창에 포커스 복원
         setTimeout(() => {
           textareaRef.current?.focus();
@@ -477,20 +534,101 @@ export default function TaskDetailPage() {
     });
   };
 
-  // 메시지 시간 포맷팅
+  // 메시지 시간 포맷팅 (절대 시간 형식: yy.MM.dd 오전/오후 hh:mm, KST 기준)
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
+    
+    // KST 시간대로 변환 (Asia/Seoul)
+    // Intl.DateTimeFormat을 사용하여 정확한 시간대 변환
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const year = parts.find(p => p.type === 'year')?.value.slice(-2) || '00';
+    const month = parts.find(p => p.type === 'month')?.value || '01';
+    const day = parts.find(p => p.type === 'day')?.value || '01';
+    const hours24 = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minutes = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    // 오전/오후 판단
+    const ampm = hours24 < 12 ? '오전' : '오후';
+    // 12시간제로 변환 (0시는 12시로, 13시 이상은 -12)
+    const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24;
+    const hours12Str = String(hours12).padStart(2, '0');
+    
+    return `${year}.${month}.${day} ${ampm}${hours12Str}:${minutes}`;
+  };
 
-    if (minutes < 1) return "방금 전";
-    if (minutes < 60) return `${minutes}분 전`;
-    if (hours < 24) return `${hours}시간 전`;
-    if (days < 7) return `${days}일 전`;
-    return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+  // 메시지 시간 문자열 추출 (그룹핑용: yy.MM.dd 오전/오후hh:mm 형식)
+  const getMessageTimeKey = (dateString: string): string => {
+    const date = new Date(dateString);
+    
+    // KST 시간대로 변환
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(date);
+    const year = parts.find(p => p.type === 'year')?.value.slice(-2) || '00';
+    const month = parts.find(p => p.type === 'month')?.value || '01';
+    const day = parts.find(p => p.type === 'day')?.value || '01';
+    const hours24 = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minutes = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    // 오전/오후 판단
+    const ampm = hours24 < 12 ? '오전' : '오후';
+    // 12시간제로 변환
+    const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24;
+    const hours12Str = String(hours12).padStart(2, '0');
+    
+    return `${year}.${month}.${day} ${ampm}${hours12Str}:${minutes}`;
+  };
+
+  // 두 메시지가 같은 그룹에 속하는지 확인 (같은 sender, 같은 시간, 연속)
+  const isSameMessageGroup = (
+    msg1: MessageWithProfile,
+    msg2: MessageWithProfile | null,
+  ): boolean => {
+    if (!msg2) return false; // 다음 메시지가 없으면 그룹 아님
+    
+    // 같은 sender인지 확인
+    if (msg1.user_id !== msg2.user_id) return false;
+    
+    // 같은 시간(분 단위)인지 확인
+    const timeKey1 = getMessageTimeKey(msg1.created_at);
+    const timeKey2 = getMessageTimeKey(msg2.created_at);
+    if (timeKey1 !== timeKey2) return false;
+    
+    return true;
+  };
+
+  // 메시지 리스트에서 각 메시지가 그룹의 마지막인지 계산하는 함수
+  const calculateMessageGroupInfo = (messageList: MessageWithProfile[]): Map<string, boolean> => {
+    const isLastInGroupMap = new Map<string, boolean>();
+    
+    for (let i = 0; i < messageList.length; i++) {
+      const currentMsg = messageList[i];
+      const nextMsg = i < messageList.length - 1 ? messageList[i + 1] : null;
+      
+      // 다음 메시지와 같은 그룹이 아니면 현재 메시지가 그룹의 마지막
+      const isLast = !isSameMessageGroup(currentMsg, nextMsg);
+      isLastInGroupMap.set(currentMsg.id, isLast);
+    }
+    
+    return isLastInGroupMap;
   };
 
   // 메시지가 상대방(assigner 또는 assignee)에 의해 읽혔는지 확인
@@ -520,7 +658,7 @@ export default function TaskDetailPage() {
   // URL을 링크로 변환하는 함수
   const renderTextWithLinks = (text: string) => {
     if (!text) return null;
-    
+
     // URL 패턴: http:// 또는 https://로 시작하는 URL (공백 전까지)
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const parts = [];
@@ -532,7 +670,7 @@ export default function TaskDetailPage() {
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
-      
+
       // URL을 링크로 변환
       const url = match[0];
       parts.push(
@@ -541,26 +679,27 @@ export default function TaskDetailPage() {
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline hover:opacity-80 break-all"
+          className="break-all underline hover:opacity-80"
+          style={{ wordBreak: "break-all", overflowWrap: "break-word" }}
           onClick={(e) => e.stopPropagation()}
         >
           {url}
-        </a>
+        </a>,
       );
-      
+
       lastIndex = urlRegex.lastIndex;
     }
-    
+
     // 남은 텍스트 추가
     if (lastIndex < text.length) {
       parts.push(text.substring(lastIndex));
     }
-    
+
     return parts.length > 0 ? parts : text;
   };
 
   // 메시지 아이템 렌더링 함수
-  const renderMessageItem = (message: MessageWithProfile) => {
+  const renderMessageItem = (message: MessageWithProfile, isLastInGroup: boolean = true) => {
     const isMine = message.user_id === currentUserId;
     const isLoggedMessage = loggedMessageIds.has(message.id); // 로그에 포함된 메시지인지 확인
     const eventType = getSystemEventType(message);
@@ -570,74 +709,108 @@ export default function TaskDetailPage() {
       // 중요한 이벤트 (승인 요청/승인/반려) 강조 UI
       if (eventType === "APPROVAL_REQUEST") {
         return (
-          <div key={message.id} className="flex justify-center my-4">
-            <div className="bg-blue-50 dark:bg-blue-950 border-2 border-blue-200 dark:border-blue-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+          <div
+            key={message.id}
+            className="my-3 flex max-w-full min-w-0 justify-center px-2 sm:my-4"
+            style={{ maxWidth: "100%" }}
+          >
+            <div
+              className="max-w-[90%] min-w-0 rounded-lg border-2 border-blue-200 bg-blue-50 px-4 py-3 shadow-sm sm:max-w-md sm:px-6 sm:py-4 dark:border-blue-800 dark:bg-blue-950"
+              style={{ maxWidth: "90%" }}
+            >
+              <div className="mb-1.5 flex items-center justify-center gap-1.5 sm:mb-2 sm:gap-2">
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500 sm:h-2 sm:w-2" />
+                <p className="text-xs font-semibold text-blue-900 sm:text-sm dark:text-blue-100">
                   승인 요청
                 </p>
               </div>
-              <p className="text-sm text-blue-800 dark:text-blue-200 text-center break-words">
+              <p
+                className="text-center text-xs break-words text-blue-800 sm:text-sm dark:text-blue-200"
+                style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+              >
                 {renderTextWithLinks(message.content || "")}
               </p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
-                {formatMessageTime(message.created_at)}
-              </p>
+              {isLastInGroup && (
+                <p className="mt-1.5 text-center text-[10px] text-blue-600 sm:mt-2 sm:text-xs dark:text-blue-400">
+                  {formatMessageTime(message.created_at)}
+                </p>
+              )}
             </div>
           </div>
         );
       }
       if (eventType === "APPROVED") {
         return (
-          <div key={message.id} className="flex justify-center my-4">
-            <div className="bg-green-50 dark:bg-green-950 border-2 border-green-200 dark:border-green-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                <p className="text-sm font-semibold text-green-900 dark:text-green-100">
+          <div key={message.id} className="my-3 flex justify-center px-2 sm:my-4">
+            <div className="max-w-[90%] rounded-lg border-2 border-green-200 bg-green-50 px-4 py-3 shadow-sm sm:max-w-md sm:px-6 sm:py-4 dark:border-green-800 dark:bg-green-950">
+              <div className="mb-1.5 flex items-center justify-center gap-1.5 sm:mb-2 sm:gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600 sm:h-5 sm:w-5 dark:text-green-400" />
+                <p className="text-xs font-semibold text-green-900 sm:text-sm dark:text-green-100">
                   업무 승인
                 </p>
               </div>
-              <p className="text-sm text-green-800 dark:text-green-200 text-center break-words">
+              <p
+                className="text-center text-xs break-words text-green-800 sm:text-sm dark:text-green-200"
+                style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+              >
                 {renderTextWithLinks(message.content || "")}
               </p>
-              <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2">
-                {formatMessageTime(message.created_at)}
-              </p>
+              {isLastInGroup && (
+                <p className="mt-1.5 text-center text-[10px] text-green-600 sm:mt-2 sm:text-xs dark:text-green-400">
+                  {formatMessageTime(message.created_at)}
+                </p>
+              )}
             </div>
           </div>
         );
       }
       if (eventType === "REJECTED") {
         return (
-          <div key={message.id} className="flex justify-center my-4">
-            <div className="bg-red-50 dark:bg-red-950 border-2 border-red-200 dark:border-red-800 rounded-lg px-6 py-4 max-w-md shadow-sm">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+          <div key={message.id} className="my-3 flex min-w-0 justify-center px-2 sm:my-4">
+            <div className="max-w-[90%] min-w-0 rounded-lg border-2 border-red-200 bg-red-50 px-4 py-3 shadow-sm sm:max-w-md sm:px-6 sm:py-4 dark:border-red-800 dark:bg-red-950">
+              <div className="mb-1.5 flex items-center justify-center gap-1.5 sm:mb-2 sm:gap-2">
+                <XCircle className="h-4 w-4 text-red-600 sm:h-5 sm:w-5 dark:text-red-400" />
+                <p className="text-xs font-semibold text-red-900 sm:text-sm dark:text-red-100">
                   업무 반려
                 </p>
               </div>
-              <p className="text-sm text-red-800 dark:text-red-200 text-center break-words">
+              <p
+                className="text-center text-xs break-words text-red-800 sm:text-sm dark:text-red-200"
+                style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+              >
                 {renderTextWithLinks(message.content || "")}
               </p>
-              <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2">
-                {formatMessageTime(message.created_at)}
-              </p>
+              {isLastInGroup && (
+                <p className="mt-1.5 text-center text-[10px] text-red-600 sm:mt-2 sm:text-xs dark:text-red-400">
+                  {formatMessageTime(message.created_at)}
+                </p>
+              )}
             </div>
           </div>
         );
       }
       // 일반 SYSTEM 메시지
       return (
-        <div key={message.id} className="flex justify-center my-2">
-          <div className="bg-muted/50 border border-muted rounded-lg px-4 py-2 max-w-md">
-            <p className="text-sm text-muted-foreground text-center break-words">
+        <div
+          key={message.id}
+          className="my-2 flex max-w-full min-w-0 justify-center px-2"
+          style={{ maxWidth: "100%" }}
+        >
+          <div
+            className="bg-muted/50 border-muted max-w-[90%] min-w-0 rounded-lg border px-3 py-1.5 sm:max-w-md sm:px-4 sm:py-2"
+            style={{ maxWidth: "90%" }}
+          >
+            <p
+              className="text-muted-foreground text-center text-xs break-words sm:text-sm"
+              style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+            >
               {renderTextWithLinks(message.content || "")}
             </p>
-            <p className="text-xs text-muted-foreground/70 text-center mt-1">
-              {formatMessageTime(message.created_at)}
-            </p>
+            {isLastInGroup && (
+              <p className="text-muted-foreground/70 mt-0.5 text-center text-[10px] sm:mt-1 sm:text-xs">
+                {formatMessageTime(message.created_at)}
+              </p>
+            )}
           </div>
         </div>
       );
@@ -648,82 +821,92 @@ export default function TaskDetailPage() {
       return (
         <div
           key={message.id}
-          className={cn("flex mb-4", isMine ? "justify-end" : "justify-start")}
+          className={cn("mb-3 flex min-w-0 sm:mb-4", isMine ? "justify-end" : "justify-start")}
         >
-          <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
+          <div
+            className={cn(
+              "flex max-w-[85%] min-w-0 gap-1.5 sm:max-w-md sm:gap-2",
+              isMine ? "flex-row-reverse" : "flex-row",
+            )}
+            style={{ maxWidth: "85%" }}
+          >
             {!isMine && (
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <span className="text-xs font-medium">
+              <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8">
+                <span className="text-[10px] font-medium sm:text-xs">
                   {message.sender?.full_name?.charAt(0).toUpperCase() ||
                     message.sender?.email?.charAt(0).toUpperCase() ||
                     "U"}
                 </span>
               </div>
             )}
-            <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
+            <div className={cn("flex min-w-0 flex-col", isMine ? "items-end" : "items-start")}>
               {!isMine && (
-                <span className="text-xs text-muted-foreground mb-1 px-1">
+                <span className="text-muted-foreground mb-0.5 max-w-full truncate px-1 text-[10px] sm:mb-1 sm:text-xs">
                   {message.sender?.full_name || message.sender?.email || "사용자"}
                 </span>
               )}
               <div
                 className={cn(
-                  "rounded-lg px-4 py-3 border-2",
+                  "max-w-full min-w-0 rounded-lg border-2 px-3 py-2 sm:px-4 sm:py-3",
                   isMine
                     ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-foreground border-muted"
+                    : "bg-muted text-foreground border-muted",
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{getFileIcon(message.file_type || "")}</span>
-                  <div className="flex-1 min-w-0">
+                <div className="flex max-w-full min-w-0 items-center gap-2">
+                  <span className="shrink-0 text-base sm:text-xl">
+                    {getFileIcon(message.file_type || "")}
+                  </span>
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <a
                       href={getTaskFileDownloadUrl(message.file_url || "")}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm font-medium truncate block hover:underline"
+                      className="block text-xs font-medium break-all hover:underline sm:text-sm"
                       onClick={(e) => e.stopPropagation()}
+                      title={message.file_name || message.content || undefined}
+                      style={{ wordBreak: "break-all", overflowWrap: "break-word" }}
                     >
                       {message.file_name || message.content}
                     </a>
-                    <p className="text-xs opacity-70 mt-1">
+                    <p className="mt-0.5 text-[10px] break-all opacity-70 sm:mt-1 sm:text-xs">
                       {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-1">
                     <a
                       href={getTaskFileDownloadUrl(message.file_url || "")}
                       download={message.file_name}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="ml-2"
+                      className="p-1 hover:opacity-70"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </a>
                     {isMine && !isLoggedMessage && (
                       <button
                         onClick={() => handleDeleteMessageClick(message)}
-                        className="p-1 hover:bg-primary/20 rounded"
+                        className="hover:bg-primary/20 rounded p-1"
                         aria-label="메시지 삭제"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </button>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 mt-1 px-1">
-                <span className="text-xs text-muted-foreground">
-                  {formatMessageTime(message.created_at)}
-                </span>
-                {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                {isMine && isMessageRead(message) && (
-                  <span className="text-xs text-muted-foreground">
-                    읽음
+              {isLastInGroup && (
+                <div className="mt-0.5 flex items-center gap-1 px-1 sm:mt-1">
+                  <span className="text-muted-foreground text-[10px] sm:text-xs">
+                    {formatMessageTime(message.created_at)}
                   </span>
-                )}
-              </div>
+                  {/* 읽음 표시 (본인이 보낸 메시지만) */}
+                  {isMine && isMessageRead(message) && (
+                    <span className="text-muted-foreground text-[10px] sm:text-xs">읽음</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -734,58 +917,69 @@ export default function TaskDetailPage() {
     return (
       <div
         key={message.id}
-        className={cn("flex mb-4", isMine ? "justify-end" : "justify-start")}
+        className={cn(
+          "mb-3 flex max-w-full min-w-0 sm:mb-4",
+          isMine ? "justify-end" : "justify-start",
+        )}
+        style={{ maxWidth: "100%" }}
       >
-        <div className={cn("flex gap-2 max-w-md", isMine ? "flex-row-reverse" : "flex-row")}>
+        <div
+          className={cn(
+            "flex max-w-[85%] min-w-0 gap-1.5 sm:max-w-md sm:gap-2",
+            isMine ? "flex-row-reverse" : "flex-row",
+          )}
+          style={{ maxWidth: "85%" }}
+        >
           {!isMine && (
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <span className="text-xs font-medium">
+            <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8">
+              <span className="text-[10px] font-medium sm:text-xs">
                 {message.sender?.full_name?.charAt(0).toUpperCase() ||
                   message.sender?.email?.charAt(0).toUpperCase() ||
                   "U"}
               </span>
             </div>
           )}
-          <div className={cn("flex flex-col", isMine ? "items-end" : "items-start")}>
+          <div className={cn("flex min-w-0 flex-col", isMine ? "items-end" : "items-start")}>
             {!isMine && (
-              <span className="text-xs text-muted-foreground mb-1 px-1">
+              <span className="text-muted-foreground mb-0.5 max-w-full truncate px-1 text-[10px] sm:mb-1 sm:text-xs">
                 {message.sender?.full_name || message.sender?.email || "사용자"}
               </span>
             )}
-            <div className="relative group">
+            <div className="group relative max-w-full min-w-0">
               <div
                 className={cn(
-                  "rounded-lg px-4 py-2",
-                  isMine
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
+                  "max-w-full min-w-0 rounded-lg px-3 py-1.5 sm:px-4 sm:py-2",
+                  isMine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap break-words">
+                <p
+                  className="text-xs break-words whitespace-pre-wrap sm:text-sm"
+                  style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+                >
                   {renderTextWithLinks(message.content || "")}
                 </p>
               </div>
               {isMine && !isLoggedMessage && (
                 <button
                   onClick={() => handleDeleteMessageClick(message)}
-                  className="absolute -top-2 -right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 absolute -top-1.5 -right-1.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2 sm:p-1"
                   aria-label="메시지 삭제"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-1 mt-1 px-1">
-              <span className="text-xs text-muted-foreground">
-                {formatMessageTime(message.created_at)}
-              </span>
-              {/* 읽음 표시 (본인이 보낸 메시지만) */}
-              {isMine && isMessageRead(message) && (
-                <span className="text-xs text-muted-foreground">
-                  읽음
+            {isLastInGroup && (
+              <div className="mt-0.5 flex items-center gap-1 px-1 sm:mt-1">
+                <span className="text-muted-foreground text-[10px] sm:text-xs">
+                  {formatMessageTime(message.created_at)}
                 </span>
-              )}
-            </div>
+                {/* 읽음 표시 (본인이 보낸 메시지만) */}
+                {isMine && isMessageRead(message) && (
+                  <span className="text-muted-foreground text-[10px] sm:text-xs">읽음</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -793,7 +987,9 @@ export default function TaskDetailPage() {
   };
 
   // SYSTEM 메시지의 이벤트 타입 판단
-  const getSystemEventType = (message: MessageWithProfile): "APPROVAL_REQUEST" | "APPROVED" | "REJECTED" | null => {
+  const getSystemEventType = (
+    message: MessageWithProfile,
+  ): "APPROVAL_REQUEST" | "APPROVED" | "REJECTED" | null => {
     if (message.message_type !== "SYSTEM") return null;
     const content = (message.content || "").toLowerCase();
     if (content.includes("승인 요청") || content.includes("waiting_confirm")) {
@@ -818,332 +1014,394 @@ export default function TaskDetailPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="w-full">
       {/* 뒤로가기 버튼 */}
-      <Button 
-        variant="ghost" 
+      <Button
+        variant="ghost"
         onClick={() => {
           if (task?.project_id) {
             navigate(`/projects/${task.project_id}`);
           } else {
             navigate(-1);
           }
-        }} 
-        className="mb-4"
+        }}
+        className="mb-4 -ml-2"
+        size="sm"
       >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        돌아가기
+        <ArrowLeft className="mr-1.5 h-4 w-4" />
+        <span className="hidden sm:inline">돌아가기</span>
+        <span className="sm:hidden">뒤로</span>
       </Button>
 
-      {/* Task 헤더 영역 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="space-y-2 flex-1">
-              <CardTitle className="text-2xl">{task.title}</CardTitle>
-              <div className="flex items-center gap-2">
-                <TaskStatusBadge status={task.task_status} />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* 수정 버튼 (지시자만) */}
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditDialogOpen(true)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  수정
-                </Button>
-              )}
-              {/* 삭제 버튼 (지시자만) */}
-              {canDelete && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDeleteDialogOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  삭제
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Task 설명 */}
-          {((task as any).description) && (
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">설명</h3>
-              <p className="text-sm">{(task as any).description}</p>
-            </div>
-          )}
-
-          {/* Task 정보 그리드 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">지시자</h3>
-              <p className="text-sm">
-                {task.assigner?.full_name || task.assigner?.email || task.assigner_id}
-              </p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">담당자</h3>
-              <p className="text-sm">
-                {task.assignee?.full_name || task.assignee?.email || task.assignee_id}
-              </p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">마감일</h3>
-              <p className="text-sm">{formatDate(task.due_date)}</p>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">생성일</h3>
-              <p className="text-sm">{formatDate(task.created_at)}</p>
-            </div>
-          </div>
-
-          {/* 상태 변경 버튼 */}
-          <div className="flex items-center gap-2 pt-4 border-t">
-            {canChangeToInProgress && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => handleStatusChangeClick("IN_PROGRESS")}
-                disabled={updateTaskStatus.isPending}
-              >
-                <Play className="mr-2 h-4 w-4" />
-                {task.task_status === "REJECTED" ? "다시 업무를 진행하겠습니다" : "시작하기"}
-              </Button>
-            )}
-            {canChangeToWaitingConfirm && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
-                disabled={updateTaskStatus.isPending}
-              >
-                완료 요청
-              </Button>
-            )}
-            {canApprove && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => handleStatusChangeClick("APPROVED")}
-                disabled={updateTaskStatus.isPending}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                승인
-              </Button>
-            )}
-            {canReject && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleStatusChangeClick("REJECTED")}
-                disabled={updateTaskStatus.isPending}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                거부
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 채팅 영역 */}
-      <Card className="flex flex-col" style={{ minHeight: "70vh" }}>
-        <CardHeader className="border-b">
-          <CardTitle className="text-lg">채팅</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-          <div
-            className="flex-1 overflow-y-auto p-4 relative"
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            {messagesLoading || logsLoading ? (
-              <div className="flex justify-center items-center h-full">
-                <Skeleton className="h-8 w-48" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex justify-center items-center h-full">
-                <p className="text-sm text-muted-foreground">아직 메시지가 없습니다.</p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {/* 일반 메시지 (로그에 참조되지 않은 메시지, SYSTEM 제외) */}
-                {(() => {
-                  const regularMessages = messages.filter(
-                    (msg) => !loggedMessageIds.has(msg.id) && msg.message_type !== "SYSTEM"
-                  );
-
-                  // SYSTEM 메시지 (상태 변경 알림)
-                  const systemMessages = messages.filter((msg) => msg.message_type === "SYSTEM");
-
-                  // 타임라인 구성: 로그와 SYSTEM 메시지를 시간순으로 배치
-                  const timeline: Array<{ type: "log" | "system" | "regular"; data: any; timestamp: number }> = [];
-
-                  // 로그 추가 (로그 박스)
-                  chatLogs.forEach((log) => {
-                    timeline.push({
-                      type: "log",
-                      data: log,
-                      timestamp: new Date(log.created_at).getTime(),
-                    });
-                  });
-
-                  // SYSTEM 메시지 추가 (상태 변경 알림)
-                  systemMessages.forEach((msg) => {
-                    timeline.push({
-                      type: "system",
-                      data: msg,
-                      timestamp: new Date(msg.created_at).getTime(),
-                    });
-                  });
-
-                  // 타임라인 정렬 (로그와 SYSTEM 메시지)
-                  timeline.sort((a, b) => {
-                    if (a.timestamp === b.timestamp) {
-                      // 같은 시간이면 로그가 먼저 (로그 박스가 SYSTEM 메시지보다 먼저 표시)
-                      return a.type === "log" ? -1 : 1;
-                    }
-                    return a.timestamp - b.timestamp;
-                  });
-
-                  // 렌더링: 타임라인 + 일반 메시지
-                  return (
-                    <>
-                      {/* 타임라인 (로그 박스 + SYSTEM 메시지) */}
-                      {timeline.map((item) => {
-                        if (item.type === "log") {
-                          const log = item.data;
-                          return (
-                            <div key={log.id}>
-                              <ChatLogGroup
-                                log={log}
-                                isExpanded={expandedGroups.has(log.id)}
-                                onToggle={() => {
-                                  const newSet = new Set(expandedGroups);
-                                  if (newSet.has(log.id)) newSet.delete(log.id);
-                                  else newSet.add(log.id);
-                                  setExpandedGroups(newSet);
-                                }}
-                                renderMessage={renderMessageItem}
-                              />
-                            </div>
-                          );
-                        } else {
-                          // SYSTEM 메시지
-                          return <div key={item.data.id}>{renderMessageItem(item.data)}</div>;
-                        }
-                      })}
-
-                      {/* 일반 메시지 (로그에 참조되지 않은 메시지) */}
-                      {regularMessages.map((msg) => (
-                        <div key={msg.id}>{renderMessageItem(msg)}</div>
-                      ))}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-            {/* 스크롤 앵커 */}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* 입력 영역 */}
-          <div className="border-t p-4 space-y-2">
-            {/* 채팅 작성 권한이 없는 경우 안내 메시지 */}
-            {!canSendMessage && (
-              <div className="bg-muted/50 border border-muted rounded-lg p-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  지시자 또는 담당자만 메시지를 작성할 수 있습니다.
-                </p>
-                {isAdmin && (
-                  <p className="text-xs text-muted-foreground/70 mt-1">
-                    관리자 권한으로 이 Task를 조회할 수 있지만, 채팅 작성은 지시자 또는 담당자만 가능합니다.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* 첨부파일 영역 (드래그 앤 드롭) - 지시자/담당자만 표시 */}
-            {canSendMessage && (
-              <div
-                className={cn(
-                  "border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer",
-                  dragActive
-                    ? "border-primary bg-primary/5"
-                    : "border-muted hover:border-primary/50",
-                  createMessageWithFiles.isPending && "opacity-50 pointer-events-none"
-                )}
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                  accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
-                  disabled={!canSendMessage}
-                />
-                <Paperclip className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  파일을 드래그하여 놓거나 클릭하여 선택하세요
-                </p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
-                  이미지, PDF, 문서 등 다양한 파일 형식 지원 (최대 10MB, 여러 파일 선택 가능)
-                </p>
-              </div>
-            )}
-
-            {/* 첨부된 파일 목록 (Draft 상태) - 지시자/담당자만 표시 */}
-            {canSendMessage && attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-lg">
-                {attachedFiles.map((file, index) => (
-                  <div
-                    key={`${file.name}-${index}`}
-                    className="flex items-center gap-2 px-3 py-2 bg-background border rounded-lg text-sm"
-                  >
-                    <File className="h-4 w-4 text-muted-foreground" />
-                    <span className="max-w-[200px] truncate">{file.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({(file.size / 1024).toFixed(1)} KB)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleFileRemove(index)}
-                      className="ml-1 p-1 hover:bg-muted rounded"
-                      aria-label="파일 제거"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+      {/* PC: 2컬럼 레이아웃, 모바일: 1컬럼 */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:gap-6">
+        {/* 좌측: Task 정보 영역 */}
+        <div className="w-full xl:w-[380px] xl:shrink-0">
+          <Card className="xl:sticky xl:top-6">
+            <CardHeader className="pb-3 sm:pb-4">
+              {/* 모바일: 세로 배치, 태블릿+: 가로 배치, xl: 다시 세로 배치 */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col xl:justify-start">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <CardTitle className="text-lg sm:text-xl lg:text-2xl">{task.title}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <TaskStatusBadge status={task.task_status} />
                   </div>
-                ))}
+                </div>
+                {/* 액션 버튼 */}
+                <div className="flex shrink-0 items-center gap-2 xl:w-full xl:justify-start">
+                  {/* 수정 버튼 (지시자만) */}
+                  {canEdit && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditDialogOpen(true)}
+                      className="h-8 px-2.5 sm:px-3"
+                    >
+                      <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
+                      <span className="hidden sm:inline">수정</span>
+                    </Button>
+                  )}
+                  {/* 삭제 버튼 (지시자만) */}
+                  {canDelete && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      className="h-8 px-2.5 sm:px-3"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />
+                      <span className="hidden sm:inline">삭제</span>
+                    </Button>
+                  )}
+                </div>
               </div>
-            )}
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+              {/* Task 설명 */}
+              {(task as any).description && (
+                <div className="border-b pb-3">
+                  <h3 className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
+                    설명
+                  </h3>
+                  <p className="text-sm leading-relaxed">{(task as any).description}</p>
+                </div>
+              )}
 
-            {/* 텍스트 입력 및 전송 - 지시자/담당자만 표시 */}
-            {canSendMessage && (
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
+              {/* Task 정보 그리드 - 모바일에서 2x2 */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {task.project && (
+                  <>
+                    <div className="space-y-1">
+                      <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                        기회명
+                      </h3>
+                      <p className="truncate text-sm font-medium">{task.project.title}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                        클라이언트
+                      </h3>
+                      <p className="truncate text-sm font-medium">{task.project.client_name}</p>
+                    </div>
+                  </>
+                )}
+                <div className="space-y-1">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    지시자
+                  </h3>
+                  <p className="truncate text-sm font-medium">
+                    {task.assigner?.full_name || task.assigner?.email || task.assigner_id}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    담당자
+                  </h3>
+                  <p className="truncate text-sm font-medium">
+                    {task.assignee?.full_name || task.assignee?.email || task.assignee_id}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    마감일
+                  </h3>
+                  <p className="text-sm font-medium">{formatDate(task.due_date)}</p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    생성일
+                  </h3>
+                  <p className="text-sm font-medium">{formatDate(task.created_at)}</p>
+                </div>
+              </div>
+
+              {/* 상태 변경 버튼 - 모바일에서 풀 너비 */}
+              {(canChangeToInProgress || canChangeToWaitingConfirm || canApprove || canReject) && (
+                <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row">
+                  {canChangeToInProgress && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleStatusChangeClick("IN_PROGRESS")}
+                      disabled={updateTaskStatus.isPending}
+                      className="w-full justify-center sm:w-auto"
+                    >
+                      <Play className="mr-1.5 h-4 w-4" />
+                      {task.task_status === "REJECTED" ? "다시 진행" : "시작하기"}
+                    </Button>
+                  )}
+                  {canChangeToWaitingConfirm && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
+                      disabled={updateTaskStatus.isPending}
+                      className="w-full justify-center sm:w-auto"
+                    >
+                      완료 요청
+                    </Button>
+                  )}
+                  {canApprove && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleStatusChangeClick("APPROVED")}
+                      disabled={updateTaskStatus.isPending}
+                      className="w-full justify-center bg-green-600 hover:bg-green-700 sm:w-auto"
+                    >
+                      <CheckCircle className="mr-1.5 h-4 w-4" />
+                      승인
+                    </Button>
+                  )}
+                  {canReject && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleStatusChangeClick("REJECTED")}
+                      disabled={updateTaskStatus.isPending}
+                      className="w-full justify-center sm:w-auto"
+                    >
+                      <XCircle className="mr-1.5 h-4 w-4" />
+                      거부
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 우측: 채팅 영역 */}
+        <Card className="flex h-[70vh] max-h-[70vh] w-full flex-col overflow-x-hidden overflow-y-hidden py-4 xl:h-[90vh] xl:max-h-none">
+          <CardHeader className="shrink-0 border-b py-1 !pb-1">
+            <CardTitle className="py-1 text-base sm:text-lg">채팅</CardTitle>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+            <div
+              className="relative flex-1 overflow-x-hidden overflow-y-auto"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              {messagesLoading || logsLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Skeleton className="h-8 w-48" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <p className="text-muted-foreground text-sm">아직 메시지가 없습니다.</p>
+                </div>
+              ) : (
+                <div
+                  className="max-w-full min-w-0 space-y-1 px-2 sm:px-4"
+                  style={{ maxWidth: "100%" }}
+                >
+                  {/* 일반 메시지 (로그에 참조되지 않은 메시지, SYSTEM 제외) */}
+                  {(() => {
+                    const regularMessages = messages.filter(
+                      (msg) => !loggedMessageIds.has(msg.id) && msg.message_type !== "SYSTEM",
+                    );
+
+                    // SYSTEM 메시지 (상태 변경 알림)
+                    const systemMessages = messages.filter((msg) => msg.message_type === "SYSTEM");
+
+                    // 타임라인 구성: 로그와 SYSTEM 메시지를 시간순으로 배치
+                    const timeline: Array<{
+                      type: "log" | "system" | "regular";
+                      data: any;
+                      timestamp: number;
+                    }> = [];
+
+                    // 로그 추가 (로그 박스)
+                    chatLogs.forEach((log) => {
+                      timeline.push({
+                        type: "log",
+                        data: log,
+                        timestamp: new Date(log.created_at).getTime(),
+                      });
+                    });
+
+                    // SYSTEM 메시지 추가 (상태 변경 알림)
+                    systemMessages.forEach((msg) => {
+                      timeline.push({
+                        type: "system",
+                        data: msg,
+                        timestamp: new Date(msg.created_at).getTime(),
+                      });
+                    });
+
+                    // 타임라인 정렬 (로그와 SYSTEM 메시지)
+                    timeline.sort((a, b) => {
+                      if (a.timestamp === b.timestamp) {
+                        // 같은 시간이면 로그가 먼저 (로그 박스가 SYSTEM 메시지보다 먼저 표시)
+                        return a.type === "log" ? -1 : 1;
+                      }
+                      return a.timestamp - b.timestamp;
+                    });
+
+                    // SYSTEM 메시지와 일반 메시지를 합쳐서 그룹 정보 계산
+                    const allMessagesForGrouping: MessageWithProfile[] = [];
+                    timeline.forEach((item) => {
+                      if (item.type === "system") {
+                        allMessagesForGrouping.push(item.data);
+                      }
+                    });
+                    allMessagesForGrouping.push(...regularMessages);
+                    
+                    // 그룹 정보 계산
+                    const groupInfoMap = calculateMessageGroupInfo(allMessagesForGrouping);
+
+                    // 렌더링: 타임라인 + 일반 메시지
+                    return (
+                      <>
+                        {/* 타임라인 (로그 박스 + SYSTEM 메시지) */}
+                        {timeline.map((item) => {
+                          if (item.type === "log") {
+                            const log = item.data;
+                            // 로그 내부 메시지들의 그룹 정보 계산
+                            const logMessages = log.items.map((logItem: { message: MessageWithProfile }) => logItem.message);
+                            const logGroupInfoMap = calculateMessageGroupInfo(logMessages);
+                            
+                            // 로그 내부 메시지 렌더링 함수 (그룹 정보 포함)
+                            const renderLogMessage = (message: MessageWithProfile) => {
+                              const isLastInGroup = logGroupInfoMap.get(message.id) ?? true;
+                              return renderMessageItem(message, isLastInGroup);
+                            };
+                            
+                            return (
+                              <div key={log.id}>
+                                <ChatLogGroup
+                                  log={log}
+                                  isExpanded={expandedGroups.has(log.id)}
+                                  onToggle={() => {
+                                    const newSet = new Set(expandedGroups);
+                                    if (newSet.has(log.id)) newSet.delete(log.id);
+                                    else newSet.add(log.id);
+                                    setExpandedGroups(newSet);
+                                  }}
+                                  renderMessage={renderLogMessage}
+                                />
+                              </div>
+                            );
+                          } else {
+                            // SYSTEM 메시지
+                            const isLastInGroup = groupInfoMap.get(item.data.id) ?? true;
+                            return <div key={item.data.id}>{renderMessageItem(item.data, isLastInGroup)}</div>;
+                          }
+                        })}
+
+                        {/* 일반 메시지 (로그에 참조되지 않은 메시지) */}
+                        {regularMessages.map((msg) => {
+                          const isLastInGroup = groupInfoMap.get(msg.id) ?? true;
+                          return <div key={msg.id}>{renderMessageItem(msg, isLastInGroup)}</div>;
+                        })}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+              {/* 스크롤 앵커 */}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* 입력 영역 */}
+            <div className="bg-background shrink-0 space-y-2 border-t py-4">
+              {/* 채팅 작성 권한이 없는 경우 안내 메시지 */}
+              {!canSendMessage && (
+                <div className="bg-muted/50 border-muted rounded-lg border p-3 text-center sm:p-4">
+                  <p className="text-muted-foreground text-xs sm:text-sm">
+                    지시자 또는 담당자만 메시지를 작성할 수 있습니다.
+                  </p>
+                  {isAdmin && (
+                    <p className="text-muted-foreground/70 mt-1 text-xs">
+                      관리자 권한으로 조회만 가능합니다.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* 첨부된 파일 목록 (Draft 상태) - 지시자/담당자만 표시 */}
+              {canSendMessage && attachedFiles.length > 0 && (
+                <div className="bg-muted/30 flex flex-wrap gap-1.5 rounded-lg p-2.5 sm:gap-2 sm:p-3">
+                  {attachedFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="bg-background hover:bg-muted/50 flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-sm transition-colors sm:gap-2 sm:px-3 sm:py-2 sm:text-sm"
+                    >
+                      <File className="text-primary h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                      <span className="max-w-[120px] truncate font-medium sm:max-w-[200px]">
+                        {file.name}
+                      </span>
+                      <span className="text-muted-foreground hidden text-xs sm:inline">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleFileRemove(index)}
+                        className="hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors sm:p-1"
+                        aria-label="파일 제거"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 텍스트 입력 및 전송 - 지시자/담당자만 표시 */}
+              {canSendMessage && (
+                <div
+                  className={cn(
+                    "bg-muted/50 relative flex flex-col gap-2 rounded-lg border p-2 transition-colors sm:p-3",
+                    dragActive && "bg-primary/10 border-primary/50",
+                  )}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  {/* 드래그 앤 드롭 활성 상태 표시 */}
+                  {dragActive && (
+                    <div className="border-primary bg-primary/10 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
+                      <div className="text-primary flex flex-col items-center gap-2">
+                        <Plus className="h-8 w-8 animate-bounce" />
+                        <p className="text-sm font-medium">파일을 여기에 놓으세요</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 입력 필드 */}
                   <textarea
                     ref={textareaRef}
+                    rows={2}
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="메시지를 입력하세요. (Enter: 전송 / Shift+Enter: 줄바꿈)"
-                    className="w-full min-h-[60px] max-h-[120px] p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="메시지를 입력해주세요"
+                    className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
+                    style={{
+                      lineHeight: "1.5",
+                    }}
                     onKeyDown={(e) => {
                       // Enter 키: 메시지 전송
                       if (e.key === "Enter" && !e.shiftKey) {
@@ -1154,27 +1412,55 @@ export default function TaskDetailPage() {
                     }}
                     disabled={createMessageWithFiles.isPending}
                   />
+
+                  {/* 하단 버튼 영역 */}
+                  <div className="flex items-center justify-between gap-2">
+                    {/* 파일 첨부 버튼 */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="border-border hover:bg-background h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={createMessageWithFiles.isPending}
+                      title="파일 첨부"
+                    >
+                      <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleFileSelect}
+                      accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
+                      disabled={!canSendMessage}
+                    />
+
+                    {/* 전송 버튼 */}
+                    <Button
+                      size="icon"
+                      className="bg-background hover:bg-background/80 border-border h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
+                      disabled={
+                        (!messageInput.trim() && attachedFiles.length === 0) ||
+                        createMessageWithFiles.isPending
+                      }
+                      onClick={handleSendMessage}
+                      title="전송"
+                    >
+                      {createMessageWithFiles.isPending ? (
+                        <div className="border-foreground h-3.5 w-3.5 animate-spin rounded-full border-2 border-t-transparent sm:h-4 sm:w-4" />
+                      ) : (
+                        <Send className="text-foreground h-3.5 w-3.5 rotate-[-45deg] sm:h-4 sm:w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  size="icon"
-                  className="h-[60px] w-[60px]"
-                  disabled={
-                    (!messageInput.trim() && attachedFiles.length === 0) ||
-                    createMessageWithFiles.isPending
-                  }
-                  onClick={handleSendMessage}
-                >
-                  {createMessageWithFiles.isPending ? (
-                    <div className="h-5 w-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 수정 다이얼로그 */}
       <TaskFormDialog
