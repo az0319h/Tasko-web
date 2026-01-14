@@ -517,6 +517,48 @@ export default function TaskDetailPage() {
     });
   });
 
+  // URL을 링크로 변환하는 함수
+  const renderTextWithLinks = (text: string) => {
+    if (!text) return null;
+    
+    // URL 패턴: http:// 또는 https://로 시작하는 URL (공백 전까지)
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = urlRegex.exec(text)) !== null) {
+      // URL 이전의 텍스트 추가
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      
+      // URL을 링크로 변환
+      const url = match[0];
+      parts.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:opacity-80 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {url}
+        </a>
+      );
+      
+      lastIndex = urlRegex.lastIndex;
+    }
+    
+    // 남은 텍스트 추가
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : text;
+  };
+
   // 메시지 아이템 렌더링 함수
   const renderMessageItem = (message: MessageWithProfile) => {
     const isMine = message.user_id === currentUserId;
@@ -536,8 +578,8 @@ export default function TaskDetailPage() {
                   승인 요청
                 </p>
               </div>
-              <p className="text-sm text-blue-800 dark:text-blue-200 text-center">
-                {message.content}
+              <p className="text-sm text-blue-800 dark:text-blue-200 text-center break-words">
+                {renderTextWithLinks(message.content || "")}
               </p>
               <p className="text-xs text-blue-600 dark:text-blue-400 text-center mt-2">
                 {formatMessageTime(message.created_at)}
@@ -556,8 +598,8 @@ export default function TaskDetailPage() {
                   업무 승인
                 </p>
               </div>
-              <p className="text-sm text-green-800 dark:text-green-200 text-center">
-                {message.content}
+              <p className="text-sm text-green-800 dark:text-green-200 text-center break-words">
+                {renderTextWithLinks(message.content || "")}
               </p>
               <p className="text-xs text-green-600 dark:text-green-400 text-center mt-2">
                 {formatMessageTime(message.created_at)}
@@ -576,8 +618,8 @@ export default function TaskDetailPage() {
                   업무 반려
                 </p>
               </div>
-              <p className="text-sm text-red-800 dark:text-red-200 text-center">
-                {message.content}
+              <p className="text-sm text-red-800 dark:text-red-200 text-center break-words">
+                {renderTextWithLinks(message.content || "")}
               </p>
               <p className="text-xs text-red-600 dark:text-red-400 text-center mt-2">
                 {formatMessageTime(message.created_at)}
@@ -590,7 +632,9 @@ export default function TaskDetailPage() {
       return (
         <div key={message.id} className="flex justify-center my-2">
           <div className="bg-muted/50 border border-muted rounded-lg px-4 py-2 max-w-md">
-            <p className="text-sm text-muted-foreground text-center">{message.content}</p>
+            <p className="text-sm text-muted-foreground text-center break-words">
+              {renderTextWithLinks(message.content || "")}
+            </p>
             <p className="text-xs text-muted-foreground/70 text-center mt-1">
               {formatMessageTime(message.created_at)}
             </p>
@@ -717,7 +761,9 @@ export default function TaskDetailPage() {
                     : "bg-muted text-foreground"
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {renderTextWithLinks(message.content || "")}
+                </p>
               </div>
               {isMine && !isLoggedMessage && (
                 <button
