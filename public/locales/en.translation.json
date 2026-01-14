@@ -1,9 +1,9 @@
 {
   "meta": {
     "default": {
-      "title": "TASKO - Manage Your Work, Clearly",
-      "description": "TASKO is a task and workflow management web app that helps individuals and teams organize work, track progress, and manage approvals in one place.",
-      "keywords": "TASKO, task management, workflow, project management, team collaboration, dashboard, approvals, productivity"
+      "title": "Tasko - Manage Your Work, Clearly",
+      "description": "Tasko is a task and workflow management web app that helps individuals and teams organize work, track progress, and manage approvals in one place.",
+      "keywords": "Tasko, task management, workflow, project management, team collaboration, dashboard, approvals, productivity"
     },
     "login": {
       "title": "Login - TASKO",
@@ -41,14 +41,14 @@
   "dialog": {
     "language": {
       "title": "Change Language",
-      "description": "Which language would you like to use CAMBOB in?"
+      "description": "Which language would you like to use Tasko in?"
     },
     "theme": {
       "title": "Change Theme",
-      "description": "Which theme would you like to use CAMBOB with?"
+      "description": "Which theme would you like to use Tasko with?"
     },
     "logout": {
-      "title": "Log out of CAMBOB?",
+      "title": "Log out of Tasko?",
       "description": "Even if you log out, your account information and settings will be safely saved. You can log in anytime to continue using CAMBOB."
     }
   },

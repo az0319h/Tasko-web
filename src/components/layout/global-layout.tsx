@@ -14,7 +14,13 @@ export default function GlobalLayout() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <main className="flex flex-1 flex-col overflow-hidden">
             <div className="flex shrink-0 items-center justify-between border-b p-4 md:hidden">
-              <Link to={"/"}>로고</Link>
+              <Link to={"/"}>
+                <img
+                  alt="logo_character"
+                  className="size-8.5"
+                  src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+                />
+              </Link>
               <SidebarTrigger className="md:hidden" />
             </div>
             <div className="flex-1 overflow-y-auto px-4 py-4 md:px-5">

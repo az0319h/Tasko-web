@@ -7,7 +7,6 @@ export default function ProfileSetupPage() {
 
   return (
     <>
-      <SEO title="프로필 설정" description="비밀번호와 프로필을 설정해주세요." />
       <div className="flex min-h-screen items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
           <ProfileSetupForm />
@@ -16,4 +15,3 @@ export default function ProfileSetupPage() {
     </>
   );
 }
-

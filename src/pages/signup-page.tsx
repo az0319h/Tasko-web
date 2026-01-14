@@ -7,7 +7,6 @@ export default function SignupPage() {
 
   return (
     <>
-      <SEO title="회원가입" description="회원가입을 진행해주세요." />
       <div className="z-30 flex min-h-screen w-full items-center justify-center py-8">
         <div className="w-full max-w-md px-4">
           <SignupForm />
@@ -16,5 +15,3 @@ export default function SignupPage() {
     </>
   );
 }
-
-

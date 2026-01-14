@@ -119,7 +119,13 @@ export function AppSidebar() {
         <SidebarContent className="bg-background">
           <SidebarGroup>
             <SidebarGroupLabel className="py-6 md:py-8">
-              <Link to={"/"}>로고</Link>
+              <Link to={"/"}>
+                <img
+                  alt="logo_character"
+                  className="size-8.5 md:size-10"
+                  src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+                />
+              </Link>
             </SidebarGroupLabel>
           </SidebarGroup>
         </SidebarContent>
@@ -133,7 +139,13 @@ export function AppSidebar() {
         {/* 회사 정보 영역 */}
         <SidebarGroup>
           <SidebarGroupLabel className="py-6 md:py-8">
-            <Link to={"/"}>로고</Link>
+            <Link to={"/"}>
+              <img
+                alt="logo_character"
+                className="size-8.5 md:size-10"
+                src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+              />
+            </Link>
           </SidebarGroupLabel>
         </SidebarGroup>
 
