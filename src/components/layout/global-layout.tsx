@@ -3,6 +3,8 @@ import { SidebarProvider, SidebarTrigger } from "../ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { useTranslation } from "react-i18next";
 import { useResolvedThemeMode } from "@/hooks";
+import logo_dark from "@/assets/logo_dark.png";
+import logo_light from "@/assets/logo_light.png";
 
 export default function GlobalLayout() {
   const { i18n } = useTranslation();
@@ -18,7 +20,7 @@ export default function GlobalLayout() {
                 <img
                   alt="logo_character"
                   className="size-8.5"
-                  src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+                  src={mode === "dark" ? logo_light : logo_dark}
                 />
               </Link>
               <SidebarTrigger className="md:hidden" />

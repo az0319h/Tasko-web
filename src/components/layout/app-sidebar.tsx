@@ -40,6 +40,8 @@ import ChangeEmailDialog from "../dialog/change-email-dialog";
 import { useResolvedThemeMode, useCurrentProfile, useIsAdmin } from "@/hooks";
 import { Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import logo_dark from "@/assets/logo_dark.png";
+import logo_light from "@/assets/logo_light.png";
 
 /**
  * 문제 원인 설명:
@@ -123,7 +125,7 @@ export function AppSidebar() {
                 <img
                   alt="logo_character"
                   className="size-8.5 md:size-10"
-                  src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+                  src={mode === "dark" ? logo_light : logo_dark}
                 />
               </Link>
             </SidebarGroupLabel>
@@ -143,7 +145,7 @@ export function AppSidebar() {
               <img
                 alt="logo_character"
                 className="size-8.5 md:size-10"
-                src={mode === "dark" ? "/src/assets/logo_light.png" : "/src/assets/logo_dark.png"}
+                src={mode === "dark" ? logo_light : logo_dark}
               />
             </Link>
           </SidebarGroupLabel>
