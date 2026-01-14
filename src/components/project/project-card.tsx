@@ -85,7 +85,10 @@ export function ProjectCard({
                         {project.title}
                       </Link>
                     </CardTitle>
-                    {getStatusBadge()}
+                    {/* 상태 배지 숨김 처리 (확인용) */}
+                    <div className="hidden">
+                      {getStatusBadge()}
+                    </div>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <div>고객명: {project.client_name}</div>
@@ -116,6 +119,7 @@ export function ProjectCard({
                     isAdmin={isAdmin}
                     onStatusChange={onTaskStatusChange}
                     showActions={false}
+                    showFullInfo={false}
                   />
                 ))}
               </div>

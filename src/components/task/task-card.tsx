@@ -14,6 +14,7 @@ interface TaskCardProps {
   isAdmin?: boolean;
   onStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
   showActions?: boolean; // 상태 변경 버튼 표시 여부 (기본값: true)
+  showFullInfo?: boolean; // 전체 정보 표시 여부 (기본값: true) - false일 경우 생성일만 숨김
 }
 
 /**
@@ -26,6 +27,7 @@ export function TaskCard({
   isAdmin = false,
   onStatusChange,
   showActions = true,
+  showFullInfo = true,
 }: TaskCardProps) {
   
   // 담당자 표시 형식 (이름과 이메일)
@@ -145,8 +147,8 @@ export function TaskCard({
             </div>
           </div>
 
-          {/* 생성일 */}
-          {createdAt && (
+          {/* 생성일 - showFullInfo가 true일 때만 표시 */}
+          {showFullInfo && createdAt && (
             <div className="text-xs text-muted-foreground">
               생성일: {createdAt}
             </div>
