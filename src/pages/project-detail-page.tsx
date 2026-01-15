@@ -278,10 +278,23 @@ export default function ProjectDetailPage() {
     <div className="container mx-auto p-4 md:p-6 space-y-6">
       {/* 헤더 */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button 
+          variant="ghost" 
+          size="icon"
+          onClick={() => {
+            // 세션 스토리지에서 이전 대시보드 URL 확인
+            const previousUrl = sessionStorage.getItem("previousDashboardUrl");
+            
+            if (previousUrl) {
+              // 세션 스토리지에 저장된 URL로 이동
+              navigate(previousUrl);
+            } else {
+              // 세션 스토리지에 값이 없으면 기본 대시보드로 이동 (칸반 보드)
+              navigate("/?layout=kanban");
+            }
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{project.title}</h1>

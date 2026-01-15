@@ -79,7 +79,12 @@ export function ProjectCard({
                     <CardTitle className="text-base font-semibold truncate">
                       <Link
                         to={`/projects/${project.id}`}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
+                          const currentUrl = window.location.pathname + window.location.search;
+                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                        }}
                         className="hover:underline"
                       >
                         {project.title}
