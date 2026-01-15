@@ -512,63 +512,63 @@ export default function TaskDetailPage() {
   // 메시지 시간 포맷팅 (절대 시간 형식: yy.MM.dd 오전/오후 hh:mm, KST 기준)
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
-    
+
     // KST 시간대로 변환 (Asia/Seoul)
     // Intl.DateTimeFormat을 사용하여 정확한 시간대 변환
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: false,
     });
-    
+
     const parts = formatter.formatToParts(date);
-    const year = parts.find(p => p.type === 'year')?.value.slice(-2) || '00';
-    const month = parts.find(p => p.type === 'month')?.value || '01';
-    const day = parts.find(p => p.type === 'day')?.value || '01';
-    const hours24 = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const minutes = parts.find(p => p.type === 'minute')?.value || '00';
-    
+    const year = parts.find((p) => p.type === "year")?.value.slice(-2) || "00";
+    const month = parts.find((p) => p.type === "month")?.value || "01";
+    const day = parts.find((p) => p.type === "day")?.value || "01";
+    const hours24 = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    const minutes = parts.find((p) => p.type === "minute")?.value || "00";
+
     // 오전/오후 판단
-    const ampm = hours24 < 12 ? '오전' : '오후';
+    const ampm = hours24 < 12 ? "오전" : "오후";
     // 12시간제로 변환 (0시는 12시로, 13시 이상은 -12)
     const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24;
-    const hours12Str = String(hours12).padStart(2, '0');
-    
+    const hours12Str = String(hours12).padStart(2, "0");
+
     return `${year}.${month}.${day} ${ampm}${hours12Str}:${minutes}`;
   };
 
   // 메시지 시간 문자열 추출 (그룹핑용: yy.MM.dd 오전/오후hh:mm 형식)
   const getMessageTimeKey = (dateString: string): string => {
     const date = new Date(dateString);
-    
+
     // KST 시간대로 변환
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: false,
     });
-    
+
     const parts = formatter.formatToParts(date);
-    const year = parts.find(p => p.type === 'year')?.value.slice(-2) || '00';
-    const month = parts.find(p => p.type === 'month')?.value || '01';
-    const day = parts.find(p => p.type === 'day')?.value || '01';
-    const hours24 = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
-    const minutes = parts.find(p => p.type === 'minute')?.value || '00';
-    
+    const year = parts.find((p) => p.type === "year")?.value.slice(-2) || "00";
+    const month = parts.find((p) => p.type === "month")?.value || "01";
+    const day = parts.find((p) => p.type === "day")?.value || "01";
+    const hours24 = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    const minutes = parts.find((p) => p.type === "minute")?.value || "00";
+
     // 오전/오후 판단
-    const ampm = hours24 < 12 ? '오전' : '오후';
+    const ampm = hours24 < 12 ? "오전" : "오후";
     // 12시간제로 변환
     const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24;
-    const hours12Str = String(hours12).padStart(2, '0');
-    
+    const hours12Str = String(hours12).padStart(2, "0");
+
     return `${year}.${month}.${day} ${ampm}${hours12Str}:${minutes}`;
   };
 
@@ -578,31 +578,31 @@ export default function TaskDetailPage() {
     msg2: MessageWithProfile | null,
   ): boolean => {
     if (!msg2) return false; // 다음 메시지가 없으면 그룹 아님
-    
+
     // 같은 sender인지 확인
     if (msg1.user_id !== msg2.user_id) return false;
-    
+
     // 같은 시간(분 단위)인지 확인
     const timeKey1 = getMessageTimeKey(msg1.created_at);
     const timeKey2 = getMessageTimeKey(msg2.created_at);
     if (timeKey1 !== timeKey2) return false;
-    
+
     return true;
   };
 
   // 메시지 리스트에서 각 메시지가 그룹의 마지막인지 계산하는 함수
   const calculateMessageGroupInfo = (messageList: MessageWithProfile[]): Map<string, boolean> => {
     const isLastInGroupMap = new Map<string, boolean>();
-    
+
     for (let i = 0; i < messageList.length; i++) {
       const currentMsg = messageList[i];
       const nextMsg = i < messageList.length - 1 ? messageList[i + 1] : null;
-      
+
       // 다음 메시지와 같은 그룹이 아니면 현재 메시지가 그룹의 마지막
       const isLast = !isSameMessageGroup(currentMsg, nextMsg);
       isLastInGroupMap.set(currentMsg.id, isLast);
     }
-    
+
     return isLastInGroupMap;
   };
 
@@ -1112,14 +1112,14 @@ export default function TaskDetailPage() {
 
               {/* 상태 변경 버튼 - 모바일에서 풀 너비 */}
               {(canChangeToInProgress || canChangeToWaitingConfirm || canApprove || canReject) && (
-                <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row">
+                <div className="flex flex-col gap-2 border-t pt-4">
                   {canChangeToInProgress && (
                     <Button
                       variant="default"
                       size="sm"
                       onClick={() => handleStatusChangeClick("IN_PROGRESS")}
                       disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center sm:w-auto"
+                      className="w-full justify-center gap-0 py-2"
                     >
                       <Play className="mr-1.5 h-4 w-4" />
                       {task.task_status === "REJECTED" ? "다시 진행" : "시작하기"}
@@ -1131,7 +1131,7 @@ export default function TaskDetailPage() {
                       size="sm"
                       onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
                       disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center sm:w-auto"
+                      className="!w-full gap-0 py-2"
                     >
                       완료 요청
                     </Button>
@@ -1142,7 +1142,7 @@ export default function TaskDetailPage() {
                       size="sm"
                       onClick={() => handleStatusChangeClick("APPROVED")}
                       disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center bg-green-600 hover:bg-green-700 sm:w-auto"
+                      className="w-full justify-center gap-0 py-2"
                     >
                       <CheckCircle className="mr-1.5 h-4 w-4" />
                       승인
@@ -1154,7 +1154,7 @@ export default function TaskDetailPage() {
                       size="sm"
                       onClick={() => handleStatusChangeClick("REJECTED")}
                       disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center sm:w-auto"
+                      className="w-full justify-center gap-0 py-2"
                     >
                       <XCircle className="mr-1.5 h-4 w-4" />
                       거부
@@ -1243,7 +1243,7 @@ export default function TaskDetailPage() {
                       }
                     });
                     allMessagesForGrouping.push(...regularMessages);
-                    
+
                     // 그룹 정보 계산
                     const groupInfoMap = calculateMessageGroupInfo(allMessagesForGrouping);
 
@@ -1255,15 +1255,17 @@ export default function TaskDetailPage() {
                           if (item.type === "log") {
                             const log = item.data;
                             // 로그 내부 메시지들의 그룹 정보 계산
-                            const logMessages = log.items.map((logItem: { message: MessageWithProfile }) => logItem.message);
+                            const logMessages = log.items.map(
+                              (logItem: { message: MessageWithProfile }) => logItem.message,
+                            );
                             const logGroupInfoMap = calculateMessageGroupInfo(logMessages);
-                            
+
                             // 로그 내부 메시지 렌더링 함수 (그룹 정보 포함)
                             const renderLogMessage = (message: MessageWithProfile) => {
                               const isLastInGroup = logGroupInfoMap.get(message.id) ?? true;
                               return renderMessageItem(message, isLastInGroup);
                             };
-                            
+
                             return (
                               <div key={log.id}>
                                 <ChatLogGroup
@@ -1282,7 +1284,11 @@ export default function TaskDetailPage() {
                           } else {
                             // SYSTEM 메시지
                             const isLastInGroup = groupInfoMap.get(item.data.id) ?? true;
-                            return <div key={item.data.id}>{renderMessageItem(item.data, isLastInGroup)}</div>;
+                            return (
+                              <div key={item.data.id}>
+                                {renderMessageItem(item.data, isLastInGroup)}
+                              </div>
+                            );
                           }
                         })}
 
