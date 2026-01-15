@@ -11,7 +11,7 @@ export default function GlobalLayout() {
   const mode = useResolvedThemeMode();
   return (
     <SidebarProvider>
-      <div className="mx-auto flex h-screen w-full max-w-400 overflow-hidden">
+      <div className="mx-auto flex h-screen w-full max-w-450 overflow-hidden">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <main className="flex flex-1 flex-col overflow-hidden">
