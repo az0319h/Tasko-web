@@ -97,9 +97,6 @@ export function ProjectCard({
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <div>고객명: {project.client_name}</div>
-                    {project.due_date && (
-                      <div>완료 예정일: {formatDate(project.due_date)}</div>
-                    )}
                     <div className="text-xs">Task 개수: {taskCount}개</div>
                   </div>
                 </div>

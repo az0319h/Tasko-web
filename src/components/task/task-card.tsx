@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 interface TaskCardProps {
   task: TaskWithProfiles;
+  projectTitle?: string; // 프로젝트명 (모달에서 사용)
   currentUserId?: string;
   isAdmin?: boolean;
   onStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
@@ -23,6 +24,7 @@ interface TaskCardProps {
  */
 export function TaskCard({
   task,
+  projectTitle,
   currentUserId,
   isAdmin = false,
   onStatusChange,
@@ -131,6 +133,16 @@ export function TaskCard({
           </div>
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
+          {/* 프로젝트명 - projectTitle이 있을 때만 표시 */}
+          {projectTitle && (
+            <div className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <span className="font-medium">프로젝트:</span>
+                <span className="line-clamp-1">{projectTitle}</span>
+              </div>
+            </div>
+          )}
+
           {/* 지시자 정보 */}
           <div className="text-xs text-muted-foreground">
             <div className="flex items-center gap-1">

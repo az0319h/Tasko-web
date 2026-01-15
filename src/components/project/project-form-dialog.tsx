@@ -61,12 +61,10 @@ export function ProjectFormDialog({
       ? {
           title: "",
           client_name: "",
-          due_date: null,
         }
       : {
           title: "",
           client_name: "",
-          due_date: null,
           participant_ids: [],
         },
   });
@@ -103,14 +101,12 @@ export function ProjectFormDialog({
         reset({
           title: project.title,
           client_name: project.client_name,
-          due_date: project.due_date ? new Date(project.due_date).toISOString().split("T")[0] : null,
         });
       } else if (!project && !isEdit) {
         // 생성 모드: 빈 폼으로 초기화
         reset({
           title: "",
           client_name: "",
-          due_date: null,
           participant_ids: [],
         });
         setSearchQuery("");
@@ -144,7 +140,6 @@ export function ProjectFormDialog({
       reset({
         title: "",
         client_name: "",
-        due_date: null,
         ...(isEdit ? {} : { participant_ids: [] }),
       });
       setSearchQuery("");
@@ -187,23 +182,6 @@ export function ProjectFormDialog({
             {errors.client_name && (
               <p className="text-destructive text-sm">{errors.client_name.message}</p>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="due_date">완료 예정일</Label>
-            <Input
-              id="due_date"
-              type="date"
-              min={new Date().toISOString().split("T")[0]}
-              {...register("due_date")}
-              aria-invalid={errors.due_date ? "true" : "false"}
-            />
-            {errors.due_date && (
-              <p className="text-destructive text-sm">{errors.due_date.message}</p>
-            )}
-            <p className="text-muted-foreground text-xs">
-              오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다.
-            </p>
           </div>
 
           {/* 생성 모드에서만 초대 사용자 선택 필드 표시 */}

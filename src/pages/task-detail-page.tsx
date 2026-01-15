@@ -340,7 +340,7 @@ export default function TaskDetailPage() {
       id: task.id,
       updates: {
         title: data.title,
-        due_date: data.due_date || null,
+        due_date: data.due_date,
       },
     });
     setEditDialogOpen(false);

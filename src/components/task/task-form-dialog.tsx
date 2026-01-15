@@ -74,13 +74,13 @@ export function TaskFormDialog({
     defaultValues: isEditMode
       ? {
           title: "",
-          due_date: null,
+          due_date: "",
         }
       : {
           title: "",
           assignee_id: "",
           task_category: preSelectedCategory || undefined,
-          due_date: null,
+          due_date: "",
         },
   });
 
@@ -88,27 +88,106 @@ export function TaskFormDialog({
   const assigneeId = !isEditMode ? (watch("assignee_id" as keyof TaskCreateFormData) as string | undefined) : undefined;
   const taskCategory = !isEditMode ? (watch("task_category" as keyof TaskCreateFormData) as string | undefined) : undefined;
   const dueDate = watch("due_date" as keyof TaskCreateFormData) as string | undefined;
+  
+  // 카테고리별 기본 마감일 계산 함수
+  // 로컬 날짜 기준으로 계산하여 타임존 문제 방지
+  const getDefaultDueDate = (category: string | undefined): string | null => {
+    if (!category) return null;
+    
+    // 로컬 날짜 기준으로 오늘 날짜 가져오기 (타임존 무시)
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    
+    // 로컬 날짜 기준으로 새 Date 객체 생성 (타임존 문제 방지)
+    let defaultDate = new Date(year, month, date);
+    
+    switch (category) {
+      case "REVIEW":
+      case "CONTRACT":
+        // 오늘 기준 +1일
+        defaultDate.setDate(date + 1);
+        break;
+      case "SPECIFICATION":
+        // 오늘 기준 +10일
+        defaultDate.setDate(date + 10);
+        break;
+      case "APPLICATION":
+        // 오늘 당일
+        defaultDate = new Date(year, month, date);
+        break;
+      default:
+        return null;
+    }
+    
+    // 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (toISOString() 사용 시 UTC 변환으로 인한 날짜 오차 방지)
+    const yyyy = defaultDate.getFullYear();
+    const mm = String(defaultDate.getMonth() + 1).padStart(2, "0");
+    const dd = String(defaultDate.getDate()).padStart(2, "0");
+    
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  
+  // 카테고리 변경 시 기본 마감일 자동 설정 (생성 모드에서만, 사용자가 수정하지 않은 경우)
+  const [userModifiedDueDate, setUserModifiedDueDate] = useState(false);
+  
+  useEffect(() => {
+    if (!isEditMode && open && taskCategory && !userModifiedDueDate) {
+      const defaultDueDate = getDefaultDueDate(taskCategory);
+      if (defaultDueDate) {
+        setValue("due_date", defaultDueDate);
+      }
+    }
+  }, [taskCategory, isEditMode, open, setValue, userModifiedDueDate]);
+  
+  // 사용자가 마감일을 직접 수정했는지 추적
+  useEffect(() => {
+    if (!isEditMode && open) {
+      const subscription = watch((value, { name }) => {
+        if (name === "due_date" && value.due_date) {
+          setUserModifiedDueDate(true);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [isEditMode, open, watch]);
+  
+  // 다이얼로그가 열릴 때 사용자 수정 플래그 리셋
+  useEffect(() => {
+    if (open && !isEditMode) {
+      setUserModifiedDueDate(false);
+    }
+  }, [open, isEditMode]);
 
   // 수정 모드일 때 폼 초기값 설정
   useEffect(() => {
     if (task && open && isEditMode) {
       // 수정 모드: title, due_date만 설정 (description 제거됨)
       setValue("title", task.title);
-      setValue("due_date", task.due_date ? task.due_date.split("T")[0] : null);
+      setValue("due_date", task.due_date ? task.due_date.split("T")[0] : "");
     } else if (!task && open && !isEditMode) {
       // 생성 모드일 때 폼 초기화
+      const initialCategory = preSelectedCategory || undefined;
+      const defaultDueDate = getDefaultDueDate(initialCategory);
+      
       reset({
         title: "",
         assignee_id: "",
-        task_category: preSelectedCategory || undefined,
-        due_date: null,
+        task_category: initialCategory,
+        due_date: defaultDueDate || "",
       });
       // preSelectedCategory가 있으면 자동으로 설정
       if (preSelectedCategory) {
         setValue("task_category", preSelectedCategory);
+        if (defaultDueDate) {
+          setValue("due_date", defaultDueDate);
+        }
       }
       // 파일 목록 초기화
       setAttachedFiles([]);
+      // 사용자 수정 플래그 리셋
+      setUserModifiedDueDate(false);
     }
   }, [task, open, isEditMode, setValue, reset, preSelectedCategory]);
 
@@ -121,11 +200,14 @@ export function TaskFormDialog({
       participant.user_id !== currentProfile?.id
   ) || [];
 
-  // 마감일 검증: 오늘 이전 날짜 선택 불가, 프로젝트 완료 예정일 이전만 선택 가능
-  const today = new Date().toISOString().split("T")[0];
-  const projectDueDate = project?.due_date ? new Date(project.due_date).toISOString().split("T")[0] : null;
+  // 마감일 검증: 오늘 이전 날짜 선택 불가
+  // 로컬 날짜 기준으로 계산하여 타임존 문제 방지
+  const todayDate = new Date();
+  const todayYear = todayDate.getFullYear();
+  const todayMonth = todayDate.getMonth();
+  const todayDay = todayDate.getDate();
+  const today = `${todayYear}-${String(todayMonth + 1).padStart(2, "0")}-${String(todayDay).padStart(2, "0")}`;
   const minDate = today;
-  const maxDate = projectDueDate || undefined;
 
   // 파일 추가 핸들러
   const handleFileAdd = (files: FileList | File[]) => {
@@ -328,12 +410,13 @@ export function TaskFormDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="due_date">마감일</Label>
+            <Label htmlFor="due_date">
+              마감일 <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="due_date"
               type="date"
               min={minDate}
-              max={maxDate}
               {...register("due_date")}
               aria-invalid={errors.due_date ? "true" : "false"}
             />
@@ -342,11 +425,6 @@ export function TaskFormDialog({
             )}
             {dueDate && dueDate < minDate && (
               <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
-            )}
-            {dueDate && projectDueDate && dueDate > projectDueDate && (
-              <p className="text-sm text-destructive">
-                프로젝트 완료 예정일({projectDueDate}) 이전 날짜만 선택할 수 있습니다.
-              </p>
             )}
           </div>
 
@@ -433,7 +511,7 @@ export function TaskFormDialog({
               type="submit"
               disabled={
                 isLoading ||
-                (!isEditMode && (!assigneeId || !taskCategory))
+                (!isEditMode && (!assigneeId || !taskCategory || !dueDate))
               }
             >
               {isLoading ? (isEditMode ? "수정 중..." : "생성 중...") : isEditMode ? "수정" : "생성"}

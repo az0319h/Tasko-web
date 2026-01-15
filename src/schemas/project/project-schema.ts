@@ -7,17 +7,6 @@ import { z } from "zod";
 export const projectCreateSchema = z.object({
   title: z.string().min(1, "기회를 입력해주세요.").max(200, "기회는 200자 이하여야 합니다."),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
-  due_date: z.string().optional().nullable().refine(
-    (val) => {
-      if (!val) return true; // 선택사항이므로 null/undefined는 허용
-      const selectedDate = new Date(val);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // 시간 부분 제거
-      selectedDate.setHours(0, 0, 0, 0);
-      return selectedDate >= today;
-    },
-    { message: "완료 예정일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
-  ),
   participant_ids: z.array(z.string().uuid()).min(1, "최소 1명 이상의 사용자를 선택해주세요."),
 });
 
@@ -28,17 +17,6 @@ export const projectCreateSchema = z.object({
 export const projectUpdateSchema = z.object({
   title: z.string().min(1, "기회를 입력해주세요.").max(200, "기회는 200자 이하여야 합니다."),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
-  due_date: z.string().optional().nullable().refine(
-    (val) => {
-      if (!val) return true; // 선택사항이므로 null/undefined는 허용
-      const selectedDate = new Date(val);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // 시간 부분 제거
-      selectedDate.setHours(0, 0, 0, 0);
-      return selectedDate >= today;
-    },
-    { message: "완료 예정일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
-  ),
 });
 
 /**
