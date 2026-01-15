@@ -1112,7 +1112,7 @@ export default function TaskDetailPage() {
 
               {/* 상태 변경 버튼 - 모바일에서 풀 너비 */}
               {(canChangeToInProgress || canChangeToWaitingConfirm || canApprove || canReject) && (
-                <div className="flex flex-col gap-2 border-t pt-4">
+                <div className="grid grid-cols-2 gap-2 border-t pt-4">
                   {canChangeToInProgress && (
                     <Button
                       variant="default"

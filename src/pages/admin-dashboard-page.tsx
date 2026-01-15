@@ -390,7 +390,10 @@ export default function AdminDashboardPage() {
   // 4단계: 상태 필터링
   const statusFilteredTasks = useMemo(() => {
     const dbStatus = statusMap[status];
-    if (dbStatus === null) return searchedTasks;
+    if (dbStatus === null) {
+      // 전체 선택 시 승인됨(APPROVED) 제외
+      return searchedTasks.filter((task) => task.task_status !== "APPROVED");
+    }
     return searchedTasks.filter((task) => task.task_status === dbStatus);
   }, [searchedTasks, status]);
 
@@ -588,19 +591,23 @@ export default function AdminDashboardPage() {
             <div className="w-full">
               {/* 헤더 */}
               <div className="bg-muted/50 grid grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr] gap-4 border-b p-4 text-sm font-medium">
-                <div className="flex items-center">계정 ID</div>
-                <div className="flex items-center">지시사항</div>
+                <div className="flex items-center justify-start text-left">계정 ID</div>
+                <div className="flex items-center justify-start text-left">지시사항</div>
                 <div
-                  className="hover:bg-muted flex cursor-pointer items-center gap-2 select-none"
+                  className="hover:bg-muted flex cursor-pointer items-center justify-start gap-2 select-none text-left"
                   onClick={handleSortDueChange}
                 >
                   마감일
                   <ArrowUpDown className="h-4 w-4" />
                 </div>
-                <div className="flex items-center">지시자</div>
-                <div className="flex items-center">담당자</div>
-                <div className="flex items-center">
-                  <StatusFilterDropdown status={status} onStatusChange={handleStatusChange} />
+                <div className="flex items-center justify-start text-left">지시자</div>
+                <div className="flex items-center justify-start text-left">담당자</div>
+                <div className="flex items-center justify-start text-left">
+                  <StatusFilterDropdown
+                    status={status}
+                    onStatusChange={handleStatusChange}
+                    tasks={searchedTasks}
+                  />
                 </div>
               </div>
 
@@ -636,7 +643,7 @@ export default function AdminDashboardPage() {
                           window.location.href = `/tasks/${task.id}`;
                         }}
                       >
-                        <div className="line-clamp-1 flex items-center font-medium">
+                        <div className="line-clamp-1 flex items-center justify-start text-left font-medium">
                           {project ? (
                             <Link
                               to={`/projects/${project.id}`}
@@ -654,7 +661,7 @@ export default function AdminDashboardPage() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </div>
-                        <div className="line-clamp-1 flex items-center">
+                        <div className="line-clamp-1 flex items-center justify-start text-left">
                           <Link
                             to={`/tasks/${task.id}`}
                             className="line-clamp-1 hover:underline"
@@ -667,7 +674,7 @@ export default function AdminDashboardPage() {
                             {task.title}
                           </Link>
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center justify-start text-left">
                           {dueDate ? (
                             <span className={cn("text-sm whitespace-nowrap", dueDateColorClass)}>
                               {dueDate} {dDayText}
@@ -676,13 +683,13 @@ export default function AdminDashboardPage() {
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </div>
-                        <div className="line-clamp-1 flex items-center text-sm">
+                        <div className="line-clamp-1 flex items-center justify-start text-left text-sm">
                           {assignerDisplay}
                         </div>
-                        <div className="line-clamp-1 flex items-center text-sm">
+                        <div className="line-clamp-1 flex items-center justify-start text-left text-sm">
                           {assigneeDisplay}
                         </div>
-                        <div className="flex items-center">
+                        <div className="flex items-center justify-start text-left">
                           <TaskStatusBadge status={task.task_status} />
                         </div>
                       </div>
@@ -875,9 +882,11 @@ function ProjectTableRow({
 function StatusFilterDropdown({
   status,
   onStatusChange,
+  tasks,
 }: {
   status: StatusParam;
   onStatusChange: (status: StatusParam) => void;
+  tasks: TaskWithProfiles[];
 }) {
   const statusLabels: Record<StatusParam, string> = {
     all: "전체",
@@ -886,6 +895,25 @@ function StatusFilterDropdown({
     waiting_confirm: "확인대기",
     rejected: "거부됨",
     approved: "승인됨",
+  };
+
+  const statusMap: Record<StatusParam, TaskStatus | null> = {
+    all: null,
+    assigned: "ASSIGNED",
+    in_progress: "IN_PROGRESS",
+    waiting_confirm: "WAITING_CONFIRM",
+    rejected: "REJECTED",
+    approved: "APPROVED",
+  };
+
+  // 각 상태별 개수 계산
+  const getStatusCount = (statusValue: StatusParam): number => {
+    if (statusValue === "all") {
+      // 전체는 승인됨 제외
+      return tasks.filter((task) => task.task_status !== "APPROVED").length;
+    }
+    const dbStatus = statusMap[statusValue];
+    return tasks.filter((task) => task.task_status === dbStatus).length;
   };
 
   return (
@@ -897,15 +925,18 @@ function StatusFilterDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {(Object.keys(statusLabels) as StatusParam[]).map((statusValue) => (
-          <DropdownMenuItem
-            key={statusValue}
-            onClick={() => onStatusChange(statusValue)}
-            className={status === statusValue ? "bg-accent" : ""}
-          >
-            {statusLabels[statusValue]}
-          </DropdownMenuItem>
-        ))}
+        {(Object.keys(statusLabels) as StatusParam[]).map((statusValue) => {
+          const count = getStatusCount(statusValue);
+          return (
+            <DropdownMenuItem
+              key={statusValue}
+              onClick={() => onStatusChange(statusValue)}
+              className={status === statusValue ? "bg-accent" : ""}
+            >
+              {statusLabels[statusValue]} ({count}개)
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
