@@ -5,7 +5,7 @@ import { z } from "zod";
  * 초대 사용자 선택 필수 (관리자 제외 1명 이상)
  */
 export const projectCreateSchema = z.object({
-  title: z.string().min(1, "기회를 입력해주세요.").max(200, "기회는 200자 이하여야 합니다."),
+  title: z.string().min(1, "계정 ID를 입력해주세요.").max(200, "계정 ID는 200자 이하여야 합니다."),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
   participant_ids: z.array(z.string().uuid()).min(1, "최소 1명 이상의 사용자를 선택해주세요."),
 });
@@ -15,7 +15,7 @@ export const projectCreateSchema = z.object({
  * 초대 사용자 필드는 수정 불가
  */
 export const projectUpdateSchema = z.object({
-  title: z.string().min(1, "기회를 입력해주세요.").max(200, "기회는 200자 이하여야 합니다."),
+  title: z.string().min(1, "계정 ID를 입력해주세요.").max(200, "계정 ID는 200자 이하여야 합니다."),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
 });
 

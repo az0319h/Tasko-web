@@ -25,7 +25,7 @@ export default function GlobalLayout() {
               </Link>
               <SidebarTrigger className="md:hidden" />
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-5">
+            <div className="flex-1 overflow-y-auto p-4 md:p-5">
               <Outlet />
             </div>
           </main>
