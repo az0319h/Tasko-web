@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProjectCard } from "@/components/project/project-card";
+import { CategoryTaskListModal } from "./category-task-list-modal";
 import type { TaskWithProfiles } from "@/api/task";
 import type { Project } from "@/api/project";
 import type { TaskStatus } from "@/lib/task-status";
@@ -74,6 +76,7 @@ export function KanbanBoardWithProjects({
   const [internalStatusFilter, setInternalStatusFilter] = useState<TaskStatus | "ALL">("ALL");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("dueDateAsc");
+  const [openModalCategory, setOpenModalCategory] = useState<TaskCategory | null>(null);
 
   // 외부에서 전달된 필터가 있으면 사용, 없으면 내부 state 사용
   const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
@@ -240,6 +243,25 @@ export function KanbanBoardWithProjects({
     };
   }, [tasks, currentUserId]);
 
+  // 카테고리별 모든 Task 수집 (프로젝트 구분 없이)
+  const tasksByCategory = useMemo(() => {
+    const grouped: Record<TaskCategory, TaskWithProfiles[]> = {
+      REVIEW: [],
+      CONTRACT: [],
+      SPECIFICATION: [],
+      APPLICATION: [],
+    };
+
+    filteredTasks.forEach((task) => {
+      const category = task.task_category as TaskCategory;
+      if (category && category in grouped) {
+        grouped[category].push(task);
+      }
+    });
+
+    return grouped;
+  }, [filteredTasks]);
+
   return (
     <div className="space-y-4">
       {/* 역할 필터 */}
@@ -319,6 +341,15 @@ export function KanbanBoardWithProjects({
                     {taskCount}
                   </span>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setOpenModalCategory(category.value)}
+                  title={`${category.label} 카테고리의 모든 Task 보기`}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
 
               {/* 프로젝트 카드 목록 */}
@@ -347,6 +378,27 @@ export function KanbanBoardWithProjects({
           );
         })}
       </div>
+
+      {/* 카테고리별 Task 목록 모달 */}
+      {CATEGORIES.map((category) => (
+        <CategoryTaskListModal
+          key={category.value}
+          open={openModalCategory === category.value}
+          onOpenChange={(open) => {
+            if (!open) {
+              setOpenModalCategory(null);
+            } else {
+              setOpenModalCategory(category.value);
+            }
+          }}
+          category={category.value}
+          tasks={tasksByCategory[category.value]}
+          projects={projects}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          onTaskStatusChange={onTaskStatusChange}
+        />
+      ))}
     </div>
   );
 }

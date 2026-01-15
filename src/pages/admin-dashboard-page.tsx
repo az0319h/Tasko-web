@@ -46,7 +46,7 @@ function formatDate(dateString: string): string {
   return `${year}-${month}-${day}`;
 }
 
-type SortOrder = "newest" | "oldest" | "dueDateNewest" | "dueDateOldest";
+type SortOrder = "newest" | "oldest";
 type DashboardTab = "kanban" | "projects";
 
 /**
@@ -109,7 +109,6 @@ export default function AdminDashboardPage() {
         project: {
           title: data.title,
           client_name: data.client_name,
-          due_date: data.due_date || null,
         },
         participantIds: data.participant_ids,
       });
@@ -186,18 +185,6 @@ export default function AdminDashboardPage() {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       } else if (sortOrder === "oldest") {
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      } else if (sortOrder === "dueDateNewest") {
-        // 완료예정일이 없는 항목은 뒤로
-        if (!a.due_date && !b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
-      } else if (sortOrder === "dueDateOldest") {
-        // 완료예정일이 없는 항목은 뒤로
-        if (!a.due_date && !b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
       }
       return 0;
     });
@@ -328,8 +315,6 @@ export default function AdminDashboardPage() {
                 <SelectContent>
                   <SelectItem value="newest">최신순</SelectItem>
                   <SelectItem value="oldest">오래된순</SelectItem>
-                  <SelectItem value="dueDateNewest">완료예정일 최신순</SelectItem>
-                  <SelectItem value="dueDateOldest">완료예정일 오래된순</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -345,14 +330,13 @@ export default function AdminDashboardPage() {
                   <TableHead>총 Task</TableHead>
                   <TableHead>기여중인 Task</TableHead>
                   <TableHead>기여한 Task</TableHead>
-                  <TableHead>완료예정일</TableHead>
                   <TableHead>생성일</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedProjects.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground h-24 text-center">
+                    <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
                       {debouncedSearch ? "검색 결과가 없습니다." : "프로젝트가 없습니다."}
                     </TableCell>
                   </TableRow>
@@ -474,7 +458,6 @@ function ProjectTableRow({
       </TableCell>
       <TableCell>{contributingTasks}</TableCell>
       <TableCell>{contributedTasks}</TableCell>
-      <TableCell>{project.due_date ? formatDate(project.due_date) : "-"}</TableCell>
       <TableCell>{formatDate(project.created_at)}</TableCell>
     </TableRow>
   );

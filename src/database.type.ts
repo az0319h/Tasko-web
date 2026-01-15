@@ -223,7 +223,6 @@ export type Database = {
           client_name: string
           created_at: string
           created_by: string
-          due_date: string | null
           id: string
           title: string
           updated_at: string
@@ -232,7 +231,6 @@ export type Database = {
           client_name: string
           created_at?: string
           created_by: string
-          due_date?: string | null
           id?: string
           title: string
           updated_at?: string
@@ -241,7 +239,6 @@ export type Database = {
           client_name?: string
           created_at?: string
           created_by?: string
-          due_date?: string | null
           id?: string
           title?: string
           updated_at?: string
@@ -331,7 +328,7 @@ export type Database = {
           assignee_id: string | null
           assigner_id: string | null
           created_at: string
-          due_date: string | null
+          due_date: string
           id: string
           project_id: string
           task_category: Database["public"]["Enums"]["task_category"]
@@ -343,7 +340,7 @@ export type Database = {
           assignee_id?: string | null
           assigner_id?: string | null
           created_at?: string
-          due_date?: string | null
+          due_date: string
           id?: string
           project_id: string
           task_category?: Database["public"]["Enums"]["task_category"]
@@ -355,7 +352,7 @@ export type Database = {
           assignee_id?: string | null
           assigner_id?: string | null
           created_at?: string
-          due_date?: string | null
+          due_date?: string
           id?: string
           project_id?: string
           task_category?: Database["public"]["Enums"]["task_category"]
@@ -399,14 +396,6 @@ export type Database = {
           p_due_date: string
           p_opportunity: string
           p_participant_ids: string[]
-        }
-        Returns: string
-      }
-      create_task_chat_log_deprecated: {
-        Args: {
-          p_created_by: string
-          p_new_status: Database["public"]["Enums"]["task_status"]
-          p_task_id: string
         }
         Returns: string
       }

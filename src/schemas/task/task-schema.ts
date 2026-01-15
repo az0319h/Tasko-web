@@ -17,7 +17,16 @@ export const taskCreateSchema = z.object({
   task_category: z.enum(["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"], {
     message: "카테고리를 선택해주세요.",
   }),
-  due_date: z.string().optional().nullable(),
+  due_date: z.string().min(1, "마감일을 입력해주세요.").refine(
+    (val) => {
+      const selectedDate = new Date(val);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      return selectedDate >= today;
+    },
+    { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
+  ),
 });
 
 /**
@@ -28,7 +37,16 @@ export const taskCreateSchema = z.object({
 export const taskUpdateSchema = z.object({
   title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
   description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
-  due_date: z.string().optional().nullable(),
+  due_date: z.string().min(1, "마감일을 입력해주세요.").refine(
+    (val) => {
+      const selectedDate = new Date(val);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      return selectedDate >= today;
+    },
+    { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
+  ),
 });
 
 /**

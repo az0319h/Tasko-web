@@ -120,7 +120,7 @@ export default function ProjectDetailPage() {
       project_id: id,
       title: taskData.title,
       assignee_id: taskData.assignee_id,
-      due_date: taskData.due_date || null,
+      due_date: taskData.due_date,
       task_category: taskData.task_category,
     });
     
@@ -184,7 +184,7 @@ export default function ProjectDetailPage() {
       id: selectedTask,
       updates: {
         title: taskUpdates.title,
-        due_date: taskUpdates.due_date || null,
+        due_date: taskUpdates.due_date,
         // assigner_id, assignee_id는 수정 불가
       },
     });
@@ -204,39 +204,11 @@ export default function ProjectDetailPage() {
   const handleUpdateProject = async (data: ProjectUpdateFormData) => {
     if (!id || !project) return;
     
-    // 프로젝트 완료예정일 수정 시 검증: Task 중에 변경하려는 날짜보다 늦은 마감일이 있으면 수정 불가
-    // 기존 due_date와 비교하여 변경된 경우에만 검증
-    const currentDueDate = project.due_date ? new Date(project.due_date).toISOString().split("T")[0] : null;
-    const newDueDate = data.due_date || null;
-    
-    // due_date가 변경된 경우에만 검증
-    if (currentDueDate !== newDueDate && newDueDate) {
-      const newDueDateObj = new Date(newDueDate);
-      newDueDateObj.setHours(0, 0, 0, 0);
-      
-      // 현재 프로젝트의 Task 중에 변경하려는 날짜보다 늦은 마감일이 있는지 확인
-      const tasksWithLaterDueDate = tasks?.filter((task) => {
-        if (!task.due_date) return false;
-        const taskDueDate = new Date(task.due_date);
-        taskDueDate.setHours(0, 0, 0, 0);
-        return taskDueDate > newDueDateObj;
-      }) || [];
-      
-      if (tasksWithLaterDueDate.length > 0) {
-        const taskTitles = tasksWithLaterDueDate.map((t) => t.title).join(", ");
-        toast.error(
-          `Task 중 마감일이 수정하시려는 날짜보다 늦은 Task가 있습니다: ${taskTitles}`
-        );
-        return;
-      }
-    }
-    
     await updateProject.mutateAsync({
       id,
       updates: {
         title: data.title,
         client_name: data.client_name,
-        due_date: data.due_date || null,
       },
     });
     setEditProjectDialogOpen(false);
@@ -354,12 +326,6 @@ export default function ProjectDetailPage() {
             <div>
               <p className="text-sm font-medium text-muted-foreground">클라이언트명</p>
               <p className="text-base">{project.client_name}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">완료예정일</p>
-              <p className="text-base">
-                {project.due_date ? formatDate(project.due_date) : "-"}
-              </p>
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">생성일</p>

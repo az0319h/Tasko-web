@@ -21,7 +21,7 @@ describe("useUpdateTaskStatus optimistic update logic", () => {
     assignee_id: "user-2",
     task_category: "REVIEW",
     task_status: status,
-    due_date: null,
+    due_date: "2024-01-02T00:00:00Z",
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
     assigner: {
