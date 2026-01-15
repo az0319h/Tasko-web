@@ -24,6 +24,8 @@ interface KanbanBoardWithProjectsProps {
   currentUserId?: string;
   isAdmin?: boolean;
   onTaskStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
+  statusFilter?: TaskStatus | "ALL";
+  onStatusFilterChange?: (status: TaskStatus | "ALL") => void;
 }
 
 const CATEGORIES: { value: TaskCategory; label: string }[] = [
@@ -65,11 +67,25 @@ export function KanbanBoardWithProjects({
   currentUserId,
   isAdmin = false,
   onTaskStatusChange,
+  statusFilter: externalStatusFilter,
+  onStatusFilterChange,
 }: KanbanBoardWithProjectsProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | "ALL">("ALL");
+  const [internalStatusFilter, setInternalStatusFilter] = useState<TaskStatus | "ALL">("ALL");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("dueDateAsc");
+
+  // 외부에서 전달된 필터가 있으면 사용, 없으면 내부 state 사용
+  const statusFilter = externalStatusFilter !== undefined ? externalStatusFilter : internalStatusFilter;
+
+  // 상태 필터 변경 핸들러
+  const handleStatusFilterChange = (value: TaskStatus | "ALL") => {
+    if (onStatusFilterChange) {
+      onStatusFilterChange(value);
+    } else {
+      setInternalStatusFilter(value);
+    }
+  };
 
   // 프로젝트 맵 생성 (빠른 조회를 위해)
   const projectMap = useMemo(() => {
@@ -249,7 +265,7 @@ export function KanbanBoardWithProjects({
       {/* 상태 필터 */}
       <Tabs
         value={statusFilter}
-        onValueChange={(value) => setStatusFilter(value as TaskStatus | "ALL")}
+        onValueChange={(value) => handleStatusFilterChange(value as TaskStatus | "ALL")}
       >
         <TabsList className="grid w-full grid-cols-5">
           {STATUS_OPTIONS.map((option) => (

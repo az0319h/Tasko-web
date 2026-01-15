@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useSearchParams, useLocation } from "react-router";
 import { Search } from "lucide-react";
 import { useProjects, useTasksForMember, useCurrentProfile } from "@/hooks";
 import { useDebounce } from "@/hooks";
@@ -49,6 +49,7 @@ type DashboardTab = "kanban" | "projects";
  * Member 대시보드 페이지
  */
 export default function MemberDashboardPage() {
+  const location = useLocation();
   const { data: myProjects = [], isLoading: projectsLoading } = useProjects(); // RLS 자동 필터링으로 참여 프로젝트만 조회
   const { data: currentProfile } = useCurrentProfile();
   const { data: myTasks = [], isLoading: tasksLoading } = useTasksForMember(true); // 칸반 보드용: APPROVED 제외
@@ -57,6 +58,12 @@ export default function MemberDashboardPage() {
   // 탭 상태 - URL 쿼리 파라미터에서 읽기
   const layoutParam = searchParams.get("layout") as DashboardTab | null;
   const [activeTab, setActiveTab] = useState<DashboardTab>(layoutParam === "kanban" || layoutParam === "projects" ? layoutParam : "kanban");
+
+  // 칸반 보드 상태 필터 - URL 쿼리 파라미터에서 읽기
+  const statusParam = searchParams.get("status") as TaskStatus | "ALL" | null;
+  const validStatuses: (TaskStatus | "ALL")[] = ["ALL", "ASSIGNED", "IN_PROGRESS", "WAITING_CONFIRM", "REJECTED"];
+  const initialStatusFilter = statusParam && validStatuses.includes(statusParam) ? statusParam : "ALL";
+  const [kanbanStatusFilter, setKanbanStatusFilter] = useState<TaskStatus | "ALL">(initialStatusFilter);
 
   // 다이얼로그 상태
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
@@ -79,6 +86,28 @@ export default function MemberDashboardPage() {
 
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
+  useEffect(() => {
+    const currentUrl = location.pathname + location.search;
+    if (currentUrl === "/" || currentUrl.startsWith("/?")) {
+      sessionStorage.setItem("previousDashboardUrl", currentUrl);
+    }
+  }, [location.pathname, location.search]);
+
+  // 칸반 보드 상태 필터 변경 핸들러
+  const handleKanbanStatusFilterChange = (status: TaskStatus | "ALL") => {
+    setKanbanStatusFilter(status);
+    // URL 업데이트
+    const newParams = new URLSearchParams(searchParams);
+    if (status === "ALL") {
+      // "ALL"이면 status 파라미터 제거
+      newParams.delete("status");
+    } else {
+      newParams.set("status", status);
+    }
+    setSearchParams(newParams, { replace: true });
+  };
 
   // Task 상태 변경 핸들러
   const handleTaskStatusChange = (taskId: string, newStatus: TaskStatus) => {
@@ -166,7 +195,16 @@ export default function MemberDashboardPage() {
     if (layoutParam === "kanban" || layoutParam === "projects") {
       setActiveTab(layoutParam);
     }
-  }, [searchParams]);
+
+    // 상태 필터 동기화
+    const statusParam = searchParams.get("status") as TaskStatus | "ALL" | null;
+    if (statusParam && validStatuses.includes(statusParam)) {
+      setKanbanStatusFilter(statusParam);
+    } else if (!statusParam && activeTab === "kanban") {
+      // URL에 status 파라미터가 없으면 기본값으로 설정
+      setKanbanStatusFilter("ALL");
+    }
+  }, [searchParams, activeTab]);
 
   // 검색어/필터 변경 시 1페이지로 리셋
   useEffect(() => {
@@ -229,6 +267,8 @@ export default function MemberDashboardPage() {
             currentUserId={currentProfile?.id}
             isAdmin={false}
             onTaskStatusChange={handleTaskStatusChange}
+            statusFilter={kanbanStatusFilter}
+            onStatusFilterChange={handleKanbanStatusFilterChange}
           />
         </TabsContent>
 
@@ -371,7 +411,15 @@ function ProjectTableRow({
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell className="font-medium">
-        <Link to={`/projects/${project.id}`} className="hover:underline">
+        <Link 
+          to={`/projects/${project.id}`} 
+          className="hover:underline"
+          onClick={() => {
+            // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
+            const currentUrl = window.location.pathname + window.location.search;
+            sessionStorage.setItem("previousDashboardUrl", currentUrl);
+          }}
+        >
           {project.title}
         </Link>
       </TableCell>
