@@ -158,12 +158,12 @@ export function ProjectFormDialog({
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">
-              기회 <span className="text-destructive">*</span>
+              계정 ID <span className="text-destructive">*</span>
             </Label>
             <Input
               id="title"
               {...register("title")}
-              placeholder="기회를 입력하세요"
+              placeholder="계정 ID를 입력하세요"
               aria-invalid={errors.title ? "true" : "false"}
             />
             {errors.title && <p className="text-destructive text-sm">{errors.title.message}</p>}

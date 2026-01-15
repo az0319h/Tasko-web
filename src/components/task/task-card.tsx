@@ -100,18 +100,21 @@ export function TaskCard({
       return "text-muted-foreground";
     }
     
-    if (daysDiff > 7) {
-      // D-7 이상: 기본 색상
-      return "text-muted-foreground";
-    } else if (daysDiff > 0) {
-      // D-6 ~ D-1: 주의 색상
-      return "text-orange-600 dark:text-orange-500 font-medium";
-    } else if (daysDiff === 0) {
-      // D-Day: 강조 색상
-      return "text-blue-600 dark:text-blue-500 font-semibold";
-    } else {
-      // D+1 이상: 경고 색상
+    if (daysDiff === 0) {
+      // D-Day: 빨간색
       return "text-destructive font-semibold";
+    } else if (daysDiff === 1) {
+      // D-1: 주황색
+      return "text-orange-600 dark:text-orange-500 font-medium";
+    } else if (daysDiff >= 2 && daysDiff <= 7) {
+      // D-2 ~ D-7: 파란색
+      return "text-blue-600 dark:text-blue-500 font-medium";
+    } else if (daysDiff < 0) {
+      // D+1 이상 (마감일 지남, 승인 안됨): 빨간색 (D-Day와 동일)
+      return "text-destructive font-semibold";
+    } else {
+      // D-8 이상: 회색
+      return "text-muted-foreground";
     }
   };
 

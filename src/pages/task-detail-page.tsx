@@ -1068,7 +1068,7 @@ export default function TaskDetailPage() {
                   <>
                     <div className="space-y-1">
                       <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                        기회명
+                        계정 ID
                       </h3>
                       <p className="truncate text-sm font-medium">{task.project.title}</p>
                     </div>
