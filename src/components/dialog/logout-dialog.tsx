@@ -16,9 +16,21 @@ import { useSetSession } from "@/store/session";
 import { toast } from "sonner";
 import { generateErrorMessage } from "@/lib/error";
 
-export default function LogoutDialog({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+export default function LogoutDialog({
+  children,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const setSession = useSetSession();
+  
+  // controlled 또는 uncontrolled 모드 지원
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
 
   const { mutate: signOut, isPending } = useSignOut({
     onSuccess: () => {
@@ -42,7 +54,7 @@ export default function LogoutDialog({ children }: { children: ReactNode }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      {children && <DialogTrigger asChild>{children}</DialogTrigger>}
       <DialogContent showCloseButton>
         <DialogHeader>
           <DialogTitle>로그아웃</DialogTitle>
