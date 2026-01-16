@@ -13,13 +13,14 @@ import {
 import {
   Home,
   Bell,
-  MessageCircle,
   User,
   Settings2Icon,
   Ellipsis,
   ChevronDown,
   LogOut,
   FileText,
+  Building2,
+  Bot,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -68,13 +69,25 @@ const getMenuItems = (isAdmin: boolean) => {
       url: "/notifications",
       icon: Bell,
     },
-    { id: "chats", key: "layout.sidebar.menu.chats", url: "/chats", icon: MessageCircle },
+    {
+      id: "community",
+      key: "layout.sidebar.menu.community",
+      url: "/community",
+      icon: Building2,
+    },
+    {
+      id: "agents",
+      key: "layout.sidebar.menu.agents",
+      url: "/agents",
+      icon: Bot,
+    },
     { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
     { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
   ];
 
   if (isAdmin) {
-    items.splice(3, 0, {
+    // 관리자만 사용자 관리 메뉴 추가 (프로필 다음)
+    items.push({
       id: "users",
       key: "layout.sidebar.menu.users",
       url: "/admin/users",

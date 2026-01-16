@@ -13,14 +13,17 @@
   "common": {
     "cancel": "취소",
     "save": "저장",
-    "logout": "로그아웃"
+    "logout": "로그아웃",
+    "comingSoon": "해당 페이지 준비중입니다.",
+    "comingSoonDescription": "곧 만나보실 수 있습니다."
   },
   "layout": {
     "sidebar": {
       "menu": {
         "home": "홈",
         "notifications": "알림",
-        "chats": "채팅",
+        "community": "커뮤니티",
+        "agents": "AI 에이전트",
         "settings": "설정",
         "users": "사용자 관리",
         "profile": "프로필",
