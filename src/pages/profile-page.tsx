@@ -48,7 +48,10 @@ export default function ProfilePage() {
           {/* 버튼 영역 */}
           <div className="flex flex-col gap-2 sm:shrink-0 sm:flex-row sm:items-start">
             <EditProfileDialog>
-              <Button variant="outline" className="w-full whitespace-nowrap sm:w-auto">
+              <Button
+                variant="outline"
+                className="w-full  whitespace-nowrap sm:w-auto"
+              >
                 <Pencil className="mr-2 size-4" />
                 수정
               </Button>

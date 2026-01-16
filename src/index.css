@@ -429,28 +429,73 @@ button {
   cursor: pointer;
 }
 
-/* 스크롤바 항상 표시 */
+/* 스크롤바 항상 표시 - macOS 호환 강화 */
 .overflow-x-scroll {
   overflow-x: scroll !important;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  overflow-y: hidden !important;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(0, 0, 0, 0.4) rgba(0, 0, 0, 0.15);
+  /* 스크롤바 공간 항상 예약 */
+  padding-bottom: 12px;
+  margin-bottom: -12px;
 }
 
 .overflow-x-scroll::-webkit-scrollbar {
-  height: 8px;
-  display: block;
+  height: 12px !important;
+  display: block !important;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .overflow-x-scroll::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15) !important;
+  border-radius: 6px;
+  /* 트랙을 항상 보이게 */
+  -webkit-box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.1);
 }
 
 .overflow-x-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  border-radius: 6px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  /* 썸을 항상 보이게 */
+  min-width: 20px;
+  -webkit-box-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
 }
 
 .overflow-x-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.3);
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+.overflow-x-scroll::-webkit-scrollbar-thumb:active {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* 다크 모드 대응 */
+.dark .overflow-x-scroll {
+  scrollbar-color: rgba(255, 255, 255, 0.4) rgba(255, 255, 255, 0.15);
+}
+
+.dark .overflow-x-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.15) !important;
+  -webkit-box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.dark .overflow-x-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.dark .overflow-x-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.dark .overflow-x-scroll::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255, 255, 255, 0.7) !important;
 }
