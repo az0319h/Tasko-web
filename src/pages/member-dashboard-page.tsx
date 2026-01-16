@@ -899,9 +899,7 @@ function StatusFilterDropdown({
     }
     const dbStatus = statusMap[statusValue];
     return tasks.filter((task) => task.task_status === dbStatus).length;
-  };
-
-  return (
+  };  return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 px-2">

@@ -32,6 +32,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
 import LogoutDialog from "../dialog/logout-dialog";
 import { Button } from "../ui/button";
@@ -43,6 +45,28 @@ import { Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import logo_dark from "@/assets/logo_dark.png";
 import logo_light from "@/assets/logo_light.png";
+
+// 로그아웃 메뉴 아이템 컴포넌트
+function LogoutMenuItem() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  return (
+    <>
+      <DropdownMenuItem
+        variant="destructive"
+        className="cursor-pointer"
+        onSelect={(e) => {
+          e.preventDefault();
+          setDialogOpen(true);
+        }}
+      >
+        <LogOut className="mr-2 h-4 w-4" />
+        로그아웃
+      </DropdownMenuItem>
+      <LogoutDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    </>
+  );
+}
 
 /**
  * 문제 원인 설명:
@@ -310,6 +334,21 @@ export function AppSidebar() {
                   <Ellipsis />
                 </Button>
               </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-56 mb-2">
+                {/* 사용자 정보 헤더 */}
+                <DropdownMenuLabel className="flex flex-col gap-1 p-3">
+                  <div className="flex items-center gap-2">
+                    <ProfileAvatar avatarUrl={profile?.avatar_url} size={32} />
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium">{profile?.full_name || "사용자"}</div>
+                      <div className="text-muted-foreground text-xs">{profile?.email || ""}</div>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {/* 로그아웃 버튼 */}
+                <LogoutMenuItem />
+              </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
