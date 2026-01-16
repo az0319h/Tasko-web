@@ -13,14 +13,17 @@
   "common": {
     "cancel": "Cancel",
     "save": "Save",
-    "logout": "Log out"
+    "logout": "Log out",
+    "comingSoon": "This page is under construction.",
+    "comingSoonDescription": "Coming soon."
   },
   "layout": {
     "sidebar": {
       "menu": {
         "home": "Home",
         "notifications": "Notifications",
-        "chats": "Chats",
+        "community": "Community",
+        "agents": "AI Agents",
         "settings": "Settings",
         "users": "User Management",
         "profile": "Profile",
