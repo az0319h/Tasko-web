@@ -230,6 +230,7 @@ export default function EditProfileDialog({ children }: { children: ReactNode })
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
+                        className="py-1 sm:py-1.5"
                         disabled={isPending || isUpdatingAvatar || isDeletingAvatar}
                       >
                         <Camera className="mr-2 size-4" />
