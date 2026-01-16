@@ -1,53 +1,56 @@
-import { Badge } from "@/components/ui/badge";
 import type { Task } from "@/api/task";
+import {
+  FileText,
+  Loader2,
+  Clock,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
 interface TaskStatusBadgeProps {
   status: Task["task_status"];
 }
 
 /**
- * Task 상태 배지 컴포넌트
+ * Task 상태 배지 컴포넌트 (아이콘 + 텍스트)
  */
 export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {
   const statusConfig: Record<
     Task["task_status"],
     {
       label: string;
-      variant: "default" | "secondary" | "destructive" | "outline";
-      className?: string;
+      icon: React.ComponentType<{ className?: string }>;
     }
   > = {
     ASSIGNED: {
       label: "할당됨",
-      variant: "outline",
+      icon: FileText,
     },
     IN_PROGRESS: {
       label: "진행 중",
-      variant: "default",
+      icon: Loader2,
     },
     WAITING_CONFIRM: {
       label: "확인 대기",
-      variant: "secondary",
-      className:
-        "bg-yellow-500 text-white border-transparent flex justify-center items-center whitespace-nowrap hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700",
+      icon: Clock,
     },
     APPROVED: {
       label: "승인됨",
-      variant: "default",
-      className:
-        "bg-green-600 text-white border-transparent hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800",
+      icon: CheckCircle2,
     },
     REJECTED: {
       label: "거부됨",
-      variant: "destructive",
+      icon: XCircle,
     },
   };
 
   const config = statusConfig[status];
+  const Icon = config.icon;
 
   return (
-    <Badge variant={config.variant} className={config.className}>
-      {config.label}
-    </Badge>
+    <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+      <Icon className="size-3 sm:size-4" />
+      <span>{config.label}</span>
+    </div>
   );
 }

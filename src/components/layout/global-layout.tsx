@@ -15,15 +15,15 @@ export default function GlobalLayout() {
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <main className="flex flex-1 flex-col overflow-hidden">
-            <div className="flex shrink-0 items-center justify-between border-b p-4 md:hidden">
+            <div className="flex shrink-0 items-center justify-between border-b p-4 md:px-5 lg:hidden">
               <Link to={"/"}>
                 <img
                   alt="logo_character"
-                  className="size-8.5"
+                  className="size-8.5 md:size-10"
                   src={mode === "dark" ? logo_light : logo_dark}
                 />
               </Link>
-              <SidebarTrigger className="md:hidden" />
+              <SidebarTrigger className="lg:hidden" />
             </div>
             <div className="flex-1 overflow-y-auto p-4 md:p-5">
               <Outlet />

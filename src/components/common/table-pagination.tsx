@@ -32,7 +32,7 @@ export interface TablePaginationProps {
 
 /**
  * 테이블 페이지네이션 컴포넌트
- * 
+ *
  * 이미지와 유사한 레이아웃:
  * - 좌측: 선택된 행 수 표시
  * - 우측: Rows per page Select, Page X of Y, 네비게이션 버튼들
@@ -85,31 +85,33 @@ export function TablePagination({
   return (
     <div
       className={cn(
-        "flex items-center justify-between px-2 py-4",
-        className
+        "grid grid-cols-3 grid-rows-2 px-2 py-4 md:flex md:flex-row md:items-center md:justify-between md:gap-0",
+        className,
       )}
     >
       {/* 좌측: 선택된 행 수 표시 */}
-      <div className="text-sm text-muted-foreground">
+      <div className="text-muted-foreground col-start-1 col-end-3 text-xs sm:text-sm">
         {selectedCount > 0 ? (
-          <span>{selectedCount} of {totalItems} row(s) selected</span>
+          <span className="whitespace-nowrap">
+            {selectedCount} of {totalItems} row(s) selected
+          </span>
         ) : (
-          <span className="text-muted-foreground/50">
+          <span className="text-muted-foreground/50 whitespace-nowrap">
             {totalItems} row(s) total
           </span>
         )}
       </div>
 
       {/* 우측: 페이지네이션 컨트롤 */}
-      <div className="flex items-center gap-6">
+      <div className="col-start-1 col-end-4 row-start-2 flex items-center gap-3 sm:flex-row sm:items-center sm:gap-4 md:gap-6">
         {/* Rows per page */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Rows per page</span>
-          <Select
-            value={pageSize.toString()}
-            onValueChange={handlePageSizeChange}
-          >
-            <SelectTrigger className="h-9 w-[70px]">
+          <span className="text-muted-foreground hidden text-xs sm:inline sm:text-sm">
+            Rows per page
+          </span>
+          <span className="text-muted-foreground text-xs sm:hidden">Rows</span>
+          <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+            <SelectTrigger className="h-8 w-[60px] text-xs sm:h-9 sm:w-[70px] sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -123,8 +125,11 @@ export function TablePagination({
         </div>
 
         {/* Page X of Y */}
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground hidden text-xs sm:block sm:text-sm">
           Page {currentPage} of {totalPages || 1}
+        </div>
+        <div className="text-muted-foreground text-xs sm:hidden">
+          {currentPage} / {totalPages || 1}
         </div>
 
         {/* 네비게이션 버튼들 */}
@@ -133,52 +138,51 @@ export function TablePagination({
           <Button
             variant="outline"
             size="icon-sm"
-            className="h-9 w-9"
+            className="h-8 w-8 sm:h-9 sm:w-9"
             onClick={handleFirstPage}
             disabled={isFirstPage}
             aria-label="Go to first page"
           >
-            <ChevronFirst className="h-4 w-4" />
+            <ChevronFirst className="h-3 w-3 sm:h-4 sm:w-4" />
           </Button>
 
           {/* 이전 페이지 */}
           <Button
             variant="outline"
             size="icon-sm"
-            className="h-9 w-9"
+            className="h-8 w-8 sm:h-9 sm:w-9"
             onClick={handlePreviousPage}
             disabled={isFirstPage}
             aria-label="Go to previous page"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
           </Button>
 
           {/* 다음 페이지 */}
           <Button
             variant="outline"
             size="icon-sm"
-            className="h-9 w-9"
+            className="h-8 w-8 sm:h-9 sm:w-9"
             onClick={handleNextPage}
             disabled={isLastPage}
             aria-label="Go to next page"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
           </Button>
 
           {/* 마지막 페이지 */}
           <Button
             variant="outline"
             size="icon-sm"
-            className="h-9 w-9"
+            className="h-8 w-8 sm:h-9 sm:w-9"
             onClick={handleLastPage}
             disabled={isLastPage}
             aria-label="Go to last page"
           >
-            <ChevronLast className="h-4 w-4" />
+            <ChevronLast className="h-3 w-3 sm:h-4 sm:w-4" />
           </Button>
         </div>
       </div>
     </div>
   );
 }
-

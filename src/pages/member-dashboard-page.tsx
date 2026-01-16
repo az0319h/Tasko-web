@@ -496,12 +496,12 @@ export default function MemberDashboardPage() {
   }
 
   return (
-    <div className="container mx-auto space-y-4">
+    <div className="sm:p-2">
       {/* 헤더 */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">내 대시보드</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h1 className="mb-2 text-2xl font-bold sm:text-3xl">나의 대시보드</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">
             {activeTab === "kanban"
               ? `${sortedTasks.length}개의 Task`
               : `${filteredProjects.length}개의 프로젝트`}
@@ -519,70 +519,90 @@ export default function MemberDashboardPage() {
           setSearchParams({ layout: newTab });
         }}
       >
-        <TabsList>
+        {/* 담당 업무 / 전체 프로젝트 탭 */}
+        <TabsList className="mt-4">
           <TabsTrigger value="kanban">담당 업무</TabsTrigger>
           <TabsTrigger value="projects">전체 프로젝트</TabsTrigger>
         </TabsList>
 
         {/* 담당 업무 탭 */}
         <TabsContent value="kanban" className="space-y-4">
-          {/* 카테고리 탭 */}
-          <Tabs
-            value={category}
-            onValueChange={(value) => handleCategoryChange(value as CategoryParam)}
-          >
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="review">검토</TabsTrigger>
-              <TabsTrigger value="contract">계약</TabsTrigger>
-              <TabsTrigger value="spec">명세서</TabsTrigger>
-              <TabsTrigger value="apply">출원</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* 탭, 카테고리 드롭다운 및 검색창 */}
+          <div className="flex w-full flex-wrap items-center justify-between gap-4 pt-4">
+            {/* 카테고리 드롭다운 */}
+            <Select
+              value={category}
+              onValueChange={(value) => handleCategoryChange(value as CategoryParam)}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="review">검토</SelectItem>
+                <SelectItem value="contract">계약</SelectItem>
+                <SelectItem value="spec">명세서</SelectItem>
+                <SelectItem value="apply">출원</SelectItem>
+              </SelectContent>
+            </Select>
 
-          {/* 검색창 */}
-          <div className="relative flex-1">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <Input
-              placeholder="계정 ID, Task 제목, 담당자명 또는 지시자명으로 검색..."
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9"
-            />
+            {/* 검색창 */}
+            <div className="relative max-w-md flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="계정 ID, Task 제목, 담당자명 또는 지시자명으로 검색..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-
           {/* Task 테이블 */}
-          <div className="w-full overflow-x-auto rounded-md border">
-            <div className="w-full">
-              {/* 헤더 */}
-              <div className="bg-muted/50 grid grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr] gap-4 border-b p-4 text-sm font-medium">
-                <div className="flex items-center justify-start text-left">계정 ID</div>
-                <div className="flex items-center justify-start text-left">지시사항</div>
-                <div
-                  className="hover:bg-muted flex cursor-pointer items-center justify-start gap-2 select-none text-left"
-                  onClick={handleSortDueChange}
-                >
-                  마감일
-                  <ArrowUpDown className="h-4 w-4" />
-                </div>
-                <div className="flex items-center justify-start text-left">지시자</div>
-                <div className="flex items-center justify-start text-left">담당자</div>
-                <div className="flex items-center justify-start text-left">
-                  <StatusFilterDropdown
-                    status={status}
-                    onStatusChange={handleStatusChange}
-                    tasks={searchedTasks}
-                  />
-                </div>
-              </div>
-
-              {/* 바디 */}
-              {paginatedTasks.length === 0 ? (
-                <div className="text-muted-foreground flex h-24 items-center justify-center text-sm">
-                  {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {paginatedTasks.map((task) => {
+          <div className="overflow-x-scroll">
+            <table className="w-full min-w-[800px] table-fixed">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    계정 ID
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시사항
+                  </th>
+                  <th
+                    className="hover:bg-muted/50 w-[16.666%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                    onClick={handleSortDueChange}
+                  >
+                    <div className="flex items-center gap-2">
+                      마감일
+                      <ArrowUpDown className="size-3 sm:size-4" />
+                    </div>
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    <StatusFilterDropdown
+                      status={status}
+                      onStatusChange={handleStatusChange}
+                      tasks={searchedTasks}
+                    />
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시자
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    담당자
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedTasks.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
+                    >
+                      {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedTasks.map((task) => {
                     const project = projectMap.get(task.project_id);
                     const dueDate = formatDueDate(task.due_date);
                     const daysDiff = calculateDaysDifference(task.due_date);
@@ -598,20 +618,40 @@ export default function MemberDashboardPage() {
                       : task.assigner?.email || task.assigner_id;
 
                     return (
-                      <div
+                      <tr
                         key={task.id}
-                        className="hover:bg-muted/50 grid cursor-pointer grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr] gap-4 p-4 transition-colors"
+                        className="hover:bg-muted/50 cursor-pointer border-b transition-colors"
                         onClick={() => {
                           const currentUrl = window.location.pathname + window.location.search;
                           sessionStorage.setItem("previousDashboardUrl", currentUrl);
                           window.location.href = `/tasks/${task.id}`;
                         }}
                       >
-                        <div className="line-clamp-1 flex items-center justify-start text-left font-medium">
-                          {project ? (
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs font-medium sm:text-sm">
+                            {project ? (
+                              <Link
+                                to={`/projects/${project.id}`}
+                                className="line-clamp-2 hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const currentUrl =
+                                    window.location.pathname + window.location.search;
+                                  sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                                }}
+                              >
+                                {project.title}
+                              </Link>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
                             <Link
-                              to={`/projects/${project.id}`}
-                              className="line-clamp-1 hover:underline"
+                              to={`/tasks/${task.id}`}
+                              className="line-clamp-2 hover:underline"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const currentUrl =
@@ -619,49 +659,39 @@ export default function MemberDashboardPage() {
                                 sessionStorage.setItem("previousDashboardUrl", currentUrl);
                               }}
                             >
-                              {project.title}
+                              {task.title}
                             </Link>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </div>
-                        <div className="line-clamp-1 flex items-center justify-start text-left">
-                          <Link
-                            to={`/tasks/${task.id}`}
-                            className="line-clamp-1 hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const currentUrl = window.location.pathname + window.location.search;
-                              sessionStorage.setItem("previousDashboardUrl", currentUrl);
-                            }}
-                          >
-                            {task.title}
-                          </Link>
-                        </div>
-                        <div className="flex items-center justify-start text-left">
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
                           {dueDate ? (
-                            <span className={cn("text-sm whitespace-nowrap", dueDateColorClass)}>
+                            <span
+                              className={cn(
+                                "text-xs whitespace-nowrap sm:text-sm",
+                                dueDateColorClass,
+                              )}
+                            >
                               {dueDate} {dDayText}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
                           )}
-                        </div>
-                        <div className="line-clamp-1 flex items-center justify-start text-left text-sm">
-                          {assignerDisplay}
-                        </div>
-                        <div className="line-clamp-1 flex items-center justify-start text-left text-sm">
-                          {assigneeDisplay}
-                        </div>
-                        <div className="flex items-center justify-start text-left">
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <TaskStatusBadge status={task.task_status} />
-                        </div>
-                      </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerDisplay}</div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assigneeDisplay}</div>
+                        </td>
+                      </tr>
                     );
-                  })}
-                </div>
-              )}
-            </div>
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* 페이지네이션 */}
