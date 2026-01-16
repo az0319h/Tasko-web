@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldDescription,
@@ -74,15 +74,18 @@ export function SigninForm({ ...props }: React.ComponentProps<typeof Card>) {
     });
   }
   return (
-    <Card className={cn("border-0 outline-0")} {...props}>
+    <Card className={cn("border-0 !bg-transparent !shadow-none outline-0")} {...props}>
       <CardHeader>
         <div className="flex flex-col items-center gap-4">
           <img
             src={mode === "light" ? logo_dark : logo_light}
             alt="logo_character"
-            className="size-10"
+            className="size-10 lg:hidden"
           />
           <CardTitle className="text-20-medium text-center">Tasko 계정으로 로그인하세요</CardTitle>
+          <CardDescription className="hidden text-center lg:block">
+            Tasko 서비스 이용을 위해 이메일과 비밀번호로 로그인해 주세요.
+          </CardDescription>
         </div>
       </CardHeader>
 
