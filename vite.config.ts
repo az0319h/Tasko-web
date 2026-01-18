@@ -13,6 +13,6 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: true, // 포트가 사용 중이면 에러 발생 (다른 포트로 자동 전환 방지)
+    strictPort: false, // 포트가 사용 중이면 다른 포트로 자동 전환
   },
 });
