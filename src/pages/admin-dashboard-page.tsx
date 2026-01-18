@@ -193,11 +193,17 @@ export default function AdminDashboardPage() {
 
   // 페이지네이션 상태 (담당 업무 탭용)
   const [tasksCurrentPage, setTasksCurrentPage] = useState(1);
-  const [tasksItemsPerPage, setTasksItemsPerPage] = useState(10);
+  const [tasksItemsPerPage, setTasksItemsPerPage] = useState(() => {
+    const saved = sessionStorage.getItem("tablePageSize");
+    return saved ? parseInt(saved, 10) : 10;
+  });
 
   // 페이지네이션 상태 (프로젝트 탭용)
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(() => {
+    const saved = sessionStorage.getItem("tablePageSize");
+    return saved ? parseInt(saved, 10) : 10;
+  });
 
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -351,6 +357,16 @@ export default function AdminDashboardPage() {
       (task) => task.assigner_id === currentProfile.id || task.assignee_id === currentProfile.id,
     );
   }, [myTasks, currentProfile?.id]);
+
+  // 카테고리별 Task 개수 계산
+  const categoryCounts = useMemo(() => {
+    return {
+      review: myRelatedTasks.filter((task) => task.task_category === "REVIEW").length,
+      contract: myRelatedTasks.filter((task) => task.task_category === "CONTRACT").length,
+      spec: myRelatedTasks.filter((task) => task.task_category === "SPECIFICATION").length,
+      apply: myRelatedTasks.filter((task) => task.task_category === "APPLICATION").length,
+    };
+  }, [myRelatedTasks]);
 
   // 2단계: 카테고리 필터링
   const categoryFilteredTasks = useMemo(() => {
@@ -523,11 +539,11 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="mb-2 text-2xl font-bold sm:text-3xl">관리자 대시보드</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
+          {/* <p className="text-muted-foreground text-sm sm:text-base">
             {activeTab === "kanban"
               ? `${sortedTasks.length}개의 Task`
               : `${filteredProjects.length}개의 프로젝트`}
-          </p>
+          </p> */}
         </div>
         {isAdmin && (
           <Button onClick={() => setCreateDialogOpen(true)}>
@@ -566,10 +582,10 @@ export default function AdminDashboardPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="review">검토</SelectItem>
-                <SelectItem value="contract">계약</SelectItem>
-                <SelectItem value="spec">명세서</SelectItem>
-                <SelectItem value="apply">출원</SelectItem>
+                <SelectItem value="review">검토 ({categoryCounts.review}개)</SelectItem>
+                <SelectItem value="contract">계약 ({categoryCounts.contract}개)</SelectItem>
+                <SelectItem value="spec">명세서 ({categoryCounts.spec}개)</SelectItem>
+                <SelectItem value="apply">출원 ({categoryCounts.apply}개)</SelectItem>
               </SelectContent>
             </Select>
 
@@ -733,6 +749,7 @@ export default function AdminDashboardPage() {
               onPageChange={setTasksCurrentPage}
               onPageSizeChange={(newPageSize) => {
                 setTasksItemsPerPage(newPageSize);
+                sessionStorage.setItem("tablePageSize", newPageSize.toString());
                 setTasksCurrentPage(1);
               }}
             />
@@ -825,6 +842,7 @@ export default function AdminDashboardPage() {
               onPageChange={setCurrentPage}
               onPageSizeChange={(newPageSize) => {
                 setItemsPerPage(newPageSize);
+                sessionStorage.setItem("tablePageSize", newPageSize.toString());
                 setCurrentPage(1);
               }}
             />
