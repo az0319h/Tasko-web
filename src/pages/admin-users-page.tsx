@@ -142,9 +142,9 @@ export default function AdminUsersPage() {
         </div>
 
         {/* 검색 및 필터 바 */}
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="mb-4 gap-4 flex flex-col md:flex-row w-full md:justify-between">
           {/* 검색 필드 */}
-          <div className="relative flex-1">
+          <div className="relative md:w-4/10">
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <Input
               type="search"
@@ -155,6 +155,8 @@ export default function AdminUsersPage() {
             />
           </div>
 
+
+          <div className="flex itesm-center gap-4 justify-between">
           {/* 필터 드롭다운 */}
           <Select value={roleFilter} onValueChange={setRoleFilter}>
             <SelectTrigger className="w-full sm:w-[140px]">
@@ -170,11 +172,12 @@ export default function AdminUsersPage() {
 
           {/* Add User 버튼 */}
           <InviteUserDialog>
-            <Button className="w-full sm:w-auto">
+            <Button className="w-auto">
               <UserPlus className="mr-2 size-4" />
               사용자 추가
             </Button>
           </InviteUserDialog>
+          </div>
         </div>
 
         {/* 사용자 테이블 */}

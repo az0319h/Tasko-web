@@ -5,14 +5,6 @@ import { useProjects, useTasksForMember, useCurrentProfile } from "@/hooks";
 import { useDebounce } from "@/hooks";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import { useUpdateTaskStatus } from "@/hooks/mutations/use-task";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -528,7 +520,7 @@ export default function MemberDashboardPage() {
         {/* 담당 업무 탭 */}
         <TabsContent value="kanban" className="space-y-4">
           {/* 탭, 카테고리 드롭다운 및 검색창 */}
-          <div className="flex w-full flex-wrap items-center justify-between gap-4 pt-4">
+          <div className="flex w-full flex-wrap items-center justify-between gap-4 pt-4  flex-row-reverse">
             {/* 카테고리 드롭다운 */}
             <Select
               value={category}
@@ -546,7 +538,7 @@ export default function MemberDashboardPage() {
             </Select>
 
             {/* 검색창 */}
-            <div className="relative max-w-md flex-1">
+            <div className="relative  flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="계정 ID, Task 제목, 담당자명 또는 지시자명으로 검색..."
@@ -714,7 +706,7 @@ export default function MemberDashboardPage() {
         {/* 전체 프로젝트 탭 */}
         <TabsContent value="projects" className="space-y-4">
           {/* 검색 및 필터 */}
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex  gap-4 items-center mt-4">
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
@@ -738,25 +730,40 @@ export default function MemberDashboardPage() {
           </div>
 
           {/* 프로젝트 테이블 */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>계정 ID</TableHead>
-                  <TableHead>클라이언트</TableHead>
-                  <TableHead>총 Task</TableHead>
-                  <TableHead>기여중인 Task</TableHead>
-                  <TableHead>기여한 Task</TableHead>
-                  <TableHead>생성일</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div className="overflow-x-scroll">
+            <table className="w-full min-w-[800px] table-fixed">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    계정 ID
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고객명
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    전체 업무 수
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    진행 중 업무
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    완료 업무
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    생성일
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {paginatedProjects.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
+                    >
                       {debouncedProjectsSearch ? "검색 결과가 없습니다." : "프로젝트가 없습니다."}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   paginatedProjects.map((project) => (
                     <ProjectTableRow
@@ -767,8 +774,8 @@ export default function MemberDashboardPage() {
                     />
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
 
           {/* 페이지네이션 */}
@@ -838,26 +845,38 @@ function ProjectTableRow({
   const contributedTasks = myProjectTasks.filter((task) => task.task_status === "APPROVED").length;
 
   return (
-    <TableRow className="hover:bg-muted/50">
-      <TableCell className="font-medium">
-        <Link
-          to={`/projects/${project.id}`}
-          className="hover:underline"
-          onClick={() => {
-            // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
-            const currentUrl = window.location.pathname + window.location.search;
-            sessionStorage.setItem("previousDashboardUrl", currentUrl);
-          }}
-        >
-          {project.title}
-        </Link>
-      </TableCell>
-      <TableCell>{project.client_name}</TableCell>
-      <TableCell>{isLoading ? <DefaultSpinner /> : totalTasks}</TableCell>
-      <TableCell>{contributingTasks}</TableCell>
-      <TableCell>{contributedTasks}</TableCell>
-      <TableCell>{formatDate(project.created_at)}</TableCell>
-    </TableRow>
+    <tr className="hover:bg-muted/50 cursor-pointer border-b transition-colors">
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs font-medium sm:text-sm">
+          <Link
+            to={`/projects/${project.id}`}
+            className="line-clamp-2 hover:underline"
+            onClick={() => {
+              // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
+              const currentUrl = window.location.pathname + window.location.search;
+              sessionStorage.setItem("previousDashboardUrl", currentUrl);
+            }}
+          >
+            {project.title}
+          </Link>
+        </div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs sm:text-sm">{project.client_name}</div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="text-xs sm:text-sm">{isLoading ? <DefaultSpinner /> : `${totalTasks}개`}</div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="text-xs sm:text-sm">{`${contributingTasks}개`}</div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="text-xs sm:text-sm">{`${contributedTasks}개`}</div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="text-xs sm:text-sm">{formatDate(project.created_at)}</div>
+      </td>
+    </tr>
   );
 }
 
