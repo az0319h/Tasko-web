@@ -66,6 +66,13 @@ function formatDate(dateString: string): string {
 }
 
 /**
+ * UUID 앞 8자리 고유 ID 추출
+ */
+function getTaskUniqueId(taskId: string): string {
+  return taskId.substring(0, 8).toUpperCase();
+}
+
+/**
  * 마감일 포맷팅
  */
 function formatDueDate(dateString: string | null | undefined): string | null {
@@ -199,6 +206,9 @@ export default function ProjectDetailPage() {
     taskTitle: string;
   } | null>(null);
   const [preSelectedCategory, setPreSelectedCategory] = useState<string | undefined>(undefined);
+  const [autoFillMode, setAutoFillMode] = useState<"REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined>(undefined);
+  const [preFilledTitle, setPreFilledTitle] = useState<string | undefined>(undefined);
+  const [isSpecificationMode, setIsSpecificationMode] = useState(false);
 
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
@@ -331,8 +341,11 @@ export default function ProjectDetailPage() {
       const assigneeMatch = assigneeName.includes(query);
       const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
       const assignerMatch = assignerName.includes(query);
+      // 고유 ID 검색 (UUID 앞 8자리)
+      const uniqueId = getTaskUniqueId(task.id).toLowerCase();
+      const uniqueIdMatch = uniqueId.includes(query);
 
-      return titleMatch || assigneeMatch || assignerMatch;
+      return titleMatch || assigneeMatch || assignerMatch || uniqueIdMatch;
     });
   }, [categoryFilteredTasks, debouncedSearch]);
 
@@ -395,9 +408,23 @@ export default function ProjectDetailPage() {
   // assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
   const handleCreateTask = async (
     data: TaskCreateFormData | TaskUpdateFormData,
-    files?: File[]
+    files?: File[],
+    notes?: string
   ) => {
     if (!id || !currentProfile?.id) return;
+    
+    // 명세서 모드인 경우 별도 처리
+    if (isSpecificationMode) {
+      // 명세서 모드에서는 data가 TaskCreateSpecificationFormData 타입이지만
+      // assignee_id는 동일하게 존재하므로 타입 단언 사용
+      const specificationData = data as any;
+      await handleCreateSpecificationTasks(
+        specificationData.assignee_id,
+        files,
+        notes
+      );
+      return;
+    }
     
     // 생성 모드에서는 TaskCreateFormData만 전달됨
     const createData = data as TaskCreateFormData;
@@ -415,8 +442,11 @@ export default function ProjectDetailPage() {
     
     setCreateTaskDialogOpen(false);
     
-    // 2. 파일이 있으면 업로드 및 메시지 생성
-    if (files && files.length > 0 && newTask.id) {
+    // 2. 특이사항 및 파일 메시지 생성
+    const hasNotes = notes && notes.trim().length > 0;
+    const hasFiles = files && files.length > 0;
+    
+    if (hasNotes || hasFiles) {
       try {
         const uploadedFiles: Array<{
           url: string;
@@ -425,40 +455,126 @@ export default function ProjectDetailPage() {
           fileSize: number;
         }> = [];
         
-        // 파일들을 순차적으로 업로드
-        for (const file of files) {
-          try {
-            // Task 생성자(assigner)의 ID로 파일 업로드
-            // assigner_id는 Task 생성 시 자동으로 설정되므로 null이 아님
-            if (!newTask.assigner_id) {
-              throw new Error("Task 생성자 정보를 찾을 수 없습니다.");
+        // 파일 업로드
+        if (hasFiles && newTask.id) {
+          for (const file of files) {
+            try {
+              if (!newTask.assigner_id) {
+                throw new Error("Task 생성자 정보를 찾을 수 없습니다.");
+              }
+              const fileInfo = await uploadTaskFile(
+                file,
+                newTask.id,
+                newTask.assigner_id
+              );
+              uploadedFiles.push(fileInfo);
+            } catch (error: any) {
+              toast.error(`${file.name} 업로드 실패: ${error.message}`);
             }
-            const fileInfo = await uploadTaskFile(
-              file,
-              newTask.id,
-              newTask.assigner_id
-            );
-            uploadedFiles.push(fileInfo);
-          } catch (error: any) {
-            toast.error(`${file.name} 업로드 실패: ${error.message}`);
           }
         }
         
-        // 업로드 성공한 파일들을 파일 메시지로 생성
-        if (uploadedFiles.length > 0) {
+        // 메시지 생성 (특이사항 + 파일)
+        if (newTask.id && (hasNotes || uploadedFiles.length > 0)) {
           await createMessageWithFiles.mutateAsync({
             taskId: newTask.id,
-            content: null, // 메시지 텍스트 없음
+            content: hasNotes ? notes.trim() : null,
             files: uploadedFiles,
           });
         }
       } catch (error: any) {
-        toast.error(`파일 업로드 중 오류가 발생했습니다: ${error.message}`);
+        toast.error(`메시지 생성 중 오류가 발생했습니다: ${error.message}`);
       }
     }
     
     // 3. Task 상세 페이지로 이동
     navigate(`/tasks/${newTask.id}`);
+  };
+  
+  // 명세서 모드: 2개 Task 생성 핸들러
+  const handleCreateSpecificationTasks = async (
+    assigneeId: string,
+    files?: File[],
+    notes?: string
+  ) => {
+    if (!id || !currentProfile?.id) return;
+    
+    try {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const date = today.getDate();
+      
+      // Task 1: 청구안 및 도면 (오늘 + 3일)
+      const dueDate1 = new Date(year, month, date + 3);
+      const dueDate1Str = `${dueDate1.getFullYear()}-${String(dueDate1.getMonth() + 1).padStart(2, "0")}-${String(dueDate1.getDate()).padStart(2, "0")}`;
+      
+      // Task 2: 초안 작성 (오늘 + 10일)
+      const dueDate2 = new Date(year, month, date + 10);
+      const dueDate2Str = `${dueDate2.getFullYear()}-${String(dueDate2.getMonth() + 1).padStart(2, "0")}-${String(dueDate2.getDate()).padStart(2, "0")}`;
+      
+      // Task 1 생성
+      const task1 = await createTask.mutateAsync({
+        project_id: id,
+        title: "청구안 및 도면",
+        assignee_id: assigneeId,
+        due_date: dueDate1Str,
+        task_category: "SPECIFICATION",
+      });
+      
+      // Task 2 생성
+      const task2 = await createTask.mutateAsync({
+        project_id: id,
+        title: "초안 작성",
+        assignee_id: assigneeId,
+        due_date: dueDate2Str,
+        task_category: "SPECIFICATION",
+      });
+      
+      // 각 Task에 특이사항/파일 메시지 생성
+      const createMessagesForTask = async (taskId: string, assignerId: string) => {
+        const hasNotes = notes && notes.trim().length > 0;
+        const hasFiles = files && files.length > 0;
+        
+        if (hasNotes || hasFiles) {
+          const uploadedFiles: Array<{
+            url: string;
+            fileName: string;
+            fileType: string;
+            fileSize: number;
+          }> = [];
+          
+          if (hasFiles) {
+            for (const file of files) {
+              try {
+                const fileInfo = await uploadTaskFile(file, taskId, assignerId);
+                uploadedFiles.push(fileInfo);
+              } catch (error: any) {
+                toast.error(`${file.name} 업로드 실패: ${error.message}`);
+              }
+            }
+          }
+          
+          if (hasNotes || uploadedFiles.length > 0) {
+            await createMessageWithFiles.mutateAsync({
+              taskId,
+              content: hasNotes ? notes.trim() : null,
+              files: uploadedFiles,
+            });
+          }
+        }
+      };
+      
+      await createMessagesForTask(task1.id, currentProfile.id);
+      await createMessagesForTask(task2.id, currentProfile.id);
+      
+      setCreateTaskDialogOpen(false);
+      
+      // 명세서 모드에서는 상세 페이지로 이동하지 않고 프로젝트 상세 페이지에 머무름
+      toast.success("명세서 Task 2개가 생성되었습니다.");
+    } catch (error: any) {
+      toast.error(`명세서 Task 생성 중 오류가 발생했습니다: ${error.message}`);
+    }
   };
 
   // Task 수정 핸들러
@@ -544,21 +660,12 @@ export default function ProjectDetailPage() {
             <Button 
               variant="ghost" 
               size="icon"
-              className="hidden shrink-0"
+              className="h-9 w-9 shrink-0"
               onClick={() => {
-                // 세션 스토리지에서 이전 대시보드 URL 확인
-                const previousUrl = sessionStorage.getItem("previousDashboardUrl");
-                
-                if (previousUrl) {
-                  // 세션 스토리지에 저장된 URL로 이동
-                  navigate(previousUrl);
-                } else {
-                  // 세션 스토리지에 값이 없으면 기본 대시보드로 이동 (칸반 보드)
-                  navigate("/?layout=kanban");
-                }
+                navigate("/");
               }}
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Button>
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold line-clamp-2">{project.title}</h1>
@@ -605,6 +712,9 @@ export default function ProjectDetailPage() {
               className="h-9"
               onClick={() => {
                 setPreSelectedCategory(undefined);
+                setAutoFillMode(undefined);
+                setPreFilledTitle(undefined);
+                setIsSpecificationMode(false);
                 setCreateTaskDialogOpen(true);
               }}
             >
@@ -648,30 +758,90 @@ export default function ProjectDetailPage() {
 
       {/* Task 목록 - 테이블 */}
       <div className="space-y-4">
-        {/* 카테고리 드롭다운 및 검색창 */}
+        {/* 카테고리 드롭다운, 빠른 생성 드롭다운 및 검색창 */}
         <div className="flex w-full flex-wrap items-center justify-between gap-4 flex-row-reverse">
-          {/* 카테고리 드롭다운 */}
-          <Select
-            value={category}
-            onValueChange={(value) => handleCategoryChange(value as CategoryParam)}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 ({categoryCounts.all}개)</SelectItem>
-              <SelectItem value="review">검토 ({categoryCounts.review}개)</SelectItem>
-              <SelectItem value="contract">계약 ({categoryCounts.contract}개)</SelectItem>
-              <SelectItem value="spec">명세서 ({categoryCounts.spec}개)</SelectItem>
-              <SelectItem value="apply">출원 ({categoryCounts.apply}개)</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* 오른쪽: 카테고리 드롭다운과 빠른 생성 드롭다운 */}
+          <div className="flex items-center gap-2">
+            {/* 빠른 생성 드롭다운 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9">
+                  <Plus className="mr-2 h-4 w-4" />
+                  빠른 생성
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPreSelectedCategory("REVIEW");
+                    setAutoFillMode("REVIEW");
+                    setPreFilledTitle("검토");
+                    setIsSpecificationMode(false);
+                    setCreateTaskDialogOpen(true);
+                  }}
+                >
+                  검토
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPreSelectedCategory("CONTRACT");
+                    setAutoFillMode("CONTRACT");
+                    setPreFilledTitle("계약");
+                    setIsSpecificationMode(false);
+                    setCreateTaskDialogOpen(true);
+                  }}
+                >
+                  계약
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPreSelectedCategory("SPECIFICATION");
+                    setAutoFillMode("SPECIFICATION");
+                    setPreFilledTitle(undefined);
+                    setIsSpecificationMode(true);
+                    setCreateTaskDialogOpen(true);
+                  }}
+                >
+                  명세서
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setPreSelectedCategory("APPLICATION");
+                    setAutoFillMode("APPLICATION");
+                    setPreFilledTitle("출원");
+                    setIsSpecificationMode(false);
+                    setCreateTaskDialogOpen(true);
+                  }}
+                >
+                  출원
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 카테고리 드롭다운 */}
+            <Select
+              value={category}
+              onValueChange={(value) => handleCategoryChange(value as CategoryParam)}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 ({categoryCounts.all}개)</SelectItem>
+                <SelectItem value="review">검토 ({categoryCounts.review}개)</SelectItem>
+                <SelectItem value="contract">계약 ({categoryCounts.contract}개)</SelectItem>
+                <SelectItem value="spec">명세서 ({categoryCounts.spec}개)</SelectItem>
+                <SelectItem value="apply">출원 ({categoryCounts.apply}개)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* 검색창 */}
           <div className="relative flex-1">
             <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
             <Input
-              placeholder="지시사항으로 검색..."
+              placeholder="고유 ID, 지시사항으로 검색..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9"
@@ -684,11 +854,14 @@ export default function ProjectDetailPage() {
           <table className="w-full min-w-[800px] table-fixed">
             <thead>
               <tr className="border-b bg-muted">
-                <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                <th className="w-[12%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  고유 ID
+                </th>
+                <th className="w-[16%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                   지시사항
                 </th>
                 <th
-                  className="hover:bg-muted/80 w-[16.666%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                  className="hover:bg-muted/80 w-[14%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
                   onClick={handleSortDueChange}
                 >
                   <div className="flex items-center gap-2">
@@ -696,20 +869,20 @@ export default function ProjectDetailPage() {
                     <ArrowUpDown className="size-3 sm:size-4" />
                   </div>
                 </th>
-                <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                <th className="w-[14%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                   생성일
                 </th>
-                <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                <th className="w-[14%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                   <StatusFilterDropdown
                     status={status}
                     onStatusChange={handleStatusChange}
                     tasks={searchedTasks}
                   />
                 </th>
-                <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                <th className="w-[15%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                   지시자
                 </th>
-                <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                <th className="w-[15%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                   담당자
                 </th>
               </tr>
@@ -718,7 +891,7 @@ export default function ProjectDetailPage() {
               {paginatedTasks.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
                   >
                     {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
@@ -749,6 +922,11 @@ export default function ProjectDetailPage() {
                         window.location.href = `/tasks/${task.id}`;
                       }}
                     >
+                      <td className="px-2 py-3 sm:px-4 sm:py-4">
+                        <div className="text-xs font-mono sm:text-sm">
+                          {getTaskUniqueId(task.id)}
+                        </div>
+                      </td>
                       <td className="px-2 py-3 sm:px-4 sm:py-4">
                         <div className="line-clamp-2 text-xs sm:text-sm">
                           <Link
@@ -825,12 +1003,18 @@ export default function ProjectDetailPage() {
             setCreateTaskDialogOpen(open);
             if (!open) {
               setPreSelectedCategory(undefined);
+              setAutoFillMode(undefined);
+              setPreFilledTitle(undefined);
+              setIsSpecificationMode(false);
             }
           }}
           onSubmit={handleCreateTask}
           projectId={id}
           isLoading={createTask.isPending}
           preSelectedCategory={preSelectedCategory as "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined}
+          autoFillMode={autoFillMode}
+          preFilledTitle={preFilledTitle}
+          isSpecificationMode={isSpecificationMode}
         />
       )}
 

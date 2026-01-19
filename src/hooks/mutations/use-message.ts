@@ -124,13 +124,6 @@ export function useCreateMessageWithFiles() {
     onSuccess: (data, variables) => {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["messages", variables.taskId] });
-      const hasText = variables.content && variables.content.trim();
-      const hasFiles = variables.files.length > 0;
-      if (hasText && hasFiles) {
-        toast.success("메시지와 파일이 전송되었습니다.");
-      } else if (hasFiles) {
-        toast.success(`${variables.files.length}개의 파일이 전송되었습니다.`);
-      }
     },
   });
 }

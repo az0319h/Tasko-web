@@ -30,6 +30,20 @@ export const taskCreateSchema = z.object({
 });
 
 /**
+ * 명세서 모드용 Task 생성 스키마
+ * 명세서 모드에서는 title과 due_date가 자동 생성되므로 optional
+ */
+export const taskCreateSpecificationSchema = z.object({
+  title: z.string().optional(), // 명세서 모드에서는 title 불필요 (자동 생성)
+  description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
+  assignee_id: z.string().uuid("올바른 할당받은 사람 ID를 선택해주세요."),
+  task_category: z.literal("SPECIFICATION", {
+    message: "카테고리를 선택해주세요.",
+  }),
+  due_date: z.string().optional(), // 명세서 모드에서는 자동 설정되므로 optional
+});
+
+/**
  * Task 수정 스키마
  * assigner_id와 assignee_id는 수정 불가이므로 제외
  * 허용 필드: title, description, due_date만
@@ -51,12 +65,14 @@ export const taskUpdateSchema = z.object({
 
 /**
  * Task 생성/수정 폼 데이터 타입
- * 생성 모드: taskCreateSchema 사용
+ * 생성 모드: taskCreateSchema 사용 (일반 모드)
+ * 명세서 모드: taskCreateSpecificationSchema 사용
  * 수정 모드: taskUpdateSchema 사용
  */
 export type TaskCreateFormData = z.infer<typeof taskCreateSchema>;
+export type TaskCreateSpecificationFormData = z.infer<typeof taskCreateSpecificationSchema>;
 export type TaskUpdateFormData = z.infer<typeof taskUpdateSchema>;
-export type TaskFormData = TaskCreateFormData | TaskUpdateFormData;
+export type TaskFormData = TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData;
 
 // 하위 호환성을 위해 taskSchema export (생성 모드용)
 export const taskSchema = taskCreateSchema;
