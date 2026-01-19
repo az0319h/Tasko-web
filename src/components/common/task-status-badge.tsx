@@ -21,33 +21,35 @@ export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {
     {
       label: string;
       icon: React.ComponentType<{ className?: string }>;
-      color: string;
+      iconColor: string;
+      hasOpacity?: boolean;
     }
   > = {
     ASSIGNED: {
       label: "할당됨",
       icon: FileText,
-      color: "text-blue-500",
+      iconColor: "", // 텍스트 색상과 동일 (기본 색상)
     },
     IN_PROGRESS: {
       label: "진행 중",
       icon: Loader2,
-      color: "text-orange-500",
+      iconColor: "text-yellow-500",
     },
     WAITING_CONFIRM: {
       label: "확인 대기",
       icon: Clock,
-      color: "text-yellow-500",
+      iconColor: "text-red-500",
     },
     APPROVED: {
       label: "승인됨",
       icon: CheckCircle2,
-      color: "text-green-500",
+      iconColor: "text-green-500",
     },
     REJECTED: {
       label: "거부됨",
       icon: XCircle,
-      color: "text-red-500",
+      iconColor: "text-red-500",
+      hasOpacity: true, // 텍스트 + 아이콘 모두 opacity/50
     },
   };
 
@@ -55,8 +57,11 @@ export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {
   const Icon = config.icon;
 
   return (
-    <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-      <Icon className={cn("size-3 sm:size-4", config.color)} />
+    <div className={cn(
+      "flex items-center gap-1.5 text-xs sm:text-sm",
+      config.hasOpacity && "opacity-50"
+    )}>
+      <Icon className={cn("size-3 sm:size-4", config.iconColor)} />
       <span>{config.label}</span>
     </div>
   );

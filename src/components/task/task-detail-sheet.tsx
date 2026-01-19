@@ -88,6 +88,12 @@ export function TaskDetailSheet({
             </div>
           )}
 
+          {/* 고유 ID */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">고유 ID</h3>
+            <p className="text-base font-medium font-mono">{task.id.substring(0, 8).toUpperCase()}</p>
+          </div>
+
           {/* 고객명 */}
           {task.project && (
             <div className="space-y-2">

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { taskCreateSchema, taskUpdateSchema, type TaskCreateFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
+import { taskCreateSchema, taskCreateSpecificationSchema, taskUpdateSchema, type TaskCreateFormData, type TaskCreateSpecificationFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
 import { useCurrentProfile, useProjectParticipants } from "@/hooks";
 import type { TaskWithProfiles } from "@/api/task";
 import {
@@ -30,11 +30,14 @@ import { cn } from "@/lib/utils";
 interface TaskFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: TaskCreateFormData | TaskUpdateFormData, files?: File[]) => Promise<void>;
+  onSubmit: (data: TaskCreateFormData | TaskUpdateFormData, files?: File[], notes?: string) => Promise<void>;
   projectId: string;
   isLoading?: boolean;
   task?: TaskWithProfiles | null; // 수정 모드일 때 Task 데이터
   preSelectedCategory?: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 미리 선택된 카테고리
+  preFilledTitle?: string; // 자동 입력할 지시사항
+  autoFillMode?: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 자동 채우기 모드
+  isSpecificationMode?: boolean; // 명세서 모드 (2개 task 생성)
 }
 
 /**
@@ -48,6 +51,9 @@ export function TaskFormDialog({
   isLoading = false,
   task = null,
   preSelectedCategory,
+  preFilledTitle,
+  autoFillMode,
+  isSpecificationMode = false,
 }: TaskFormDialogProps) {
   const { data: currentProfile } = useCurrentProfile();
   const { data: project } = useProject(projectId);
@@ -58,9 +64,17 @@ export function TaskFormDialog({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 특이사항 상태 관리 (생성 모드에서만 사용)
+  const [notes, setNotes] = useState<string>("");
 
   // 수정 모드와 생성 모드에 따라 다른 스키마 사용
-  const formSchema = isEditMode ? taskUpdateSchema : taskCreateSchema;
+  // 명세서 모드일 때는 별도 스키마 사용
+  const formSchema = isEditMode 
+    ? taskUpdateSchema 
+    : isSpecificationMode 
+      ? taskCreateSpecificationSchema 
+      : taskCreateSchema;
   
   const {
     register,
@@ -69,8 +83,8 @@ export function TaskFormDialog({
     reset,
     setValue,
     watch,
-  } = useForm<TaskCreateFormData | TaskUpdateFormData>({
-    resolver: zodResolver(formSchema),
+  } = useForm<TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>({
+    resolver: zodResolver(formSchema) as any,
     defaultValues: isEditMode
       ? {
           title: "",
@@ -172,7 +186,7 @@ export function TaskFormDialog({
       const defaultDueDate = getDefaultDueDate(initialCategory);
       
       reset({
-        title: "",
+        title: preFilledTitle || "",
         assignee_id: "",
         task_category: initialCategory,
         due_date: defaultDueDate || "",
@@ -184,12 +198,18 @@ export function TaskFormDialog({
           setValue("due_date", defaultDueDate);
         }
       }
+      // preFilledTitle이 있으면 자동으로 설정
+      if (preFilledTitle) {
+        setValue("title", preFilledTitle);
+      }
       // 파일 목록 초기화
       setAttachedFiles([]);
+      // 특이사항 초기화
+      setNotes("");
       // 사용자 수정 플래그 리셋
       setUserModifiedDueDate(false);
     }
-  }, [task, open, isEditMode, setValue, reset, preSelectedCategory]);
+  }, [task, open, isEditMode, setValue, reset, preSelectedCategory, preFilledTitle]);
 
   // 프로젝트 참여자 목록 필터링 (현재 사용자 제외, 프로필 완료된 사용자만)
   const availableParticipants = participants?.filter(
@@ -270,12 +290,13 @@ export function TaskFormDialog({
     }
   };
 
-  const onFormSubmit = async (data: TaskCreateFormData | TaskUpdateFormData) => {
-    // 생성 모드일 때만 파일 전달
-    await onSubmit(data, !isEditMode ? attachedFiles : undefined);
+  const onFormSubmit = async (data: TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData) => {
+    // 생성 모드일 때만 파일과 특이사항 전달
+    await onSubmit(data as TaskCreateFormData | TaskUpdateFormData, !isEditMode ? attachedFiles : undefined, !isEditMode ? notes : undefined);
     if (!isEditMode) {
       reset();
       setAttachedFiles([]);
+      setNotes("");
     }
   };
 
@@ -296,24 +317,33 @@ export function TaskFormDialog({
           <DialogDescription>
             {isEditMode
               ? "Task 정보를 수정합니다. 지시자와 담당자는 변경할 수 없습니다."
-              : "새로운 Task를 생성합니다. 담당자와 할당받은 사람을 선택해주세요."}
+              : "새로운 Task를 생성합니다. 필요한 정보를 입력해주세요."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">
-              지시사항 <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="title"
-              {...register("title")}
-              placeholder="지시사항을 입력하세요"
-              aria-invalid={errors.title ? "true" : "false"}
-            />
-            {errors.title && (
-              <p className="text-sm text-destructive">{errors.title.message}</p>
-            )}
-          </div>
+          {/* 명세서 모드에서는 지시사항 필드 숨김 */}
+          {!isSpecificationMode && (
+            <div className="space-y-2">
+              <Label htmlFor="title">
+                지시사항 <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="title"
+                {...register("title")}
+                placeholder="지시사항을 입력하세요"
+                disabled={!!autoFillMode && !!preFilledTitle}
+                aria-invalid={errors.title ? "true" : "false"}
+              />
+              {autoFillMode && preFilledTitle && (
+                <p className="text-xs text-muted-foreground">
+                  자동 생성됨 (상세 페이지에서 수정 가능)
+                </p>
+              )}
+              {errors.title && (
+                <p className="text-sm text-destructive">{errors.title.message}</p>
+              )}
+            </div>
+          )}
 
           {/* 생성 모드에서만 표시되는 필드 */}
           {!isEditMode && (
@@ -325,6 +355,7 @@ export function TaskFormDialog({
                 <Select
                   value={taskCategory}
                   onValueChange={(value) => setValue("task_category", value as any)}
+                  disabled={!!autoFillMode}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="카테고리를 선택하세요" />
@@ -409,27 +440,49 @@ export function TaskFormDialog({
             </>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="due_date">
-              마감일 <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="due_date"
-              type="date"
-              min={minDate}
-              {...register("due_date")}
-              aria-invalid={errors.due_date ? "true" : "false"}
-            />
-            {errors.due_date && (
-              <p className="text-sm text-destructive">{errors.due_date.message}</p>
-            )}
-            {dueDate && dueDate < minDate && (
-              <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
-            )}
-          </div>
+          {/* 명세서 모드에서는 마감일 필드 숨김 */}
+          {!isSpecificationMode && (
+            <div className="space-y-2">
+              <Label htmlFor="due_date">
+                마감일 <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="due_date"
+                type="date"
+                min={minDate}
+                {...register("due_date")}
+                aria-invalid={errors.due_date ? "true" : "false"}
+              />
+              {errors.due_date && (
+                <p className="text-sm text-destructive">{errors.due_date.message}</p>
+              )}
+              {dueDate && dueDate < minDate && (
+                <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
+              )}
+            </div>
+          )}
+          
+          {/* 특이사항 필드 (생성 모드에서만 표시) */}
+          {!isEditMode && (
+            <div className="space-y-2">
+              <Label htmlFor="notes">특이사항 (선택사항)</Label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="특이사항을 입력하세요"
+                rows={2}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-16-regular ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                maxLength={1000}
+              />
+              <p className="text-xs text-muted-foreground">
+                {notes.length}/1000자
+              </p>
+            </div>
+          )}
 
           {/* 파일 업로드 영역 (생성 모드에서만 표시) */}
-          {false && !isEditMode && (
+          {!isEditMode && (
             <div className="space-y-2">
               <Label>파일 첨부 (선택사항)</Label>
               <div
@@ -463,6 +516,7 @@ export function TaskFormDialog({
                   <Button
                     type="button"
                     variant="outline"
+                    className="px-2 py-1"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -511,7 +565,7 @@ export function TaskFormDialog({
               type="submit"
               disabled={
                 isLoading ||
-                (!isEditMode && (!assigneeId || !taskCategory || !dueDate))
+                (!isEditMode && (!assigneeId || !taskCategory || (!isSpecificationMode && !dueDate)))
               }
             >
               {isLoading ? (isEditMode ? "수정 중..." : "생성 중...") : isEditMode ? "수정" : "생성"}

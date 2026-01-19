@@ -1008,7 +1008,7 @@ export default function TaskDetailPage() {
               if (task?.project_id) {
                 navigate(`/projects/${task.project_id}`);
               } else {
-                navigate(-1);
+                navigate("/");
               }
             }}
             className="h-9 w-9 shrink-0"
