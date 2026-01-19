@@ -66,6 +66,7 @@ export type MessageWithProfile = Message & {
     id: string;
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
   };
 };
 
@@ -80,7 +81,7 @@ export async function getMessagesByTaskId(taskId: string): Promise<MessageWithPr
     .from("messages")
     .select(`
       *,
-      sender:profiles!messages_user_id_fkey(id, full_name, email)
+      sender:profiles!messages_user_id_fkey(id, full_name, email, avatar_url)
     `)
     .eq("task_id", taskId)
     .is("deleted_at", null) // 삭제되지 않은 메시지만 조회
@@ -162,7 +163,7 @@ export async function getChatLogsByTaskId(taskId: string): Promise<ChatLogWithIt
         .from("messages")
         .select(`
           *,
-          sender:profiles!messages_user_id_fkey(id, full_name, email)
+          sender:profiles!messages_user_id_fkey(id, full_name, email, avatar_url)
         `)
         .in("id", messageIds)
         .is("deleted_at", null);
