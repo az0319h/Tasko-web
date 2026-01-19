@@ -288,7 +288,7 @@ export default function ProjectDetailPage() {
     approved: "APPROVED",
   };
 
-  // 카테고리별 Task 개수 계산
+  // 카테고리별 Task 개수 계산 (승인됨 제외)
   const categoryCounts = useMemo(() => {
     if (!tasks) {
       return {
@@ -299,12 +299,14 @@ export default function ProjectDetailPage() {
         apply: 0,
       };
     }
+    // 승인됨 상태를 제외한 tasks
+    const nonApprovedTasks = tasks.filter((task) => task.task_status !== "APPROVED");
     return {
-      all: tasks.length,
-      review: tasks.filter((task) => task.task_category === "REVIEW").length,
-      contract: tasks.filter((task) => task.task_category === "CONTRACT").length,
-      spec: tasks.filter((task) => task.task_category === "SPECIFICATION").length,
-      apply: tasks.filter((task) => task.task_category === "APPLICATION").length,
+      all: nonApprovedTasks.length,
+      review: nonApprovedTasks.filter((task) => task.task_category === "REVIEW").length,
+      contract: nonApprovedTasks.filter((task) => task.task_category === "CONTRACT").length,
+      spec: nonApprovedTasks.filter((task) => task.task_category === "SPECIFICATION").length,
+      apply: nonApprovedTasks.filter((task) => task.task_category === "APPLICATION").length,
     };
   }, [tasks]);
 
