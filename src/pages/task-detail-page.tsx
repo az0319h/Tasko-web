@@ -13,6 +13,7 @@ import {
   File,
   X,
   Plus,
+  Info,
 } from "lucide-react";
 import {
   useTask,
@@ -34,6 +35,7 @@ import {
 } from "@/hooks";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import { ChatLogGroup } from "@/components/task/chat-log-group";
+import { TaskDetailDialog } from "@/components/task/task-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -42,6 +44,7 @@ import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
+import { ProfileAvatar } from "@/components/common/profile-avatar";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
@@ -81,6 +84,7 @@ export default function TaskDetailPage() {
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set()); // 업로드 중인 파일 이름들
   const [dragActive, setDragActive] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -289,18 +293,18 @@ export default function TaskDetailPage() {
   // 데이터 없음
   if (!task) {
     return (
-      <div className="container w-full">
-        <Card className="mx-auto">
+      <div className="w-full">
+        <div className="mx-auto">
           <CardContent className="py-8 text-center sm:py-12">
             <p className="text-base font-medium sm:text-lg">Task를 찾을 수 없습니다</p>
             <p className="text-muted-foreground mt-2 text-xs sm:text-sm">
               요청하신 Task가 존재하지 않거나 접근 권한이 없습니다.
             </p>
-            <Button onClick={() => navigate(-1)} className="mt-4" size="sm">
+            <Button onClick={() => navigate(-1)} className="mt-4 px-3 py-2" size="sm">
               돌아가기
             </Button>
           </CardContent>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -321,6 +325,11 @@ export default function TaskDetailPage() {
   const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
   const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
   const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
+
+  // 상대방 정보 계산
+  const counterpart = isAssigner ? task.assignee : task.assigner;
+  const counterpartName = counterpart?.full_name || counterpart?.email || (isAssigner ? task.assignee_id : task.assigner_id);
+  const counterpartEmail = counterpart?.email;
 
   // 상태 변경 버튼 클릭 핸들러 (Dialog 표시)
   const handleStatusChangeClick = (newStatus: TaskStatus) => {
@@ -806,13 +815,12 @@ export default function TaskDetailPage() {
             style={{ maxWidth: "85%" }}
           >
             {!isMine && (
-              <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8">
-                <span className="text-[10px] font-medium sm:text-xs">
-                  {message.sender?.full_name?.charAt(0).toUpperCase() ||
-                    message.sender?.email?.charAt(0).toUpperCase() ||
-                    "U"}
-                </span>
-              </div>
+              <ProfileAvatar
+                avatarUrl={message.sender?.avatar_url || null}
+                size={28}
+                className="shrink-0 sm:h-8 sm:w-8"
+                alt={message.sender?.full_name || message.sender?.email || "사용자"}
+              />
             )}
             <div className={cn("flex min-w-0 flex-col", isMine ? "items-end" : "items-start")}>
               {!isMine && (
@@ -906,13 +914,12 @@ export default function TaskDetailPage() {
           style={{ maxWidth: "85%" }}
         >
           {!isMine && (
-            <div className="bg-muted flex h-7 w-7 shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8">
-              <span className="text-[10px] font-medium sm:text-xs">
-                {message.sender?.full_name?.charAt(0).toUpperCase() ||
-                  message.sender?.email?.charAt(0).toUpperCase() ||
-                  "U"}
-              </span>
-            </div>
+            <ProfileAvatar
+              avatarUrl={message.sender?.avatar_url || null}
+              size={28}
+              className="shrink-0 sm:h-8 sm:w-8"
+              alt={message.sender?.full_name || message.sender?.email || "사용자"}
+            />
           )}
           <div className={cn("flex min-w-0 flex-col", isMine ? "items-end" : "items-start")}>
             {!isMine && (
@@ -989,196 +996,116 @@ export default function TaskDetailPage() {
   };
 
   return (
-    <div className="w-full">
-      {/* 뒤로가기 버튼 */}
-      <Button
-        variant="ghost"
-        onClick={() => {
-          if (task?.project_id) {
-            navigate(`/projects/${task.project_id}`);
-          } else {
-            navigate(-1);
-          }
-        }}
-        className="mb-4 -ml-2"
-        size="sm"
-      >
-        <ArrowLeft className="mr-1.5 h-4 w-4" />
-        <span className="hidden sm:inline">돌아가기</span>
-        <span className="sm:hidden">뒤로</span>
-      </Button>
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* 헤더 영역 (고정) */}
+      <header className="bg-background  shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 py-2">
+          {/* 뒤로가기 버튼 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              if (task?.project_id) {
+                navigate(`/projects/${task.project_id}`);
+              } else {
+                navigate(-1);
+              }
+            }}
+            className="h-9 w-9 shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
 
-      {/* PC: 2컬럼 레이아웃, 모바일: 1컬럼 */}
-      <div className="flex flex-col gap-4 xl:flex-row xl:gap-6">
-        {/* 좌측: Task 정보 영역 */}
-        <div className="w-full xl:w-[380px] xl:shrink-0">
-          <Card className="xl:sticky xl:top-6">
-            <CardHeader className="pb-3 sm:pb-4">
-              {/* 모바일: 세로 배치, 태블릿+: 가로 배치, xl: 다시 세로 배치 */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col xl:justify-start">
-                <div className="min-w-0 flex-1 space-y-2">
-                  <CardTitle className="text-lg sm:text-xl lg:text-2xl">{task.title}</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <TaskStatusBadge status={task.task_status} />
-                  </div>
-                </div>
-                {/* 액션 버튼 */}
-                <div className="flex shrink-0 items-center gap-2 xl:w-full xl:justify-start">
-                  {/* 수정 버튼 (지시자만) */}
-                  {canEdit && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditDialogOpen(true)}
-                      className="h-8 px-2.5 sm:px-3"
-                    >
-                      <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
-                      <span className="hidden sm:inline">수정</span>
-                    </Button>
-                  )}
-                  {/* 삭제 버튼 (지시자만) */}
-                  {canDelete && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteDialogOpen(true)}
-                      className="h-8 px-2.5 sm:px-3"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 sm:mr-1.5" />
-                      <span className="hidden sm:inline">삭제</span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-0">
-              {/* Task 설명 */}
-              {(task as any).description && (
-                <div className="border-b pb-3">
-                  <h3 className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
-                    설명
-                  </h3>
-                  <p className="text-sm leading-relaxed">{(task as any).description}</p>
-                </div>
-              )}
+          {/* 상대방 아바타 */}
+          <ProfileAvatar
+            avatarUrl={counterpart?.avatar_url || null}
+            size={40}
+            alt={counterpartName || "사용자"}
+          />
 
-              {/* Task 정보 그리드 - 모바일에서 2x2 */}
-              <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                {task.project && (
-                  <>
-                    <div className="space-y-1">
-                      <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                        계정 ID
-                      </h3>
-                      <p className="truncate text-sm font-medium">{task.project.title}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                        클라이언트
-                      </h3>
-                      <p className="truncate text-sm font-medium">{task.project.client_name}</p>
-                    </div>
-                  </>
-                )}
-                <div className="space-y-1">
-                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                    지시자
-                  </h3>
-                  <p className="truncate text-sm font-medium">
-                    {task.assigner?.full_name || task.assigner?.email || task.assigner_id}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                    담당자
-                  </h3>
-                  <p className="truncate text-sm font-medium">
-                    {task.assignee?.full_name || task.assignee?.email || task.assignee_id}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                    마감일
-                  </h3>
-                  <p className="text-sm font-medium">{formatDate(task.due_date)}</p>
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                    생성일
-                  </h3>
-                  <p className="text-sm font-medium">{formatDate(task.created_at)}</p>
-                </div>
-              </div>
+          {/* Task 제목 및 상대방 정보 */}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-semibold truncate">{task.title}</h1>
+            <p className="text-xs text-muted-foreground truncate">
+              {counterpartName}
+              {counterpartEmail && counterpart?.full_name && ` (${counterpartEmail})`}
+            </p>
+          </div>
 
-              {/* 상태 변경 버튼 - 모바일에서 풀 너비 */}
-              {(canChangeToInProgress || canChangeToWaitingConfirm || canApprove || canReject) && (
-                <div className="grid grid-cols-2 gap-2 border-t pt-4">
-                  {canChangeToInProgress && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleStatusChangeClick("IN_PROGRESS")}
-                      disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center gap-0 py-2"
-                    >
-                      <Play className="mr-1.5 h-4 w-4" />
-                      {task.task_status === "REJECTED" ? "다시 진행" : "시작하기"}
-                    </Button>
-                  )}
-                  {canChangeToWaitingConfirm && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
-                      disabled={updateTaskStatus.isPending}
-                      className="!w-full gap-0 py-2"
-                    >
-                      완료 요청
-                    </Button>
-                  )}
-                  {canApprove && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleStatusChangeClick("APPROVED")}
-                      disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center gap-0 py-2"
-                    >
-                      <CheckCircle className="mr-1.5 h-4 w-4" />
-                      승인
-                    </Button>
-                  )}
-                  {canReject && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleStatusChangeClick("REJECTED")}
-                      disabled={updateTaskStatus.isPending}
-                      className="w-full justify-center gap-0 py-2"
-                    >
-                      <XCircle className="mr-1.5 h-4 w-4" />
-                      거부
-                    </Button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* 우측: 채팅 영역 */}
-        <Card className="flex h-[70vh] max-h-[70vh] w-full flex-col overflow-x-hidden overflow-y-hidden py-4 xl:h-[90vh] xl:max-h-none">
-          <CardHeader className="shrink-0 border-b py-1 !pb-1">
-            <CardTitle className="py-1 text-base sm:text-lg">채팅</CardTitle>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
-            <div
-              className="relative flex-1 overflow-x-hidden overflow-y-auto"
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
+          {/* 상태 변경 버튼들 */}
+          <div className="flex items-center gap-1 shrink-0">
+            {canChangeToInProgress && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStatusChangeClick("IN_PROGRESS")}
+                disabled={updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs"
+                title={task.task_status === "REJECTED" ? "다시 진행" : "시작하기"}
+              >
+                <Play className="h-4 w-4" />
+              </Button>
+            )}
+            {canChangeToWaitingConfirm && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStatusChangeClick("WAITING_CONFIRM")}
+                disabled={updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs"
+                title="완료 요청"
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            )}
+            {canApprove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStatusChangeClick("APPROVED")}
+                disabled={updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs"
+                title="승인"
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            )}
+            {canReject && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStatusChangeClick("REJECTED")}
+                disabled={updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                title="거부"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            )}
+            {/* 정보 버튼 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setDetailSheetOpen(true)}
+              className="h-9 w-9 shrink-0"
+              title="상세 정보"
             >
+              <Info className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* 채팅 영역 (스크롤 가능) */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div
+            className="relative flex-1 overflow-x-hidden  pt-4"
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
               {messagesLoading || logsLoading ? (
                 <div className="flex h-full items-center justify-center">
                   <Spinner />
@@ -1304,26 +1231,26 @@ export default function TaskDetailPage() {
               )}
               {/* 스크롤 앵커 */}
               <div ref={messagesEndRef} />
-            </div>
+          </div>
 
-            {/* 입력 영역 */}
-            <div className="bg-background shrink-0 space-y-2 border-t py-4">
-              {/* 채팅 작성 권한이 없는 경우 안내 메시지 */}
-              {!canSendMessage && (
-                <div className="bg-muted/50 border-muted rounded-lg border p-3 text-center sm:p-4">
-                  <p className="text-muted-foreground text-xs sm:text-sm">
-                    지시자 또는 담당자만 메시지를 작성할 수 있습니다.
+          {/* 입력 영역 */}
+          <div className="bg-background shrink-0 space-y-2 border-t py-4">
+            {/* 채팅 작성 권한이 없는 경우 안내 메시지 */}
+            {!canSendMessage && (
+              <div className="bg-muted/50 border-muted rounded-lg border p-3 text-center sm:p-4">
+                <p className="text-muted-foreground text-xs sm:text-sm">
+                  지시자 또는 담당자만 메시지를 작성할 수 있습니다.
+                </p>
+                {isAdmin && (
+                  <p className="text-muted-foreground/70 mt-1 text-xs">
+                    관리자 권한으로 조회만 가능합니다.
                   </p>
-                  {isAdmin && (
-                    <p className="text-muted-foreground/70 mt-1 text-xs">
-                      관리자 권한으로 조회만 가능합니다.
-                    </p>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
+            )}
 
-              {/* 첨부된 파일 목록 (Draft 상태) - 지시자/담당자만 표시 */}
-              {canSendMessage && attachedFiles.length > 0 && (
+            {/* 첨부된 파일 목록 (Draft 상태) - 지시자/담당자만 표시 */}
+            {canSendMessage && attachedFiles.length > 0 && (
                 <div className="bg-muted/30 flex flex-wrap gap-1.5 rounded-lg p-2.5 sm:gap-2 sm:p-3">
                   {attachedFiles.map((file, index) => (
                     <div
@@ -1350,97 +1277,96 @@ export default function TaskDetailPage() {
                 </div>
               )}
 
-              {/* 텍스트 입력 및 전송 - 지시자/담당자만 표시 */}
-              {canSendMessage && (
-                <div
-                  className={cn(
-                    "bg-muted/50 relative flex flex-col gap-2 rounded-lg border p-2 transition-colors sm:p-3",
-                    dragActive && "bg-primary/10 border-primary/50",
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  {/* 드래그 앤 드롭 활성 상태 표시 */}
-                  {dragActive && (
-                    <div className="border-primary bg-primary/10 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
-                      <div className="text-primary flex flex-col items-center gap-2">
-                        <Plus className="h-8 w-8 animate-bounce" />
-                        <p className="text-sm font-medium">파일을 여기에 놓으세요</p>
-                      </div>
+            {/* 텍스트 입력 및 전송 - 지시자/담당자만 표시 */}
+            {canSendMessage && (
+              <div
+                className={cn(
+                  "bg-muted/50 relative flex flex-col gap-2 rounded-lg border p-2 transition-colors sm:p-3",
+                  dragActive && "bg-primary/10 border-primary/50",
+                )}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                {/* 드래그 앤 드롭 활성 상태 표시 */}
+                {dragActive && (
+                  <div className="border-primary bg-primary/10 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed">
+                    <div className="text-primary flex flex-col items-center gap-2">
+                      <Plus className="h-8 w-8 animate-bounce" />
+                      <p className="text-sm font-medium">파일을 여기에 놓으세요</p>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* 입력 필드 */}
-                  <textarea
-                    ref={textareaRef}
-                    rows={2}
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="메시지를 입력해주세요"
-                    className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
-                    style={{
-                      lineHeight: "1.5",
-                    }}
-                    onKeyDown={(e) => {
-                      // Enter 키: 메시지 전송
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                      // Shift+Enter: 줄바꿈 (기본 동작 유지)
-                    }}
+                {/* 입력 필드 */}
+                <textarea
+                  ref={textareaRef}
+                  rows={2}
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  placeholder="메시지 입력..."
+                  className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
+                  style={{
+                    lineHeight: "1.5",
+                  }}
+                  onKeyDown={(e) => {
+                    // Enter 키: 메시지 전송
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                    // Shift+Enter: 줄바꿈 (기본 동작 유지)
+                  }}
+                  disabled={createMessageWithFiles.isPending}
+                />
+
+                {/* 하단 버튼 영역 */}
+                <div className="flex items-center justify-between gap-2">
+                  {/* 파일 첨부 버튼 */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="border-border hover:bg-background h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
+                    onClick={() => fileInputRef.current?.click()}
                     disabled={createMessageWithFiles.isPending}
+                    title="파일 첨부"
+                  >
+                    <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                    accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
+                    disabled={!canSendMessage}
                   />
 
-                  {/* 하단 버튼 영역 */}
-                  <div className="flex items-center justify-between gap-2">
-                    {/* 파일 첨부 버튼 */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="border-border hover:bg-background h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={createMessageWithFiles.isPending}
-                      title="파일 첨부"
-                    >
-                      <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={handleFileSelect}
-                      accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
-                      disabled={!canSendMessage}
-                    />
-
-                    {/* 전송 버튼 */}
-                    <Button
-                      size="icon"
-                      className="bg-background hover:bg-background/80 border-border h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
-                      disabled={
-                        (!messageInput.trim() && attachedFiles.length === 0) ||
-                        createMessageWithFiles.isPending
-                      }
-                      onClick={handleSendMessage}
-                      title="전송"
-                    >
-                      {createMessageWithFiles.isPending ? (
-                        <div className="border-foreground h-3.5 w-3.5 animate-spin rounded-full border-2 border-t-transparent sm:h-4 sm:w-4" />
-                      ) : (
-                        <Send className="text-foreground h-3.5 w-3.5 rotate-[-45deg] sm:h-4 sm:w-4" />
-                      )}
-                    </Button>
-                  </div>
+                  {/* 전송 버튼 */}
+                  <Button
+                    size="icon"
+                    className="bg-background hover:bg-background/80 border-border h-8 w-8 shrink-0 rounded-full border sm:h-9 sm:w-9"
+                    disabled={
+                      (!messageInput.trim() && attachedFiles.length === 0) ||
+                      createMessageWithFiles.isPending
+                    }
+                    onClick={handleSendMessage}
+                    title="전송"
+                  >
+                    {createMessageWithFiles.isPending ? (
+                      <div className="border-foreground h-3.5 w-3.5 animate-spin rounded-full border-2 border-t-transparent sm:h-4 sm:w-4" />
+                    ) : (
+                      <Send className="text-foreground h-3.5 w-3.5 rotate-[-45deg] sm:h-4 sm:w-4" />
+                    )}
+                  </Button>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 수정 다이얼로그 */}
@@ -1482,6 +1408,17 @@ export default function TaskDetailPage() {
         message={pendingDeleteMessage}
         onConfirm={handleDeleteMessageConfirm}
         isLoading={deleteMessage.isPending}
+      />
+
+      {/* 상세 정보 Dialog */}
+      <TaskDetailDialog
+        open={detailSheetOpen}
+        onOpenChange={setDetailSheetOpen}
+        task={task}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onEdit={() => setEditDialogOpen(true)}
+        onDelete={() => setDeleteDialogOpen(true)}
       />
     </div>
   );

@@ -19,11 +19,13 @@ export type TaskWithProfiles = Task & {
     id: string;
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
   } | null;
   assignee: {
     id: string;
     full_name: string | null;
     email: string;
+    avatar_url: string | null;
   } | null;
   project?: {
     id: string;
@@ -42,8 +44,8 @@ export async function getTasksByProjectId(projectId: string): Promise<TaskWithPr
     .from("tasks")
     .select(`
       *,
-      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
     `)
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
@@ -77,8 +79,8 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
     .from("tasks")
     .select(`
       *,
-      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email),
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url),
       project:projects!tasks_project_id_fkey(id, title, client_name)
     `)
     .eq("id", id)
@@ -322,8 +324,8 @@ export async function getTasksForMember(
     .from("tasks")
     .select(`
       *,
-      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
     `)
     .or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`);
 
@@ -372,8 +374,8 @@ export async function getTasksForAdmin(
     .from("tasks")
     .select(`
       *,
-      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email)
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
     `);
 
   // APPROVED 제외 옵션

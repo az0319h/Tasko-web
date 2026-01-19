@@ -28,11 +28,13 @@ describe("useUpdateTaskStatus optimistic update logic", () => {
       id: "user-1",
       full_name: "User 1",
       email: "user1@example.com",
+      avatar_url: null,
     },
     assignee: {
       id: "user-2",
       full_name: "User 2",
       email: "user2@example.com",
+      avatar_url: null,
     },
   } as TaskWithProfiles);
 
