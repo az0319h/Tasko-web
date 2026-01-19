@@ -127,7 +127,7 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
 type SortOrder = "newest" | "oldest";
 type DashboardTab = "kanban" | "projects";
 type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
-type CategoryParam = "review" | "contract" | "spec" | "apply";
+type CategoryParam = "all" | "review" | "contract" | "spec" | "apply";
 type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rejected" | "approved";
 type SortDueParam = "asc" | "desc";
 
@@ -154,9 +154,9 @@ export default function AdminDashboardPage() {
 
   // URL params 읽기 (내가 관련된 프로젝트 탭용)
   const categoryParam = searchParams.get("category") as CategoryParam | null;
-  const validCategories: CategoryParam[] = ["review", "contract", "spec", "apply"];
+  const validCategories: CategoryParam[] = ["all", "review", "contract", "spec", "apply"];
   const category: CategoryParam =
-    categoryParam && validCategories.includes(categoryParam) ? categoryParam : "review";
+    categoryParam && validCategories.includes(categoryParam) ? categoryParam : "all";
 
   // 검색어는 로컬 state만 사용 (URL params 제거, 전체 프로젝트 탭과 동일)
   const [searchQuery, setSearchQuery] = useState("");
@@ -246,7 +246,7 @@ export default function AdminDashboardPage() {
     const newParams = new URLSearchParams(searchParams);
 
     if (updates.category !== undefined) {
-      if (updates.category === "review") {
+      if (updates.category === "all") {
         newParams.delete("category");
       } else {
         newParams.set("category", updates.category);
@@ -333,7 +333,7 @@ export default function AdminDashboardPage() {
   }, [allProjects]);
 
   // 카테고리 매핑 (URL → DB)
-  const categoryMap: Record<CategoryParam, TaskCategory> = {
+  const categoryMap: Record<Exclude<CategoryParam, "all">, TaskCategory> = {
     review: "REVIEW",
     contract: "CONTRACT",
     spec: "SPECIFICATION",
@@ -358,18 +358,25 @@ export default function AdminDashboardPage() {
     );
   }, [myTasks, currentProfile?.id]);
 
-  // 카테고리별 Task 개수 계산
+  // 카테고리별 Task 개수 계산 (승인됨 제외)
   const categoryCounts = useMemo(() => {
+    // 승인됨 상태를 제외한 tasks
+    const nonApprovedTasks = myRelatedTasks.filter((task) => task.task_status !== "APPROVED");
+    
     return {
-      review: myRelatedTasks.filter((task) => task.task_category === "REVIEW").length,
-      contract: myRelatedTasks.filter((task) => task.task_category === "CONTRACT").length,
-      spec: myRelatedTasks.filter((task) => task.task_category === "SPECIFICATION").length,
-      apply: myRelatedTasks.filter((task) => task.task_category === "APPLICATION").length,
+      all: nonApprovedTasks.length,
+      review: nonApprovedTasks.filter((task) => task.task_category === "REVIEW").length,
+      contract: nonApprovedTasks.filter((task) => task.task_category === "CONTRACT").length,
+      spec: nonApprovedTasks.filter((task) => task.task_category === "SPECIFICATION").length,
+      apply: nonApprovedTasks.filter((task) => task.task_category === "APPLICATION").length,
     };
   }, [myRelatedTasks]);
 
   // 2단계: 카테고리 필터링
   const categoryFilteredTasks = useMemo(() => {
+    if (category === "all") {
+      return myRelatedTasks; // 전체 선택 시 필터링 안 함
+    }
     const dbCategory = categoryMap[category];
     return myRelatedTasks.filter((task) => task.task_category === dbCategory);
   }, [myRelatedTasks, category]);
@@ -582,6 +589,7 @@ export default function AdminDashboardPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">전체 ({categoryCounts.all}개)</SelectItem>
                 <SelectItem value="review">검토 ({categoryCounts.review}개)</SelectItem>
                 <SelectItem value="contract">계약 ({categoryCounts.contract}개)</SelectItem>
                 <SelectItem value="spec">명세서 ({categoryCounts.spec}개)</SelectItem>
