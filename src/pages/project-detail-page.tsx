@@ -662,7 +662,12 @@ export default function ProjectDetailPage() {
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={() => {
-                navigate("/");
+                const previousUrl = sessionStorage.getItem("previousDashboardUrl");
+                if (previousUrl) {
+                  navigate(previousUrl);
+                } else {
+                  navigate("/");
+                }
               }}
             >
               <ArrowLeft className="h-5 w-5" />
@@ -918,7 +923,7 @@ export default function ProjectDetailPage() {
                       className="hover:bg-muted/50 cursor-pointer border-b transition-colors"
                       onClick={() => {
                         const currentUrl = window.location.pathname + window.location.search;
-                        sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                        sessionStorage.setItem("previousProjectDetailUrl", currentUrl);
                         window.location.href = `/tasks/${task.id}`;
                       }}
                     >
@@ -936,7 +941,7 @@ export default function ProjectDetailPage() {
                               e.stopPropagation();
                               const currentUrl =
                                 window.location.pathname + window.location.search;
-                              sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                              sessionStorage.setItem("previousProjectDetailUrl", currentUrl);
                             }}
                           >
                             {task.title}

@@ -1062,6 +1062,19 @@ export default function TaskDetailPage() {
             variant="ghost"
             size="icon"
             onClick={() => {
+              // 프로젝트 상세에서 온 경우 우선 확인
+              const previousProjectDetailUrl = sessionStorage.getItem("previousProjectDetailUrl");
+              if (previousProjectDetailUrl) {
+                navigate(previousProjectDetailUrl);
+                return;
+              }
+              // 대시보드에서 직접 온 경우 확인
+              const previousDashboardUrl = sessionStorage.getItem("previousDashboardUrl");
+              if (previousDashboardUrl) {
+                navigate(previousDashboardUrl);
+                return;
+              }
+              // 둘 다 없으면 프로젝트 상세로 이동
               if (task?.project_id) {
                 navigate(`/projects/${task.project_id}`);
               } else {
