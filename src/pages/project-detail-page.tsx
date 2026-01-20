@@ -662,12 +662,8 @@ export default function ProjectDetailPage() {
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={() => {
-                const previousUrl = sessionStorage.getItem("previousDashboardUrl");
-                if (previousUrl) {
-                  navigate(previousUrl);
-                } else {
-                  navigate("/");
-                }
+                // 항상 홈으로 이동
+                navigate("/");
               }}
             >
               <ArrowLeft className="h-5 w-5" />
@@ -920,12 +916,7 @@ export default function ProjectDetailPage() {
                   return (
                     <tr
                       key={task.id}
-                      className="hover:bg-muted/50 cursor-pointer border-b transition-colors"
-                      onClick={() => {
-                        const currentUrl = window.location.pathname + window.location.search;
-                        sessionStorage.setItem("previousProjectDetailUrl", currentUrl);
-                        window.location.href = `/tasks/${task.id}`;
-                      }}
+                      className="hover:bg-muted/50 border-b transition-colors"
                     >
                       <td className="px-2 py-3 sm:px-4 sm:py-4">
                         <div className="text-xs font-mono sm:text-sm">
@@ -936,9 +927,8 @@ export default function ProjectDetailPage() {
                         <div className="line-clamp-2 text-xs sm:text-sm">
                           <Link
                             to={`/tasks/${task.id}`}
-                            className="line-clamp-2 hover:underline"
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            className="line-clamp-2 hover:underline cursor-pointer"
+                            onClick={() => {
                               const currentUrl =
                                 window.location.pathname + window.location.search;
                               sessionStorage.setItem("previousProjectDetailUrl", currentUrl);

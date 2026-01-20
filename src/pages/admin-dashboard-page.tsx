@@ -672,21 +672,15 @@ export default function AdminDashboardPage() {
                     return (
                       <tr
                         key={task.id}
-                        className="hover:bg-muted/50 cursor-pointer border-b transition-colors"
-                        onClick={() => {
-                          const currentUrl = window.location.pathname + window.location.search;
-                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
-                          window.location.href = `/tasks/${task.id}`;
-                        }}
+                        className="hover:bg-muted/50 border-b transition-colors"
                       >
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs font-medium sm:text-sm">
                             {project ? (
                               <Link
                                 to={`/projects/${project.id}`}
-                                className="line-clamp-2 hover:underline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                className="line-clamp-2 hover:underline cursor-pointer"
+                                onClick={() => {
                                   const currentUrl =
                                     window.location.pathname + window.location.search;
                                   sessionStorage.setItem("previousDashboardUrl", currentUrl);
@@ -703,9 +697,8 @@ export default function AdminDashboardPage() {
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             <Link
                               to={`/tasks/${task.id}`}
-                              className="line-clamp-2 hover:underline"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              className="line-clamp-2 hover:underline cursor-pointer"
+                              onClick={() => {
                                 const currentUrl =
                                   window.location.pathname + window.location.search;
                                 sessionStorage.setItem("previousDashboardUrl", currentUrl);
@@ -916,12 +909,12 @@ function ProjectTableRow({
   const contributedTasks = myProjectTasks.filter((task) => task.task_status === "APPROVED").length;
 
   return (
-    <tr className="hover:bg-muted/50 cursor-pointer border-b transition-colors">
+    <tr className="hover:bg-muted/50 border-b transition-colors">
       <td className="px-2 py-3 sm:px-4 sm:py-4">
         <div className="line-clamp-2 text-xs font-medium sm:text-sm">
           <Link
             to={`/projects/${project.id}`}
-            className="line-clamp-2 hover:underline"
+            className="line-clamp-2 hover:underline cursor-pointer"
             onClick={() => {
               // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
               const currentUrl = window.location.pathname + window.location.search;
