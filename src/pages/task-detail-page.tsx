@@ -14,6 +14,7 @@ import {
   X,
   Plus,
   Info,
+  AlertTriangle,
 } from "lucide-react";
 import {
   useTask,
@@ -43,6 +44,7 @@ import DefaultSpinner from "@/components/common/default-spinner";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
+import { TaskForceApproveDialog } from "@/components/dialog/task-force-approve-dialog";
 import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
@@ -52,6 +54,8 @@ import { isMessageReadByCounterpart } from "@/api/message";
 import { uploadTaskFile, getTaskFileDownloadUrl } from "@/api/storage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import supabase from "@/lib/supabase";
 
 /**
  * Task 상세 페이지
@@ -77,6 +81,8 @@ export default function TaskDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
   const [pendingNewStatus, setPendingNewStatus] = useState<TaskStatus | null>(null);
+  const [forceApproveDialogOpen, setForceApproveDialogOpen] = useState(false);
+  const [isForceApproving, setIsForceApproving] = useState(false);
   const [messageDeleteDialogOpen, setMessageDeleteDialogOpen] = useState(false);
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState<MessageWithProfile | null>(null);
   const [messageInput, setMessageInput] = useState("");
@@ -93,6 +99,7 @@ export default function TaskDetailPage() {
   const lastMarkAsReadTimeRef = useRef<number>(0); // 마지막 읽음 처리 시간 (중복 호출 방지용)
 
   const currentUserId = currentProfile?.id;
+  const queryClient = useQueryClient();
 
   // Presence 추적 (채팅 화면에 사용자가 존재함을 실시간으로 추적)
   const { isPresent } = useChatPresence(taskId, !!taskId);
@@ -325,6 +332,8 @@ export default function TaskDetailPage() {
   const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
   const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
   const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
+  // 강제 승인 버튼 표시 조건: 지시자만, APPROVED 상태가 아닐 때만
+  const canForceApprove = isAssigner && task.task_status !== "APPROVED";
 
   // 상대방 정보 계산
   const counterpart = isAssigner ? task.assignee : task.assigner;
@@ -341,6 +350,54 @@ export default function TaskDetailPage() {
   const handleStatusChangeConfirm = async () => {
     if (!pendingNewStatus) return;
     await updateTaskStatus.mutateAsync({ taskId: task.id, newStatus: pendingNewStatus });
+  };
+
+  // 강제 승인 핸들러 (프론트엔드에서 직접 Supabase 호출)
+  const handleForceApprove = async () => {
+    if (!task || !currentUserId) return;
+
+    // 지시자 권한 확인 (프론트엔드 레벨)
+    if (currentUserId !== task.assigner_id) {
+      toast.error("지시자만 강제 승인할 수 있습니다.");
+      return;
+    }
+
+    // 이미 승인됨 상태면 에러
+    if (task.task_status === "APPROVED") {
+      toast.error("이미 승인된 Task입니다.");
+      return;
+    }
+
+    setIsForceApproving(true);
+
+    try {
+      // 상태 전환 검증 없이 직접 UPDATE (RLS 정책만 적용됨)
+      const { error } = await supabase
+        .from("tasks")
+        .update({ task_status: "APPROVED" })
+        .eq("id", task.id);
+
+      if (error) {
+        if (error.code === "42501" || error.message.includes("permission denied")) {
+          toast.error("강제 승인 권한이 없습니다.");
+        } else {
+          toast.error(`강제 승인 실패: ${error.message}`);
+        }
+        return;
+      }
+
+      toast.success("강제 승인되었습니다.");
+      
+      // React Query 캐시 무효화하여 Task 정보 갱신
+      await queryClient.invalidateQueries({ queryKey: ["tasks", "detail", task.id] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (error) {
+      console.error("강제 승인 중 오류:", error);
+      toast.error("강제 승인 중 오류가 발생했습니다.");
+    } finally {
+      setIsForceApproving(false);
+      setForceApproveDialogOpen(false);
+    }
   };
 
   // Task 수정 핸들러
@@ -1082,6 +1139,18 @@ export default function TaskDetailPage() {
                 <XCircle className="h-4 w-4" />
               </Button>
             )}
+            {canForceApprove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setForceApproveDialogOpen(true)}
+                disabled={isForceApproving || updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                title="강제 승인 (모든 검증 건너뛰기)"
+              >
+                <AlertTriangle className="h-4 w-4" />
+              </Button>
+            )}
             {/* 정보 버튼 */}
             <Button
               variant="ghost"
@@ -1398,6 +1467,18 @@ export default function TaskDetailPage() {
           taskTitle={task.title}
           onConfirm={handleStatusChangeConfirm}
           isLoading={updateTaskStatus.isPending}
+        />
+      )}
+
+      {/* 강제 승인 확인 다이얼로그 */}
+      {task && (
+        <TaskForceApproveDialog
+          open={forceApproveDialogOpen}
+          onOpenChange={setForceApproveDialogOpen}
+          currentStatus={task.task_status}
+          taskTitle={task.title}
+          onConfirm={handleForceApprove}
+          isLoading={isForceApproving}
         />
       )}
 
