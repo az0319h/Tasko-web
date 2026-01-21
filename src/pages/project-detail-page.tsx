@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router";
 import { ArrowLeft, Plus, Pencil, Users, Trash2, Search, ArrowUpDown, ChevronDown } from "lucide-react";
 import {
@@ -190,6 +190,10 @@ export default function ProjectDetailPage() {
   const status: StatusParam =
     statusParam && validStatusParams.includes(statusParam) ? statusParam : "all";
 
+  // 페이지네이션 URL params 읽기
+  const pageParam = searchParams.get("page");
+  const currentPage = pageParam ? Math.max(1, parseInt(pageParam, 10)) || 1 : 1;
+
   // 다이얼로그 상태
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [editTaskDialogOpen, setEditTaskDialogOpen] = useState(false);
@@ -211,7 +215,6 @@ export default function ProjectDetailPage() {
   const [isSpecificationMode, setIsSpecificationMode] = useState(false);
 
   // 페이지네이션 상태
-  const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
@@ -220,40 +223,60 @@ export default function ProjectDetailPage() {
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
 
+  // 마운트 여부 및 이전 필터 값 추적 (페이지 리셋 조건 판단용)
+  const isFirstRenderRef = useRef(true);
+  const prevFiltersRef = useRef({
+    search: "",
+    category: "all" as CategoryParam,
+    status: "all" as StatusParam,
+    sortDue: "asc" as SortDueParam,
+  });
+
   const isLoading = projectLoading || tasksLoading;
 
   // URL params 업데이트 헬퍼 함수
   const updateUrlParams = (
-    updates: Partial<{
+    updates?: Partial<{
       category: CategoryParam;
       sortDue: SortDueParam;
       status: StatusParam;
+      page?: number;
     }>,
   ) => {
     const newParams = new URLSearchParams(searchParams);
 
-    if (updates.category !== undefined) {
-      if (updates.category === "all") {
-        newParams.delete("category");
-      } else {
-        newParams.set("category", updates.category);
-      }
+    // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const pageToSet = updates?.page !== undefined ? updates.page : currentPage;
+
+    // category 설정
+    if (categoryToSet === "all") {
+      newParams.delete("category");
+    } else {
+      newParams.set("category", categoryToSet);
     }
 
-    if (updates.sortDue !== undefined) {
-      if (updates.sortDue === "asc") {
-        newParams.delete("sortDue");
-      } else {
-        newParams.set("sortDue", updates.sortDue);
-      }
+    // sortDue 설정
+    if (sortDueToSet === "asc") {
+      newParams.delete("sortDue");
+    } else {
+      newParams.set("sortDue", sortDueToSet);
     }
 
-    if (updates.status !== undefined) {
-      if (updates.status === "all") {
-        newParams.delete("status");
-      } else {
-        newParams.set("status", updates.status);
-      }
+    // status 설정
+    if (statusToSet === "all") {
+      newParams.delete("status");
+    } else {
+      newParams.set("status", statusToSet);
+    }
+
+    // page 설정
+    if (pageToSet === 1 || pageToSet === undefined) {
+      newParams.delete("page");
+    } else {
+      newParams.set("page", pageToSet.toString());
     }
 
     setSearchParams(newParams, { replace: true });
@@ -393,16 +416,36 @@ export default function ProjectDetailPage() {
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage) || 1;
 
   // 검색어/필터 변경 시 1페이지로 리셋
+  // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
   useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, category, status, sortDue]);
+    // 첫 렌더링 시에는 URL 파라미터 유지
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      prevFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+      return;
+    }
+
+    // 필터가 실제로 변경되었을 때만 1페이지로 리셋
+    const prev = prevFiltersRef.current;
+    const filtersChanged =
+      prev.search !== debouncedSearch ||
+      prev.category !== category ||
+      prev.status !== status ||
+      prev.sortDue !== sortDue;
+
+    if (filtersChanged && currentPage !== 1) {
+      updateUrlParams({ page: 1 });
+    }
+
+    prevFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+  }, [debouncedSearch, category, status, sortDue, currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 잘못된 페이지 번호 체크 및 리셋
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
-      setCurrentPage(1);
+      updateUrlParams({ page: 1 });
     }
-  }, [currentPage, totalPages]);
+  }, [currentPage, totalPages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Task 생성 핸들러
   // assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
@@ -980,11 +1023,13 @@ export default function ProjectDetailPage() {
             pageSize={itemsPerPage}
             totalItems={sortedTasks.length}
             selectedCount={0}
-            onPageChange={setCurrentPage}
+            onPageChange={(page) => {
+              updateUrlParams({ page });
+            }}
             onPageSizeChange={(newPageSize) => {
               setItemsPerPage(newPageSize);
               sessionStorage.setItem("tablePageSize", newPageSize.toString());
-              setCurrentPage(1);
+              updateUrlParams({ page: 1 });
             }}
           />
         )}
