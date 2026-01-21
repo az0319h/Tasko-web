@@ -665,7 +665,7 @@ export default function MemberDashboardPage() {
             <div className="relative  flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="계정 ID, Task 제목, 담당자명 또는 지시자명으로 검색..."
+                placeholder="계정 ID, 고객명, Task 제목, 담당자명 또는 지시자명으로 검색..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -677,14 +677,17 @@ export default function MemberDashboardPage() {
             <table className="w-full min-w-[800px] table-fixed">
               <thead>
                 <tr className="border-b">
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     계정 ID
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고객명
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     지시사항
                   </th>
                   <th
-                    className="hover:bg-muted/50 w-[16.666%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                    className="hover:bg-muted/50 w-[14.285%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
                     onClick={handleSortDueChange}
                   >
                     <div className="flex items-center gap-2">
@@ -692,17 +695,17 @@ export default function MemberDashboardPage() {
                       <ArrowUpDown className="size-3 sm:size-4" />
                     </div>
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     <StatusFilterDropdown
                       status={status}
                       onStatusChange={handleStatusChange}
                       tasks={searchedTasks}
                     />
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     지시자
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     담당자
                   </th>
                 </tr>
@@ -711,7 +714,7 @@ export default function MemberDashboardPage() {
                 {paginatedTasks.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
                     >
                       {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
@@ -753,6 +756,13 @@ export default function MemberDashboardPage() {
                                 {project.title}
                               </Link>
                             ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {project?.client_name || (
                               <span className="text-muted-foreground">-</span>
                             )}
                           </div>
