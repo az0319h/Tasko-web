@@ -236,6 +236,7 @@ export default function ProjectDetailPage() {
     status: "all" as StatusParam,
     sortDue: "asc" as SortDueParam,
   });
+  const autoStatusAppliedRef = useRef(false); // 자동 승인됨 필터 적용 여부 추적
 
   const isLoading = projectLoading || tasksLoading;
 
@@ -419,6 +420,37 @@ export default function ProjectDetailPage() {
 
   // 총 페이지 수
   const totalPages = Math.ceil(sortedTasks.length / itemsPerPage) || 1;
+
+  // 프로젝트 ID 변경 시 자동 적용 플래그 리셋
+  useEffect(() => {
+    autoStatusAppliedRef.current = false;
+  }, [id]);
+
+  // 모든 TASK가 승인됨일 때 자동으로 승인됨 필터 적용
+  useEffect(() => {
+    // tasks가 로드되지 않았거나 이미 자동 적용했으면 스킵
+    if (!tasks || tasks.length === 0 || autoStatusAppliedRef.current) return;
+    
+    // 현재 status가 "all"이거나 URL에 status 파라미터가 없는 경우에만 자동 적용
+    const currentStatusParam = searchParams.get("status");
+    if (currentStatusParam && currentStatusParam !== "all") {
+      // 사용자가 이미 필터를 변경한 경우
+      autoStatusAppliedRef.current = true;
+      return;
+    }
+
+    // 모든 TASK가 승인됨 상태인지 확인
+    const allApproved = tasks.length > 0 && tasks.every((task) => task.task_status === "APPROVED");
+    
+    if (allApproved && status === "all") {
+      // 자동으로 승인됨 필터 적용
+      updateUrlParams({ status: "approved" });
+      autoStatusAppliedRef.current = true;
+    } else {
+      // 모든 TASK가 승인됨이 아니면 자동 적용 플래그만 설정
+      autoStatusAppliedRef.current = true;
+    }
+  }, [tasks, status, searchParams, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 검색어/필터 변경 시 1페이지로 리셋
   // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
