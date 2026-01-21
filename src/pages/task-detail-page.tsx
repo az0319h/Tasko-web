@@ -905,10 +905,22 @@ export default function TaskDetailPage() {
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <a
                       href={getTaskFileDownloadUrl(message.file_url || "")}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      {...(canOpenInBrowser(message.file_type, message.file_name)
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                       className="block text-xs font-medium break-all hover:underline sm:text-sm"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // 브라우저에서 열 수 없는 파일만 프로그래밍 방식 다운로드
+                        if (!canOpenInBrowser(message.file_type, message.file_name)) {
+                          handleFileDownload(
+                            e,
+                            getTaskFileDownloadUrl(message.file_url || ""),
+                            message.file_name,
+                          );
+                        }
+                        // 브라우저에서 열 수 있는 파일은 기본 동작(새 탭 열기) 사용
+                      }}
                       title={message.file_name || message.content || undefined}
                       style={{ wordBreak: "break-all", overflowWrap: "break-word" }}
                     >
@@ -919,13 +931,32 @@ export default function TaskDetailPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
+                    {/* 새 탭 열기 버튼: 브라우저에서 열 수 있는 파일에만 표시 */}
+                    {canOpenInBrowser(message.file_type, message.file_name) && (
+                      <a
+                        href={getTaskFileDownloadUrl(message.file_url || "")}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 hover:opacity-70"
+                        onClick={(e) => e.stopPropagation()}
+                        title="새 탭에서 열기"
+                      >
+                        <File className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </a>
+                    )}
+                    {/* 다운로드 버튼: 모든 파일에 대해 표시 */}
                     <a
                       href={getTaskFileDownloadUrl(message.file_url || "")}
-                      download={message.file_name}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="p-1 hover:opacity-70"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFileDownload(
+                          e,
+                          getTaskFileDownloadUrl(message.file_url || ""),
+                          message.file_name,
+                        );
+                      }}
+                      title="다운로드"
                     >
                       <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </a>
@@ -1055,6 +1086,68 @@ export default function TaskDetailPage() {
     if (fileType.includes("word") || fileType.includes("document")) return "📝";
     if (fileType.includes("excel") || fileType.includes("spreadsheet")) return "📊";
     return "📎";
+  };
+
+  // 브라우저에서 새 탭으로 열 수 있는 파일인지 확인
+  // .txt 파일은 제외 (무조건 다운로드만 가능)
+  const canOpenInBrowser = (fileType: string | null | undefined, fileName: string | null | undefined): boolean => {
+    if (!fileType || !fileName) return false;
+
+    // .txt 파일은 무조건 다운로드만 가능
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    if (ext === "txt") return false;
+
+    // 이미지 파일
+    if (fileType.startsWith("image/")) return true;
+
+    // PDF 파일
+    if (fileType === "application/pdf") return true;
+
+    // CSV 파일 (MIME type 또는 확장자 기반)
+    if (fileType === "text/csv" || fileType === "application/csv") return true;
+    if (ext === "csv") return true;
+
+    return false;
+  };
+
+  // 모든 파일에 대해 원본 파일명으로 다운로드하는 핸들러
+  // 외부 도메인(Supabase Storage)에서 download 속성이 무시되는 문제를 해결하기 위해
+  // 프로그래밍 방식으로 파일을 가져와서 원본 파일명으로 다운로드
+  const handleFileDownload = async (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    fileUrl: string,
+    fileName: string | null | undefined,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!fileUrl || !fileName) return;
+
+    try {
+      // 파일을 fetch로 가져오기
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error("파일 다운로드 실패");
+      }
+
+      // Blob으로 변환
+      const blob = await response.blob();
+
+      // 다운로드 링크 생성 (원본 파일명 사용)
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName; // 원본 파일명으로 다운로드
+      document.body.appendChild(link);
+      link.click();
+
+      // 정리
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("파일 다운로드 중 오류:", error);
+      toast.error("파일 다운로드에 실패했습니다.");
+    }
   };
 
   return (

@@ -94,6 +94,25 @@ function getCorrectMimeType(fileName: string, originalMimeType: string): string 
 }
 
 /**
+ * MIME type에 charset을 추가 (text 타입인 경우)
+ * 한글 등 멀티바이트 문자가 포함된 텍스트 파일의 인코딩 문제를 해결하기 위함
+ * @param mimeType MIME type (예: "text/plain")
+ * @returns charset이 추가된 MIME type (예: "text/plain; charset=utf-8")
+ */
+function addCharsetToMimeType(mimeType: string): string {
+  // text로 시작하는 MIME type인 경우 charset=utf-8 추가
+  if (mimeType.startsWith("text/")) {
+    // 이미 charset이 포함되어 있으면 그대로 반환
+    if (mimeType.includes("charset=")) {
+      return mimeType;
+    }
+    return `${mimeType}; charset=utf-8`;
+  }
+  // text가 아닌 경우 그대로 반환
+  return mimeType;
+}
+
+/**
  * Task 채팅 파일 업로드
  * @param file 업로드할 파일
  * @param taskId Task ID
@@ -124,13 +143,17 @@ export async function uploadTaskFile(
     });
   }
 
+  // Content-Type에 charset 추가 (text 타입인 경우 UTF-8 명시)
+  // 한글 등 멀티바이트 문자가 포함된 텍스트 파일의 인코딩 문제 해결
+  const contentTypeWithCharset = addCharsetToMimeType(correctMimeType);
+
   // 파일 업로드
   const { data, error } = await supabase.storage
     .from("task-files")
     .upload(filePath, fileToUpload, {
       cacheControl: "3600",
       upsert: false,
-      contentType: correctMimeType, // 명시적으로 MIME type 지정
+      contentType: contentTypeWithCharset, // charset이 포함된 Content-Type 지정
     });
 
   if (error) {
@@ -145,7 +168,7 @@ export async function uploadTaskFile(
   return {
     url: publicUrl,
     fileName: file.name,
-    fileType: correctMimeType, // 올바른 MIME type 반환
+    fileType: correctMimeType, // 올바른 MIME type 반환 (charset 제외, 순수 MIME type만)
     fileSize: file.size,
   };
 }
