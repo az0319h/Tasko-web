@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearchParams, useLocation } from "react-router";
 import { Search, ArrowUpDown, ChevronDown } from "lucide-react";
 import { useProjects, useTasksForMember, useCurrentProfile } from "@/hooks";
@@ -177,17 +177,23 @@ export default function MemberDashboardPage() {
 
   // 검색 및 필터 상태 (프로젝트 탭용)
   const [projectsSearchQuery, setProjectsSearchQuery] = useState("");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
-  // 페이지네이션 상태 (담당 업무 탭용)
-  const [tasksCurrentPage, setTasksCurrentPage] = useState(1);
+  // 정렬 순서 - URL params에서 읽기
+  const sortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
+  const sortOrder: SortOrder =
+    sortOrderParam === "newest" || sortOrderParam === "oldest" ? sortOrderParam : "newest";
+
+  // 페이지네이션 상태 (담당 업무 탭용) - URL에서 직접 읽기 (다른 파라미터들과 동일한 방식)
+  const tasksPageParam = searchParams.get("tasksPage");
+  const tasksCurrentPage = tasksPageParam ? Math.max(1, parseInt(tasksPageParam, 10)) : 1;
   const [tasksItemsPerPage, setTasksItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
   });
 
-  // 페이지네이션 상태 (프로젝트 탭용)
-  const [currentPage, setCurrentPage] = useState(1);
+  // 페이지네이션 상태 (프로젝트 탭용) - URL에서 직접 읽기 (다른 파라미터들과 동일한 방식)
+  const projectsPageParam = searchParams.get("projectsPage");
+  const currentPage = projectsPageParam ? Math.max(1, parseInt(projectsPageParam, 10)) : 1;
   const [itemsPerPage, setItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
@@ -197,6 +203,11 @@ export default function MemberDashboardPage() {
   const debouncedSearch = useDebounce(searchQuery, 300);
   const debouncedProjectsSearch = useDebounce(projectsSearchQuery, 300);
 
+  // 마운트 여부 및 이전 필터 값 추적 (페이지 리셋 조건 판단용)
+  const isFirstRenderRef = useRef(true);
+  const prevTasksFiltersRef = useRef({ search: "", category: "all" as CategoryParam, status: "all" as StatusParam, sortDue: "asc" as SortDueParam });
+  const prevProjectsFiltersRef = useRef({ search: "", sortOrder: "newest" as SortOrder });
+
   // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
   useEffect(() => {
     const currentUrl = location.pathname + location.search;
@@ -205,46 +216,98 @@ export default function MemberDashboardPage() {
     }
   }, [location.pathname, location.search]);
 
-  // URL params 업데이트 헬퍼 함수
-  const updateUrlParams = (
-    updates: Partial<{
+  // URL params 업데이트 헬퍼 함수 (담당 업무 탭용)
+  const updateTasksUrlParams = (
+    updates?: Partial<{
       category: CategoryParam;
       sortDue: SortDueParam;
       status: StatusParam;
+      tasksPage?: number;
     }>,
   ) => {
     const newParams = new URLSearchParams(searchParams);
 
-    if (updates.category !== undefined) {
-      if (updates.category === "all") {
-        newParams.delete("category");
-      } else {
-        newParams.set("category", updates.category);
-      }
+    // layout 파라미터 설정
+    newParams.set("layout", "kanban");
+
+    // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const tasksPageToSet = updates?.tasksPage !== undefined ? updates.tasksPage : tasksCurrentPage;
+
+    // category 설정
+    if (categoryToSet === "all") {
+      newParams.delete("category");
+    } else {
+      newParams.set("category", categoryToSet);
     }
 
-    if (updates.sortDue !== undefined) {
-      if (updates.sortDue === "asc") {
-        newParams.delete("sortDue");
-      } else {
-        newParams.set("sortDue", updates.sortDue);
-      }
+    // sortDue 설정
+    if (sortDueToSet === "asc") {
+      newParams.delete("sortDue");
+    } else {
+      newParams.set("sortDue", sortDueToSet);
     }
 
-    if (updates.status !== undefined) {
-      if (updates.status === "all") {
-        newParams.delete("status");
-      } else {
-        newParams.set("status", updates.status);
-      }
+    // status 설정
+    if (statusToSet === "all") {
+      newParams.delete("status");
+    } else {
+      newParams.set("status", statusToSet);
     }
+
+    // tasksPage 설정
+    if (tasksPageToSet === 1 || tasksPageToSet === undefined) {
+      newParams.delete("tasksPage");
+    } else {
+      newParams.set("tasksPage", tasksPageToSet.toString());
+    }
+
+    // 프로젝트 탭 파라미터 제거 (탭 전환 시)
+    newParams.delete("projectsPage");
+    newParams.delete("sortOrder");
+
+    setSearchParams(newParams, { replace: true });
+  };
+
+  // URL params 업데이트 헬퍼 함수 (프로젝트 탭용)
+  const updateProjectsUrlParams = (
+    updates?: Partial<{ projectsPage: number; sortOrder: SortOrder }>,
+  ) => {
+    const newParams = new URLSearchParams(searchParams);
+
+    // layout 파라미터 설정
+    newParams.set("layout", "projects");
+
+    // 페이지 설정 (업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용)
+    const pageToSet = updates?.projectsPage !== undefined ? updates.projectsPage : currentPage;
+    if (pageToSet === 1) {
+      newParams.delete("projectsPage");
+    } else {
+      newParams.set("projectsPage", pageToSet.toString());
+    }
+
+    // 정렬 순서 설정
+    const sortOrderToSet = updates?.sortOrder !== undefined ? updates.sortOrder : sortOrder;
+    if (sortOrderToSet === "newest") {
+      newParams.delete("sortOrder");
+    } else {
+      newParams.set("sortOrder", sortOrderToSet);
+    }
+
+    // 담당 업무 탭 파라미터 제거 (탭 전환 시)
+    newParams.delete("tasksPage");
+    newParams.delete("category");
+    newParams.delete("sortDue");
+    newParams.delete("status");
 
     setSearchParams(newParams, { replace: true });
   };
 
   // 카테고리 변경 핸들러
   const handleCategoryChange = (newCategory: CategoryParam) => {
-    updateUrlParams({ category: newCategory });
+    updateTasksUrlParams({ category: newCategory });
   };
 
   // 검색어 변경 핸들러 (로컬 state만 업데이트, URL params 사용 안 함)
@@ -255,12 +318,12 @@ export default function MemberDashboardPage() {
   // 정렬 변경 핸들러
   const handleSortDueChange = () => {
     const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
-    updateUrlParams({ sortDue: newSortDue });
+    updateTasksUrlParams({ sortDue: newSortDue });
   };
 
   // 상태 필터 변경 핸들러
   const handleStatusChange = (newStatus: StatusParam) => {
-    updateUrlParams({ status: newStatus });
+    updateTasksUrlParams({ status: newStatus });
   };
 
   // Task 상태 변경 핸들러
@@ -464,41 +527,64 @@ export default function MemberDashboardPage() {
   // URL 쿼리 파라미터 변경 시 탭 상태 동기화
   useEffect(() => {
     const layoutParam = searchParams.get("layout") as DashboardTab | null;
-    if (layoutParam === "kanban" || layoutParam === "projects") {
-      setActiveTab(layoutParam);
-    }
-
-    // 담당 업무 탭의 URL params 동기화
-    if (activeTab === "kanban") {
-      const categoryParam = searchParams.get("category") as CategoryParam | null;
-      const sortDueParam = searchParams.get("sortDue") as SortDueParam | null;
-      const statusParam = searchParams.get("status") as StatusParam | null;
-
-      if (categoryParam && validCategories.includes(categoryParam)) {
-        // category는 state가 없으므로 URL만 확인
-      }
-      // sortDue와 status는 state가 없으므로 URL만 확인
+    const newTab = layoutParam === "kanban" || layoutParam === "projects" ? layoutParam : "kanban";
+    
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
     }
   }, [searchParams, activeTab]);
 
-  // 검색어/필터 변경 시 1페이지로 리셋
+  // 검색어/필터 변경 시 1페이지로 리셋 (담당 업무 탭)
+  // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
   useEffect(() => {
-    if (activeTab === "kanban") {
-      setTasksCurrentPage(1);
-    } else if (activeTab === "projects") {
-      setCurrentPage(1);
+    // 첫 렌더링 시에는 URL 파라미터 유지
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      prevTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+      prevProjectsFiltersRef.current = { search: debouncedProjectsSearch, sortOrder };
+      return;
     }
-  }, [debouncedSearch, category, status, sortDue, activeTab, debouncedProjectsSearch, sortOrder]);
+
+    // 담당 업무 탭: 필터가 실제로 변경되었을 때만 1페이지로 리셋
+    const prev = prevTasksFiltersRef.current;
+    const tasksFiltersChanged =
+      prev.search !== debouncedSearch ||
+      prev.category !== category ||
+      prev.status !== status ||
+      prev.sortDue !== sortDue;
+
+    if (tasksFiltersChanged && activeTab === "kanban" && tasksCurrentPage !== 1) {
+      updateTasksUrlParams({ tasksPage: 1 });
+    }
+
+    prevTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+  }, [debouncedSearch, category, status, sortDue, activeTab, tasksCurrentPage]);
+
+  // 검색어/필터 변경 시 1페이지로 리셋 (프로젝트 탭)
+  // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
+  useEffect(() => {
+    // 프로젝트 탭: 필터가 실제로 변경되었을 때만 1페이지로 리셋
+    const prev = prevProjectsFiltersRef.current;
+    const projectsFiltersChanged =
+      prev.search !== debouncedProjectsSearch ||
+      prev.sortOrder !== sortOrder;
+
+    if (projectsFiltersChanged && activeTab === "projects" && currentPage !== 1) {
+      updateProjectsUrlParams({ projectsPage: 1 });
+    }
+
+    prevProjectsFiltersRef.current = { search: debouncedProjectsSearch, sortOrder };
+  }, [debouncedProjectsSearch, sortOrder, activeTab, currentPage]);
 
   // 잘못된 페이지 번호 체크 및 리셋
   useEffect(() => {
-    if (tasksTotalPages > 0 && tasksCurrentPage > tasksTotalPages) {
-      setTasksCurrentPage(1);
+    if (activeTab === "kanban" && tasksTotalPages > 0 && tasksCurrentPage > tasksTotalPages) {
+      updateTasksUrlParams({ tasksPage: 1 });
     }
-    if (totalPages > 0 && currentPage > totalPages) {
-      setCurrentPage(1);
+    if (activeTab === "projects" && totalPages > 0 && currentPage > totalPages) {
+      updateProjectsUrlParams({ projectsPage: 1 });
     }
-  }, [tasksCurrentPage, tasksTotalPages, currentPage, totalPages]);
+  }, [tasksCurrentPage, tasksTotalPages, currentPage, totalPages, activeTab]);
 
   const isLoading = projectsLoading || tasksLoading;
 
@@ -529,9 +615,23 @@ export default function MemberDashboardPage() {
         value={activeTab}
         onValueChange={(value) => {
           const newTab = value as DashboardTab;
-          setActiveTab(newTab);
           // URL 쿼리 파라미터 업데이트
-          setSearchParams({ layout: newTab });
+          if (newTab === "kanban") {
+            // 현재 URL에서 읽은 값들을 URL에 반영
+            updateTasksUrlParams({
+              category,
+              sortDue,
+              status,
+              tasksPage: tasksCurrentPage === 1 ? undefined : tasksCurrentPage,
+            });
+          } else {
+            // 프로젝트 탭으로 전환 시 현재 페이지 및 정렬 순서 반영
+            updateProjectsUrlParams(
+              currentPage === 1
+                ? { sortOrder }
+                : { projectsPage: currentPage, sortOrder },
+            );
+          }
         }}
       >
         {/* 담당 업무 / 전체 프로젝트 탭 */}
@@ -711,11 +811,13 @@ export default function MemberDashboardPage() {
               pageSize={tasksItemsPerPage}
               totalItems={sortedTasks.length}
               selectedCount={0}
-              onPageChange={setTasksCurrentPage}
+              onPageChange={(page) => {
+                updateTasksUrlParams({ tasksPage: page });
+              }}
               onPageSizeChange={(newPageSize) => {
                 setTasksItemsPerPage(newPageSize);
                 sessionStorage.setItem("tablePageSize", newPageSize.toString());
-                setTasksCurrentPage(1);
+                updateTasksUrlParams({ tasksPage: 1 });
               }}
             />
           )}
@@ -735,7 +837,10 @@ export default function MemberDashboardPage() {
               />
             </div>
             <div className="flex gap-2">
-              <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+              <Select
+                value={sortOrder}
+                onValueChange={(value) => updateProjectsUrlParams({ sortOrder: value as SortOrder })}
+              >
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="정렬" />
                 </SelectTrigger>
@@ -804,11 +909,13 @@ export default function MemberDashboardPage() {
               pageSize={itemsPerPage}
               totalItems={filteredProjects.length}
               selectedCount={0}
-              onPageChange={setCurrentPage}
+              onPageChange={(page) => {
+                updateProjectsUrlParams({ projectsPage: page });
+              }}
               onPageSizeChange={(newPageSize) => {
                 setItemsPerPage(newPageSize);
                 sessionStorage.setItem("tablePageSize", newPageSize.toString());
-                setCurrentPage(1);
+                updateProjectsUrlParams({ projectsPage: 1 });
               }}
             />
           )}
