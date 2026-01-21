@@ -56,7 +56,7 @@ function getEmailTemplate(
 
     if (recipientRole === "assignee") {
       // Assignee receives: "○○님(assigner)이 당신에게 업무를 할당했습니다"
-      const subject = `[Tasko] 업무 할당: ${data.taskTitle}`;
+      const subject = `[Tasko] 새로운 업무가 할당되었습니다: ${data.taskTitle}`;
       const html = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -113,7 +113,7 @@ function getEmailTemplate(
           <tr>
             <td style="padding: 32px 40px; background-color: #fafafa; text-align: center;">
               <p style="margin: 0 0 4px; font-size: 13px; color: #86868b;">
-                © 2024 Tasko. All rights reserved.
+                © 2025 Tasko. All rights reserved.
               </p>
             </td>
           </tr>
@@ -128,7 +128,7 @@ function getEmailTemplate(
       return { subject, html };
     } else {
       // Assigner receives: "당신이 ○○님(assignee)에게 업무를 할당했습니다"
-      const subject = `[Tasko] 업무 할당 완료: ${data.taskTitle}`;
+      const subject = `[Tasko] 업무 할당이 완료되었습니다: ${data.taskTitle}`;
       const html = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -185,7 +185,7 @@ function getEmailTemplate(
           <tr>
             <td style="padding: 32px 40px; background-color: #fafafa; text-align: center;">
               <p style="margin: 0 0 4px; font-size: 13px; color: #86868b;">
-                © 2024 Tasko. All rights reserved.
+                © 2025 Tasko. All rights reserved.
               </p>
             </td>
           </tr>
@@ -239,7 +239,21 @@ function getEmailTemplate(
       statusMessage = `상태가 ${oldStatusLabel}에서 ${newStatusLabel}로 변경되었습니다`;
     }
 
-    const subject = `[Tasko] 업무 상태 변경: ${data.taskTitle}`;
+    // Determine subject based on status transition
+    let subject = "";
+    if (data.oldStatus === "IN_PROGRESS" && data.newStatus === "WAITING_CONFIRM") {
+      // 케이스 2: 완료 요청
+      subject = `[Tasko] 업무를 완료해서 당신에게 확인을 요청했습니다: ${data.taskTitle}`;
+    } else if (data.oldStatus === "WAITING_CONFIRM" && data.newStatus === "APPROVED") {
+      // 케이스 3: 승인
+      subject = `[Tasko] 당신의 업무가 승인되었습니다: ${data.taskTitle}`;
+    } else if (data.oldStatus === "WAITING_CONFIRM" && data.newStatus === "REJECTED") {
+      // 케이스 4: 반려
+      subject = `[Tasko] 당신의 업무가 반려처리 되었습니다: ${data.taskTitle}`;
+    } else {
+      // 기타 케이스 (현재는 케이스 1, 5번은 이메일 전송 안 함)
+      subject = `[Tasko] 업무 상태 변경: ${data.taskTitle}`;
+    }
     const html = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -295,7 +309,7 @@ function getEmailTemplate(
           <tr>
             <td style="padding: 32px 40px; background-color: #fafafa; text-align: center;">
               <p style="margin: 0 0 4px; font-size: 13px; color: #86868b;">
-                © 2024 Tasko. All rights reserved.
+                © 2025 Tasko. All rights reserved.
               </p>
             </td>
           </tr>
@@ -474,6 +488,20 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Check if email should be skipped (케이스 1번, 5번 제외)
+    const shouldSkipEmail =
+      emailData.eventType === "STATUS_CHANGED" &&
+      emailData.oldStatus &&
+      emailData.newStatus &&
+      ((emailData.oldStatus === "ASSIGNED" && emailData.newStatus === "IN_PROGRESS") ||
+        (emailData.oldStatus === "REJECTED" && emailData.newStatus === "IN_PROGRESS"));
+
+    if (shouldSkipEmail) {
+      console.log(
+        `[send-task-email] Email sending skipped for status transition: ${emailData.oldStatus} -> ${emailData.newStatus}`,
+      );
+    }
+
     // Determine recipients based on recipients array
     const recipientList: Array<{ role: "assigner" | "assignee"; email: string; name: string }> = [];
 
@@ -499,14 +527,30 @@ Deno.serve(async (req: Request) => {
         // Generate role-specific email template
         const { subject, html } = getEmailTemplate(emailData, recipient.role);
 
-        console.log(`[send-task-email] Sending email to ${recipient.email} (${recipient.role})`);
-        const result = await sendEmail(transporter, recipient.email, subject, html);
-        console.log(`[send-task-email] Email result for ${recipient.email}:`, {
-          success: result.success,
-          error: result.error,
-        });
+        let result: { success: boolean; error?: string };
+        let logStatus: string;
+        let sentAt: string | null = null;
 
-        // Log email attempt
+        if (shouldSkipEmail) {
+          // 이메일 전송은 스킵하지만 로그는 기록
+          console.log(
+            `[send-task-email] Skipping email to ${recipient.email} (${recipient.role}) - status transition excluded`,
+          );
+          result = { success: true }; // 로그 목적으로 성공으로 처리
+          logStatus = "skipped";
+        } else {
+          // 정상적으로 이메일 전송
+          console.log(`[send-task-email] Sending email to ${recipient.email} (${recipient.role})`);
+          result = await sendEmail(transporter, recipient.email, subject, html);
+          console.log(`[send-task-email] Email result for ${recipient.email}:`, {
+            success: result.success,
+            error: result.error,
+          });
+          logStatus = result.success ? "sent" : "failed";
+          sentAt = result.success ? new Date().toISOString() : null;
+        }
+
+        // Log email attempt (항상 로그 기록)
         // Note: Supabase JS client should automatically convert UUID strings to UUID type
         // But if there's a type mismatch error, we need to ensure the string is a valid UUID format
         const { error: logError } = await supabase.from("email_logs").insert({
@@ -514,9 +558,9 @@ Deno.serve(async (req: Request) => {
           recipient_email: recipient.email,
           recipient_name: recipient.name,
           subject,
-          status: result.success ? "sent" : "failed",
+          status: logStatus,
           error_message: result.error || null,
-          sent_at: result.success ? new Date().toISOString() : null,
+          sent_at: sentAt,
         });
 
         if (logError) {
