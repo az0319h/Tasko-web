@@ -20,6 +20,11 @@ import { uploadTaskFile } from "@/api/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -700,17 +705,24 @@ export default function ProjectDetailPage() {
       <div className="flex flex-col gap-4 pb-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex gap-4 flex-1">
-            <Button 
-              variant="ghost" 
-              size="icon"
-              className="h-9 w-9 shrink-0"
-              onClick={() => {
-                // 항상 홈으로 이동
-                navigate("/");
-              }}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => {
+                    // 항상 홈으로 이동
+                    navigate("/");
+                  }}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>브라우저 뒤로가기 권장</p>
+              </TooltipContent>
+            </Tooltip>
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold line-clamp-2">{project.title}</h1>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
