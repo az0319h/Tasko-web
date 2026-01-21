@@ -39,6 +39,11 @@ import { ChatLogGroup } from "@/components/task/chat-log-group";
 import { TaskDetailDialog } from "@/components/task/task-detail-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
@@ -1058,21 +1063,28 @@ export default function TaskDetailPage() {
       <header className="bg-background  shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 py-2">
           {/* 뒤로가기 버튼 */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              // 항상 프로젝트 상세로 이동
-              if (task?.project_id) {
-                navigate(`/projects/${task.project_id}`);
-              } else {
-                navigate("/");
-              }
-            }}
-            className="h-9 w-9 shrink-0"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  // 항상 프로젝트 상세로 이동
+                  if (task?.project_id) {
+                    navigate(`/projects/${task.project_id}`);
+                  } else {
+                    navigate("/");
+                  }
+                }}
+                className="h-9 w-9 shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>브라우저 뒤로가기 권장</p>
+            </TooltipContent>
+          </Tooltip>
 
           {/* 상대방 아바타 */}
           <ProfileAvatar
