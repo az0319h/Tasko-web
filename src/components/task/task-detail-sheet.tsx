@@ -80,14 +80,6 @@ export function TaskDetailSheet({
         </SheetHeader>
 
         <div className="space-y-6 py-4">
-          {/* 계정 ID */}
-          {task.project && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">계정 ID</h3>
-              <p className="text-base font-medium">{task.project.title}</p>
-            </div>
-          )}
-
           {/* 고유 ID */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">고유 ID</h3>
@@ -95,10 +87,10 @@ export function TaskDetailSheet({
           </div>
 
           {/* 고객명 */}
-          {task.project && (
+          {task.client_name && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">고객명</h3>
-              <p className="text-base font-medium">{task.project.client_name}</p>
+              <p className="text-base font-medium">{task.client_name}</p>
             </div>
           )}
 

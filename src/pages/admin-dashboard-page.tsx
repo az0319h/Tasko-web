@@ -2,16 +2,18 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router";
 import { Search, Plus, ArrowUpDown, ChevronDown } from "lucide-react";
 import {
-  useProjects,
   useIsAdmin,
-  useCreateProject,
   useTasksForMember,
+  useTasksForAdmin,
   useCurrentProfile,
 } from "@/hooks";
 import { useDebounce } from "@/hooks";
-import { ProjectFormDialog } from "@/components/project/project-form-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
-import { useUpdateTaskStatus } from "@/hooks/mutations/use-task";
+import { useUpdateTaskStatus, useCreateTask } from "@/hooks/mutations/use-task";
+import { TaskFormDialog } from "@/components/task/task-form-dialog";
+import { useCreateMessageWithFiles } from "@/hooks/mutations/use-message";
+import { uploadTaskFile } from "@/api/storage";
+import type { TaskCreateFormData, TaskCreateSpecificationFormData } from "@/schemas/task/task-schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -30,11 +32,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TablePagination } from "@/components/common/table-pagination";
-import { useTasks } from "@/hooks/queries/use-tasks";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import { cn } from "@/lib/utils";
-import type { Project } from "@/api/project";
-import type { ProjectFormData } from "@/schemas/project/project-schema";
 import type { TaskWithProfiles } from "@/api/task";
 import type { TaskStatus } from "@/lib/task-status";
 import { toast } from "sonner";
@@ -124,12 +123,10 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
   }
 }
 
-type SortOrder = "newest" | "oldest";
-type DashboardTab = "kanban" | "projects";
-type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
-type CategoryParam = "all" | "review" | "contract" | "spec" | "apply";
+type DashboardTab = "all-tasks" | "my-tasks";
 type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rejected" | "approved";
 type SortDueParam = "asc" | "desc";
+type CategoryParam = "all" | "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
 /**
  * Admin 대시보드 페이지
@@ -137,26 +134,25 @@ type SortDueParam = "asc" | "desc";
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: allProjects = [], isLoading: projectsLoading } = useProjects();
   const { data: isAdmin } = useIsAdmin();
   const { data: currentProfile } = useCurrentProfile();
-  // 상태 필터에 "승인됨"이 포함되어 있으므로 모든 상태의 Task 조회
-  const { data: myTasks = [], isLoading: tasksLoading } = useTasksForMember(false);
-  const createProject = useCreateProject();
+  // 전체 태스크 탭: 모든 태스크 조회 (승인됨 포함)
+  const { data: allTasks = [], isLoading: allTasksLoading } = useTasksForAdmin(false);
+  // 담당 업무 탭: 지시자/담당자인 태스크 중 승인됨이 아닌 것만
+  const { data: myTasks = [], isLoading: myTasksLoading } = useTasksForMember(true);
   const updateTaskStatus = useUpdateTaskStatus();
+  const createTask = useCreateTask();
+  const createMessageWithFiles = useCreateMessageWithFiles();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // 탭 상태 - URL 쿼리 파라미터에서 읽기
-  const layoutParam = searchParams.get("layout") as DashboardTab | null;
+  const tabParam = searchParams.get("tab") as DashboardTab | null;
   const [activeTab, setActiveTab] = useState<DashboardTab>(
-    layoutParam === "kanban" || layoutParam === "projects" ? layoutParam : "kanban",
+    tabParam === "all-tasks" || tabParam === "my-tasks" ? tabParam : "my-tasks",
   );
 
-  // URL params 읽기 (내가 관련된 프로젝트 탭용)
-  const categoryParam = searchParams.get("category") as CategoryParam | null;
-  const validCategories: CategoryParam[] = ["all", "review", "contract", "spec", "apply"];
-  const category: CategoryParam =
-    categoryParam && validCategories.includes(categoryParam) ? categoryParam : "all";
+  // URL params 읽기 (전체 태스크 탭 및 담당 업무 탭용)
+  const currentTabFromUrl = searchParams.get("tab") as DashboardTab | null;
 
   // 검색어는 로컬 state만 사용 (URL params 제거, 전체 프로젝트 탭과 동일)
   const [searchQuery, setSearchQuery] = useState("");
@@ -164,6 +160,11 @@ export default function AdminDashboardPage() {
   const sortDueParam = searchParams.get("sortDue") as SortDueParam | null;
   const sortDue: SortDueParam =
     sortDueParam === "asc" || sortDueParam === "desc" ? sortDueParam : "asc";
+
+  const categoryParam = searchParams.get("category") as CategoryParam | null;
+  const validCategoryParams: CategoryParam[] = ["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"];
+  const category: CategoryParam =
+    categoryParam && validCategoryParams.includes(categoryParam) ? categoryParam : "all";
 
   const statusParam = searchParams.get("status") as StatusParam | null;
   const validStatusParams: StatusParam[] = [
@@ -178,7 +179,7 @@ export default function AdminDashboardPage() {
     statusParam && validStatusParams.includes(statusParam) ? statusParam : "all";
 
   // 다이얼로그 상태
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     taskId: string;
@@ -187,38 +188,39 @@ export default function AdminDashboardPage() {
     taskTitle: string;
   } | null>(null);
 
-  // 검색 및 필터 상태 (프로젝트 탭용)
-  const [projectsSearchQuery, setProjectsSearchQuery] = useState("");
+  // 빠른 생성 관련 상태
+  const [preSelectedCategory, setPreSelectedCategory] = useState<
+    "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
+  >(undefined);
+  const [autoFillMode, setAutoFillMode] = useState<
+    "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
+  >(undefined);
+  const [preFilledTitle, setPreFilledTitle] = useState<string | undefined>(undefined);
+  const [isSpecificationMode, setIsSpecificationMode] = useState(false);
 
-  // 정렬 순서 - URL params에서 읽기
-  const sortOrderParam = searchParams.get("sortOrder") as SortOrder | null;
-  const sortOrder: SortOrder =
-    sortOrderParam === "newest" || sortOrderParam === "oldest" ? sortOrderParam : "newest";
-
-  // 페이지네이션 상태 (담당 업무 탭용) - URL에서 직접 읽기 (다른 파라미터들과 동일한 방식)
-  const tasksPageParam = searchParams.get("tasksPage");
-  const tasksCurrentPage = tasksPageParam ? Math.max(1, parseInt(tasksPageParam, 10)) : 1;
-  const [tasksItemsPerPage, setTasksItemsPerPage] = useState(() => {
+  // 페이지네이션 상태 (전체 태스크 탭용)
+  const allTasksPageParam = searchParams.get("allTasksPage");
+  const allTasksCurrentPage = allTasksPageParam ? Math.max(1, parseInt(allTasksPageParam, 10)) : 1;
+  const [allTasksItemsPerPage, setAllTasksItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
   });
 
-  // 페이지네이션 상태 (프로젝트 탭용) - URL에서 직접 읽기 (다른 파라미터들과 동일한 방식)
-  const projectsPageParam = searchParams.get("projectsPage");
-  const currentPage = projectsPageParam ? Math.max(1, parseInt(projectsPageParam, 10)) : 1;
-  const [itemsPerPage, setItemsPerPage] = useState(() => {
+  // 페이지네이션 상태 (담당 업무 탭용) - URL에서 직접 읽기 (다른 파라미터들과 동일한 방식)
+  const myTasksPageParam = searchParams.get("myTasksPage");
+  const myTasksCurrentPage = myTasksPageParam ? Math.max(1, parseInt(myTasksPageParam, 10)) : 1;
+  const [myTasksItemsPerPage, setMyTasksItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
   });
 
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
-  const debouncedProjectsSearch = useDebounce(projectsSearchQuery, 300);
 
   // 마운트 여부 및 이전 필터 값 추적 (페이지 리셋 조건 판단용)
   const isFirstRenderRef = useRef(true);
-  const prevTasksFiltersRef = useRef({ search: "", category: "all" as CategoryParam, status: "all" as StatusParam, sortDue: "asc" as SortDueParam });
-  const prevProjectsFiltersRef = useRef({ search: "", sortOrder: "newest" as SortOrder });
+  const prevAllTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
+  const prevMyTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
 
   // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
   useEffect(() => {
@@ -228,114 +230,91 @@ export default function AdminDashboardPage() {
     }
   }, [location.pathname, location.search]);
 
-  // 프로젝트 생성 핸들러
-  const handleCreateProject = async (data: ProjectFormData) => {
-    if ("participant_ids" in data) {
-      const newProject = await createProject.mutateAsync({
-        project: {
-          title: data.title,
-          client_name: data.client_name,
-        },
-        participantIds: data.participant_ids,
-      });
-      setCreateDialogOpen(false);
-      // 현재 URL을 세션 스토리지에 저장 후 프로젝트 상세 페이지로 이동
-      const currentUrl = location.pathname + location.search;
-      sessionStorage.setItem("previousDashboardUrl", currentUrl);
-      navigate(`/projects/${newProject.id}`);
-    }
-  };
 
-  // URL params 업데이트 헬퍼 함수 (담당 업무 탭용)
-  const updateTasksUrlParams = (
+  // URL params 업데이트 헬퍼 함수 (전체 태스크 탭용)
+  const updateAllTasksUrlParams = (
     updates?: Partial<{
-      category: CategoryParam;
       sortDue: SortDueParam;
+      category: CategoryParam;
       status: StatusParam;
-      tasksPage?: number;
+      allTasksPage?: number;
     }>,
   ) => {
-    const newParams = new URLSearchParams(searchParams);
+    const newParams = new URLSearchParams();
 
-    // layout 파라미터 설정
-    newParams.set("layout", "kanban");
+    // tab 파라미터 설정 (항상 설정)
+    newParams.set("tab", "all-tasks");
 
     // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
-    const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const statusToSet = updates?.status !== undefined ? updates.status : status;
-    const tasksPageToSet = updates?.tasksPage !== undefined ? updates.tasksPage : tasksCurrentPage;
-
-    // category 설정
-    if (categoryToSet === "all") {
-      newParams.delete("category");
-    } else {
-      newParams.set("category", categoryToSet);
-    }
+    const allTasksPageToSet = updates?.allTasksPage !== undefined ? updates.allTasksPage : allTasksCurrentPage;
 
     // sortDue 설정
-    if (sortDueToSet === "asc") {
-      newParams.delete("sortDue");
-    } else {
+    if (sortDueToSet !== "asc") {
       newParams.set("sortDue", sortDueToSet);
     }
 
+    // category 설정
+    if (categoryToSet !== "all") {
+      newParams.set("category", categoryToSet);
+    }
+
     // status 설정
-    if (statusToSet === "all") {
-      newParams.delete("status");
-    } else {
+    if (statusToSet !== "all") {
       newParams.set("status", statusToSet);
     }
 
-    // tasksPage 설정
-    if (tasksPageToSet === 1 || tasksPageToSet === undefined) {
-      newParams.delete("tasksPage");
-    } else {
-      newParams.set("tasksPage", tasksPageToSet.toString());
+    // allTasksPage 설정
+    if (allTasksPageToSet !== undefined && allTasksPageToSet !== 1) {
+      newParams.set("allTasksPage", allTasksPageToSet.toString());
     }
-
-    // 프로젝트 탭 파라미터 제거 (탭 전환 시)
-    newParams.delete("projectsPage");
-    newParams.delete("sortOrder");
 
     setSearchParams(newParams, { replace: true });
   };
 
-  // URL params 업데이트 헬퍼 함수 (프로젝트 탭용)
-  const updateProjectsUrlParams = (updates?: Partial<{ projectsPage: number; sortOrder: SortOrder }>) => {
-    const newParams = new URLSearchParams(searchParams);
+  // URL params 업데이트 헬퍼 함수 (담당 업무 탭용)
+  const updateMyTasksUrlParams = (
+    updates?: Partial<{
+      sortDue: SortDueParam;
+      category: CategoryParam;
+      status: StatusParam;
+      myTasksPage?: number;
+    }>,
+  ) => {
+    const newParams = new URLSearchParams();
 
-    // layout 파라미터 설정
-    newParams.set("layout", "projects");
+    // tab 파라미터 설정 (항상 설정)
+    newParams.set("tab", "my-tasks");
 
-    // 페이지 설정 (업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용)
-    const pageToSet = updates?.projectsPage !== undefined ? updates.projectsPage : currentPage;
-    if (pageToSet === 1) {
-      newParams.delete("projectsPage");
-    } else {
-      newParams.set("projectsPage", pageToSet.toString());
+    // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
+    const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const myTasksPageToSet = updates?.myTasksPage !== undefined ? updates.myTasksPage : myTasksCurrentPage;
+
+    // sortDue 설정
+    if (sortDueToSet !== "asc") {
+      newParams.set("sortDue", sortDueToSet);
     }
 
-    // 정렬 순서 설정
-    const sortOrderToSet = updates?.sortOrder !== undefined ? updates.sortOrder : sortOrder;
-    if (sortOrderToSet === "newest") {
-      newParams.delete("sortOrder");
-    } else {
-      newParams.set("sortOrder", sortOrderToSet);
+    // category 설정
+    if (categoryToSet !== "all") {
+      newParams.set("category", categoryToSet);
     }
 
-    // 담당 업무 탭 파라미터 제거 (탭 전환 시)
-    newParams.delete("tasksPage");
-    newParams.delete("category");
-    newParams.delete("sortDue");
-    newParams.delete("status");
+    // status 설정
+    if (statusToSet !== "all") {
+      newParams.set("status", statusToSet);
+    }
+
+    // myTasksPage 설정
+    if (myTasksPageToSet !== undefined && myTasksPageToSet !== 1) {
+      newParams.set("myTasksPage", myTasksPageToSet.toString());
+    }
 
     setSearchParams(newParams, { replace: true });
-  };
-
-  // 카테고리 변경 핸들러
-  const handleCategoryChange = (newCategory: CategoryParam) => {
-    updateTasksUrlParams({ category: newCategory });
   };
 
   // 검색어 변경 핸들러 (로컬 state만 업데이트, URL params 사용 안 함)
@@ -343,20 +322,43 @@ export default function AdminDashboardPage() {
     setSearchQuery(value);
   };
 
-  // 정렬 변경 핸들러
-  const handleSortDueChange = () => {
+  // 정렬 변경 핸들러 (전체 태스크 탭용)
+  const handleAllTasksSortDueChange = () => {
     const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
-    updateTasksUrlParams({ sortDue: newSortDue });
+    updateAllTasksUrlParams({ sortDue: newSortDue });
   };
 
-  // 상태 필터 변경 핸들러
-  const handleStatusChange = (newStatus: StatusParam) => {
-    updateTasksUrlParams({ status: newStatus });
+  // 정렬 변경 핸들러 (담당 업무 탭용)
+  const handleMyTasksSortDueChange = () => {
+    const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
+    updateMyTasksUrlParams({ sortDue: newSortDue });
+  };
+
+  // 카테고리 필터 변경 핸들러 (전체 태스크 탭용)
+  const handleAllTasksCategoryChange = (newCategory: CategoryParam) => {
+    updateAllTasksUrlParams({ category: newCategory });
+  };
+
+  // 카테고리 필터 변경 핸들러 (담당 업무 탭용)
+  const handleMyTasksCategoryChange = (newCategory: CategoryParam) => {
+    updateMyTasksUrlParams({ category: newCategory });
+  };
+
+  // 상태 필터 변경 핸들러 (전체 태스크 탭용)
+  const handleAllTasksStatusChange = (newStatus: StatusParam) => {
+    updateAllTasksUrlParams({ status: newStatus });
+  };
+
+  // 상태 필터 변경 핸들러 (담당 업무 탭용)
+  const handleMyTasksStatusChange = (newStatus: StatusParam) => {
+    updateMyTasksUrlParams({ status: newStatus });
   };
 
   // Task 상태 변경 핸들러
   const handleTaskStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    const task = myTasks.find((t) => t.id === taskId);
+    const task = activeTab === "all-tasks" 
+      ? allTasks.find((t) => t.id === taskId)
+      : myTasks.find((t) => t.id === taskId);
     if (task) {
       setPendingStatusChange({
         taskId,
@@ -384,22 +386,214 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // 프로젝트 맵 생성 (빠른 조회를 위해)
-  const projectMap = useMemo(() => {
-    const map = new Map<string, Project>();
-    allProjects.forEach((project) => {
-      map.set(project.id, project);
-    });
-    return map;
-  }, [allProjects]);
+  // 빠른 생성 핸들러
+  const handleQuickCreate = (
+    category: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION",
+    title?: string,
+  ) => {
+    setPreSelectedCategory(category);
+    setAutoFillMode(category);
 
-  // 카테고리 매핑 (URL → DB)
-  const categoryMap: Record<Exclude<CategoryParam, "all">, TaskCategory> = {
-    review: "REVIEW",
-    contract: "CONTRACT",
-    spec: "SPECIFICATION",
-    apply: "APPLICATION",
+    if (category === "SPECIFICATION") {
+      // 명세서 모드: 2개 Task 자동 생성
+      setPreFilledTitle(undefined);
+      setIsSpecificationMode(true);
+    } else {
+      // 일반 모드: 제목 자동 입력
+      setPreFilledTitle(title);
+      setIsSpecificationMode(false);
+    }
+
+    setCreateTaskDialogOpen(true);
   };
+
+  // 명세서 모드 핸들러 (2개 Task 자동 생성)
+  const handleCreateSpecificationTasks = async (
+    assigneeId: string,
+    clientName: string,
+    files?: File[],
+    notes?: string,
+  ) => {
+    if (!currentProfile?.id) return;
+
+    try {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const date = today.getDate();
+
+      // Task 1: 청구안 및 도면 (오늘 + 3일)
+      const dueDate1 = new Date(year, month, date + 3);
+      const dueDate1Str = `${dueDate1.getFullYear()}-${String(dueDate1.getMonth() + 1).padStart(2, "0")}-${String(dueDate1.getDate()).padStart(2, "0")}`;
+
+      // Task 2: 초안 작성 (오늘 + 10일)
+      const dueDate2 = new Date(year, month, date + 10);
+      const dueDate2Str = `${dueDate2.getFullYear()}-${String(dueDate2.getMonth() + 1).padStart(2, "0")}-${String(dueDate2.getDate()).padStart(2, "0")}`;
+
+      // Task 1 생성
+      const task1 = await createTask.mutateAsync({
+        title: "청구안 및 도면",
+        assignee_id: assigneeId,
+        due_date: dueDate1Str,
+        task_category: "SPECIFICATION",
+        client_name: clientName,
+      });
+
+      // Task 2 생성
+      const task2 = await createTask.mutateAsync({
+        title: "초안 작성",
+        assignee_id: assigneeId,
+        due_date: dueDate2Str,
+        task_category: "SPECIFICATION",
+        client_name: clientName,
+      });
+
+      // 각 Task에 특이사항/파일 메시지 생성
+      const createMessagesForTask = async (taskId: string, assignerId: string) => {
+        const hasNotes = notes && notes.trim().length > 0;
+        const hasFiles = files && files.length > 0;
+
+        if (hasNotes || hasFiles) {
+          const uploadedFiles: Array<{
+            url: string;
+            fileName: string;
+            fileType: string;
+            fileSize: number;
+          }> = [];
+
+          if (hasFiles) {
+            for (const file of files) {
+              try {
+                const fileInfo = await uploadTaskFile(file, taskId, assignerId);
+                uploadedFiles.push(fileInfo);
+              } catch (error: any) {
+                toast.error(`${file.name} 업로드 실패: ${error.message}`);
+              }
+            }
+          }
+
+          if (hasNotes || uploadedFiles.length > 0) {
+            const bundleId = uploadedFiles.length > 0 ? crypto.randomUUID() : undefined;
+            await createMessageWithFiles.mutateAsync({
+              taskId,
+              content: hasNotes ? notes.trim() : null,
+              files: uploadedFiles,
+              bundleId,
+            });
+          }
+        }
+      };
+
+      await createMessagesForTask(task1.id, currentProfile.id);
+      await createMessagesForTask(task2.id, currentProfile.id);
+
+      setCreateTaskDialogOpen(false);
+      setIsSpecificationMode(false);
+      setPreSelectedCategory(undefined);
+      setAutoFillMode(undefined);
+      setPreFilledTitle(undefined);
+
+      // 명세서 Task 생성 완료: 새 탭 2개 열기
+      // 브라우저 팝업 차단을 피하기 위해 사용자 상호작용 컨텍스트 내에서 동기적으로 연속으로 열기
+      // 비동기 함수(setTimeout, requestAnimationFrame 등)를 사용하면 사용자 상호작용 컨텍스트가 끊겨서 차단될 수 있음
+      const tab1 = window.open(`/tasks/${task1.id}`, "_blank");
+      const tab2 = window.open(`/tasks/${task2.id}`, "_blank");
+      
+      // 탭이 차단되었는지 확인
+      if (!tab1 || tab1.closed || typeof tab1.closed === "undefined") {
+        toast.info("첫 번째 Task 상세 페이지를 새 탭에서 열 수 없습니다. 직접 이동해주세요.");
+      }
+      if (!tab2 || tab2.closed || typeof tab2.closed === "undefined") {
+        toast.info("두 번째 Task 상세 페이지를 새 탭에서 열 수 없습니다. 직접 이동해주세요.");
+      }
+
+      toast.success("명세서 Task 2개가 생성되었습니다.");
+    } catch (error: any) {
+      toast.error(`명세서 Task 생성 중 오류가 발생했습니다: ${error.message}`);
+    }
+  };
+
+  // 태스크 생성 핸들러
+  const handleCreateTask = async (
+    data: TaskCreateFormData | TaskCreateSpecificationFormData | any,
+    files?: File[],
+    notes?: string,
+  ) => {
+    // 명세서 모드인 경우 별도 처리
+    if (isSpecificationMode) {
+      const specificationData = data as any;
+      if (!specificationData.client_name || specificationData.client_name.trim() === "") {
+        toast.error("고객명을 입력해주세요.");
+        return;
+      }
+      await handleCreateSpecificationTasks(
+        specificationData.assignee_id,
+        specificationData.client_name,
+        files,
+        notes,
+      );
+      return;
+    }
+
+    try {
+      // 1. 태스크 생성
+      const createData = data as TaskCreateFormData;
+      const newTask = await createTask.mutateAsync({
+        title: createData.title,
+        assignee_id: createData.assignee_id,
+        task_category: createData.task_category,
+        client_name: createData.client_name || null,
+        due_date: createData.due_date,
+      });
+
+      // 2. 파일이 있으면 업로드 후 메시지로 전송
+      const uploadedFiles: Array<{
+        url: string;
+        fileName: string;
+        fileType: string;
+        fileSize: number;
+      }> = [];
+
+      if (files && files.length > 0 && currentProfile?.id) {
+        for (const file of files) {
+          try {
+            const { url, fileName, fileType, fileSize } = await uploadTaskFile(
+              file,
+              newTask.id,
+              currentProfile.id,
+            );
+            uploadedFiles.push({ url, fileName, fileType, fileSize });
+          } catch (error: any) {
+            toast.error(`${file.name} 업로드 실패: ${error.message}`);
+          }
+        }
+      }
+
+      // 3. 특이사항이나 파일이 있으면 메시지로 전송
+      if ((notes && notes.trim()) || uploadedFiles.length > 0) {
+        const bundleId = uploadedFiles.length > 0 ? crypto.randomUUID() : undefined;
+        await createMessageWithFiles.mutateAsync({
+          taskId: newTask.id,
+          content: notes && notes.trim() ? notes.trim() : null,
+          files: uploadedFiles,
+          bundleId,
+        });
+      }
+
+      // 4. 다이얼로그 닫기 및 상태 초기화
+      setCreateTaskDialogOpen(false);
+      setPreSelectedCategory(undefined);
+      setAutoFillMode(undefined);
+      setPreFilledTitle(undefined);
+      setIsSpecificationMode(false);
+
+      // 5. 생성한 Task 상세 페이지로 이동 (동일 탭)
+      navigate(`/tasks/${newTask.id}`);
+    } catch (error: any) {
+      toast.error(error.message || "태스크 생성에 실패했습니다.");
+    }
+  };
+
 
   // 상태 매핑 (URL → DB)
   const statusMap: Record<StatusParam, TaskStatus | null> = {
@@ -411,71 +605,44 @@ export default function AdminDashboardPage() {
     approved: "APPROVED",
   };
 
-  // 1단계: "내가 관련된 Task" 필터링
-  const myRelatedTasks = useMemo(() => {
-    if (!currentProfile?.id) return [];
-    return myTasks.filter(
-      (task) => task.assigner_id === currentProfile.id || task.assignee_id === currentProfile.id,
-    );
-  }, [myTasks, currentProfile?.id]);
-
-  // 카테고리별 Task 개수 계산 (승인됨 제외)
-  const categoryCounts = useMemo(() => {
-    // 승인됨 상태를 제외한 tasks
-    const nonApprovedTasks = myRelatedTasks.filter((task) => task.task_status !== "APPROVED");
-    
-    return {
-      all: nonApprovedTasks.length,
-      review: nonApprovedTasks.filter((task) => task.task_category === "REVIEW").length,
-      contract: nonApprovedTasks.filter((task) => task.task_category === "CONTRACT").length,
-      spec: nonApprovedTasks.filter((task) => task.task_category === "SPECIFICATION").length,
-      apply: nonApprovedTasks.filter((task) => task.task_category === "APPLICATION").length,
-    };
-  }, [myRelatedTasks]);
-
-  // 2단계: 카테고리 필터링
-  const categoryFilteredTasks = useMemo(() => {
-    if (category === "all") {
-      return myRelatedTasks; // 전체 선택 시 필터링 안 함
-    }
-    const dbCategory = categoryMap[category];
-    return myRelatedTasks.filter((task) => task.task_category === dbCategory);
-  }, [myRelatedTasks, category]);
-
-  // 3단계: 검색 필터링
-  const searchedTasks = useMemo(() => {
-    if (!debouncedSearch.trim()) return categoryFilteredTasks;
+  // 전체 태스크 탭: 검색 필터링
+  const searchedAllTasks = useMemo(() => {
+    if (!debouncedSearch.trim()) return allTasks;
 
     const query = debouncedSearch.toLowerCase();
-    return categoryFilteredTasks.filter((task) => {
+    return allTasks.filter((task) => {
       const titleMatch = task.title.toLowerCase().includes(query);
       const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase();
       const assigneeMatch = assigneeName.includes(query);
       const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
       const assignerMatch = assignerName.includes(query);
-      const project = projectMap.get(task.project_id);
-      const projectTitleMatch = project?.title.toLowerCase().includes(query) || false;
-      const projectClientMatch = project?.client_name.toLowerCase().includes(query) || false;
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+      const uniqueIdMatch = task.id.slice(0, 8).toUpperCase().includes(query.toUpperCase());
 
-      return (
-        titleMatch || assigneeMatch || assignerMatch || projectTitleMatch || projectClientMatch
-      );
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
     });
-  }, [categoryFilteredTasks, debouncedSearch, projectMap]);
+  }, [allTasks, debouncedSearch]);
 
-  // 4단계: 상태 필터링
-  const statusFilteredTasks = useMemo(() => {
+  // 전체 태스크 탭: 카테고리 필터링
+  const categoryFilteredAllTasks = useMemo(() => {
+    if (category === "all") {
+      return searchedAllTasks;
+    }
+    return searchedAllTasks.filter((task) => task.task_category === category);
+  }, [searchedAllTasks, category]);
+
+  // 전체 태스크 탭: 상태 필터링
+  const statusFilteredAllTasks = useMemo(() => {
     const dbStatus = statusMap[status];
     if (dbStatus === null) {
-      // 전체 선택 시 승인됨(APPROVED) 제외
-      return searchedTasks.filter((task) => task.task_status !== "APPROVED");
+      return categoryFilteredAllTasks; // 전체 선택 시 모든 상태 표시
     }
-    return searchedTasks.filter((task) => task.task_status === dbStatus);
-  }, [searchedTasks, status]);
+    return categoryFilteredAllTasks.filter((task) => task.task_status === dbStatus);
+  }, [categoryFilteredAllTasks, status, statusMap]);
 
-  // 5단계: 정렬
-  const sortedTasks = useMemo(() => {
-    const sorted = [...statusFilteredTasks];
+  // 전체 태스크 탭: 정렬
+  const sortedAllTasks = useMemo(() => {
+    const sorted = [...statusFilteredAllTasks];
 
     sorted.sort((a, b) => {
       if (sortDue === "asc") {
@@ -494,54 +661,84 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [statusFilteredTasks, sortDue]);
+  }, [statusFilteredAllTasks, sortDue]);
 
-  // 클라이언트 사이드 페이지네이션 (담당 업무 탭용)
-  const paginatedTasks = useMemo(() => {
-    const startIndex = (tasksCurrentPage - 1) * tasksItemsPerPage;
-    const endIndex = startIndex + tasksItemsPerPage;
-    return sortedTasks.slice(startIndex, endIndex);
-  }, [sortedTasks, tasksCurrentPage, tasksItemsPerPage]);
+  // 전체 태스크 탭: 페이지네이션
+  const paginatedAllTasks = useMemo(() => {
+    const startIndex = (allTasksCurrentPage - 1) * allTasksItemsPerPage;
+    const endIndex = startIndex + allTasksItemsPerPage;
+    return sortedAllTasks.slice(startIndex, endIndex);
+  }, [sortedAllTasks, allTasksCurrentPage, allTasksItemsPerPage]);
 
-  // 총 페이지 수 (담당 업무 탭용)
-  const tasksTotalPages = Math.ceil(sortedTasks.length / tasksItemsPerPage) || 1;
+  // 전체 태스크 탭: 총 페이지 수
+  const allTasksTotalPages = Math.ceil(sortedAllTasks.length / allTasksItemsPerPage) || 1;
 
-  // 클라이언트 사이드 필터링 및 정렬 (프로젝트 탭용)
-  const filteredProjects = useMemo(() => {
-    let filtered = [...allProjects];
+  // 담당 업무 탭: 검색 필터링
+  const searchedMyTasks = useMemo(() => {
+    if (!debouncedSearch.trim()) return myTasks;
 
-    // 검색 필터
-    if (debouncedProjectsSearch) {
-      const searchLower = debouncedProjectsSearch.toLowerCase();
-      filtered = filtered.filter(
-        (project) =>
-          project.title.toLowerCase().includes(searchLower) ||
-          project.client_name.toLowerCase().includes(searchLower),
-      );
+    const query = debouncedSearch.toLowerCase();
+    return myTasks.filter((task) => {
+      const titleMatch = task.title.toLowerCase().includes(query);
+      const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase();
+      const assigneeMatch = assigneeName.includes(query);
+      const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
+      const assignerMatch = assignerName.includes(query);
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch;
+    });
+  }, [myTasks, debouncedSearch]);
+
+  // 담당 업무 탭: 카테고리 필터링
+  const categoryFilteredMyTasks = useMemo(() => {
+    if (category === "all") {
+      return searchedMyTasks;
     }
+    return searchedMyTasks.filter((task) => task.task_category === category);
+  }, [searchedMyTasks, category]);
 
-    // 정렬
-    filtered.sort((a, b) => {
-      if (sortOrder === "newest") {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      } else if (sortOrder === "oldest") {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  // 담당 업무 탭: 상태 필터링
+  const statusFilteredMyTasks = useMemo(() => {
+    const dbStatus = statusMap[status];
+    if (dbStatus === null) {
+      return categoryFilteredMyTasks; // 전체 선택 시 모든 상태 표시 (이미 승인됨 제외된 상태)
+    }
+    return categoryFilteredMyTasks.filter((task) => task.task_status === dbStatus);
+  }, [categoryFilteredMyTasks, status, statusMap]);
+
+  // 담당 업무 탭: 정렬
+  const sortedMyTasks = useMemo(() => {
+    const sorted = [...statusFilteredMyTasks];
+
+    sorted.sort((a, b) => {
+      if (sortDue === "asc") {
+        // 마감일 빠른 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else {
+        // 마감일 느린 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
       }
-      return 0;
     });
 
-    return filtered;
-  }, [allProjects, debouncedProjectsSearch, sortOrder]);
+    return sorted;
+  }, [statusFilteredMyTasks, sortDue]);
 
-  // 클라이언트 사이드 페이지네이션 (프로젝트 탭용)
-  const paginatedProjects = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredProjects.slice(startIndex, endIndex);
-  }, [filteredProjects, currentPage, itemsPerPage]);
+  // 담당 업무 탭: 페이지네이션
+  const paginatedMyTasks = useMemo(() => {
+    const startIndex = (myTasksCurrentPage - 1) * myTasksItemsPerPage;
+    const endIndex = startIndex + myTasksItemsPerPage;
+    return sortedMyTasks.slice(startIndex, endIndex);
+  }, [sortedMyTasks, myTasksCurrentPage, myTasksItemsPerPage]);
 
-  // 총 페이지 수
-  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage) || 1;
+  // 담당 업무 탭: 총 페이지 수
+  const myTasksTotalPages = Math.ceil(sortedMyTasks.length / myTasksItemsPerPage) || 1;
 
   // URL에서 q 파라미터 제거 (컴포넌트 마운트 시)
   useEffect(() => {
@@ -554,67 +751,64 @@ export default function AdminDashboardPage() {
 
   // URL 쿼리 파라미터 변경 시 탭 상태 동기화
   useEffect(() => {
-    const layoutParam = searchParams.get("layout") as DashboardTab | null;
-    const newTab = layoutParam === "kanban" || layoutParam === "projects" ? layoutParam : "kanban";
+    const tabParam = searchParams.get("tab") as DashboardTab | null;
+    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" ? tabParam : "my-tasks";
     
     if (newTab !== activeTab) {
       setActiveTab(newTab);
     }
   }, [searchParams, activeTab]);
 
-  // 검색어/필터 변경 시 1페이지로 리셋 (담당 업무 탭)
-  // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
+  // 검색어/필터 변경 시 1페이지로 리셋 (전체 태스크 탭)
   useEffect(() => {
-    // 첫 렌더링 시에는 URL 파라미터 유지
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false;
-      prevTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
-      prevProjectsFiltersRef.current = { search: debouncedProjectsSearch, sortOrder };
+      prevAllTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+      prevMyTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
       return;
     }
 
-    // 담당 업무 탭: 필터가 실제로 변경되었을 때만 1페이지로 리셋
-    const prev = prevTasksFiltersRef.current;
-    const tasksFiltersChanged =
+    const prev = prevAllTasksFiltersRef.current;
+    const allTasksFiltersChanged =
       prev.search !== debouncedSearch ||
       prev.category !== category ||
       prev.status !== status ||
       prev.sortDue !== sortDue;
 
-    if (tasksFiltersChanged && activeTab === "kanban" && tasksCurrentPage !== 1) {
-      updateTasksUrlParams({ tasksPage: 1 });
+    if (allTasksFiltersChanged && activeTab === "all-tasks" && allTasksCurrentPage !== 1) {
+      updateAllTasksUrlParams({ allTasksPage: 1 });
     }
 
-    prevTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
-  }, [debouncedSearch, category, status, sortDue, activeTab, tasksCurrentPage]);
+    prevAllTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+  }, [debouncedSearch, category, status, sortDue, activeTab, allTasksCurrentPage]);
 
-  // 검색어/필터 변경 시 1페이지로 리셋 (프로젝트 탭)
-  // 단, 첫 렌더링(새로고침/뒤로가기)에서는 URL의 페이지 번호를 유지
+  // 검색어/필터 변경 시 1페이지로 리셋 (담당 업무 탭)
   useEffect(() => {
-    // 프로젝트 탭: 필터가 실제로 변경되었을 때만 1페이지로 리셋
-    const prev = prevProjectsFiltersRef.current;
-    const projectsFiltersChanged =
-      prev.search !== debouncedProjectsSearch ||
-      prev.sortOrder !== sortOrder;
+    const prev = prevMyTasksFiltersRef.current;
+    const myTasksFiltersChanged =
+      prev.search !== debouncedSearch ||
+      prev.category !== category ||
+      prev.status !== status ||
+      prev.sortDue !== sortDue;
 
-    if (projectsFiltersChanged && activeTab === "projects" && currentPage !== 1) {
-      updateProjectsUrlParams({ projectsPage: 1, sortOrder });
+    if (myTasksFiltersChanged && activeTab === "my-tasks" && myTasksCurrentPage !== 1) {
+      updateMyTasksUrlParams({ myTasksPage: 1 });
     }
 
-    prevProjectsFiltersRef.current = { search: debouncedProjectsSearch, sortOrder };
-  }, [debouncedProjectsSearch, sortOrder, activeTab, currentPage]);
+    prevMyTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+  }, [debouncedSearch, category, status, sortDue, activeTab, myTasksCurrentPage]);
 
   // 잘못된 페이지 번호 체크 및 리셋
   useEffect(() => {
-    if (activeTab === "kanban" && tasksTotalPages > 0 && tasksCurrentPage > tasksTotalPages) {
-      updateTasksUrlParams({ tasksPage: 1 });
+    if (activeTab === "all-tasks" && allTasksTotalPages > 0 && allTasksCurrentPage > allTasksTotalPages) {
+      updateAllTasksUrlParams({ allTasksPage: 1 });
     }
-    if (activeTab === "projects" && totalPages > 0 && currentPage > totalPages) {
-      updateProjectsUrlParams({ projectsPage: 1 });
+    if (activeTab === "my-tasks" && myTasksTotalPages > 0 && myTasksCurrentPage > myTasksTotalPages) {
+      updateMyTasksUrlParams({ myTasksPage: 1 });
     }
-  }, [tasksCurrentPage, tasksTotalPages, currentPage, totalPages, activeTab]);
+  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, activeTab]);
 
-  const isLoading = projectsLoading || tasksLoading;
+  const isLoading = allTasksLoading || myTasksLoading;
 
   if (isLoading) {
     return (
@@ -630,18 +824,44 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="mb-2 text-2xl font-bold sm:text-3xl">관리자 대시보드</h1>
-          {/* <p className="text-muted-foreground text-sm sm:text-base">
-            {activeTab === "kanban"
-              ? `${sortedTasks.length}개의 Task`
-              : `${filteredProjects.length}개의 프로젝트`}
-          </p> */}
         </div>
-        {isAdmin && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <Plus className="mr-2 h-4 w-4" />
+                빠른 생성
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
+                검토
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
+                계약
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
+                명세서
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
+                출원
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            onClick={() => {
+              setPreSelectedCategory(undefined);
+              setAutoFillMode(undefined);
+              setPreFilledTitle(undefined);
+              setIsSpecificationMode(false);
+              setCreateTaskDialogOpen(true);
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
-            프로젝트 생성
+            Task 생성
           </Button>
-        )}
+        </div>
       </div>
 
       {/* 탭 전환 */}
@@ -649,57 +869,94 @@ export default function AdminDashboardPage() {
         value={activeTab}
         onValueChange={(value) => {
           const newTab = value as DashboardTab;
-          // URL 쿼리 파라미터 업데이트
-          if (newTab === "kanban") {
-            // 현재 URL에서 읽은 값들을 URL에 반영
-            updateTasksUrlParams({
-              category,
-              sortDue,
-              status,
-              tasksPage: tasksCurrentPage === 1 ? undefined : tasksCurrentPage,
-            });
-          } else {
-            // 프로젝트 탭으로 전환 시 현재 페이지 및 정렬 순서 반영
-            updateProjectsUrlParams(
-              currentPage === 1
-                ? { sortOrder }
-                : { projectsPage: currentPage, sortOrder },
-            );
-          }
+          // 탭 전환 시 모든 필터 초기화
+          const newParams = new URLSearchParams();
+          newParams.set("tab", newTab);
+          setSearchParams(newParams, { replace: true });
+          setActiveTab(newTab);
+          setSearchQuery(""); // 검색어도 초기화
         }}
       >
-        {/* 담당 업무 / 전체 프로젝트 탭 */}
+        {/* 담당 업무 / 전체 태스크 탭 */}
         <TabsList className="mt-4">
-          <TabsTrigger value="kanban">담당 업무</TabsTrigger>
-          <TabsTrigger value="projects">전체 프로젝트</TabsTrigger>
+          <TabsTrigger value="my-tasks">담당 업무</TabsTrigger>
+          <TabsTrigger value="all-tasks">전체 태스크</TabsTrigger>
         </TabsList>
 
-        {/* 내가 관련된 프로젝트 탭 */}
-        <TabsContent value="kanban" className="space-y-4">
-          {/* 탭, 카테고리 드롭다운 및 검색창 */}
-          <div className="flex w-full items-center flex-row-reverse justify-between gap-4 pt-4">
-            {/* 카테고리 드롭다운 */}
-            <Select
-              value={category}
-              onValueChange={(value) => handleCategoryChange(value as CategoryParam)}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 ({categoryCounts.all}개)</SelectItem>
-                <SelectItem value="review">검토 ({categoryCounts.review}개)</SelectItem>
-                <SelectItem value="contract">계약 ({categoryCounts.contract}개)</SelectItem>
-                <SelectItem value="spec">명세서 ({categoryCounts.spec}개)</SelectItem>
-                <SelectItem value="apply">출원 ({categoryCounts.apply}개)</SelectItem>
-              </SelectContent>
-            </Select>
-
+        {/* 담당 업무 탭 */}
+        <TabsContent value="my-tasks" className="space-y-4">
+          {/* 카테고리 필터 버튼 */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {(["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+              const categoryLabels: Record<CategoryParam, string> = {
+                all: "전체",
+                REVIEW: "검토",
+                CONTRACT: "계약",
+                SPECIFICATION: "명세서",
+                APPLICATION: "출원",
+              };
+              // 상태 필터가 적용된 후의 개수 계산
+              const dbStatus = statusMap[status];
+              const filteredByStatus = dbStatus === null 
+                ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
+                : searchedMyTasks.filter((task) => task.task_status === dbStatus);
+              const count = categoryValue === "all"
+                ? filteredByStatus.length
+                : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+              
+              return (
+                <Button
+                  key={categoryValue}
+                  variant={category === categoryValue ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleMyTasksCategoryChange(categoryValue)}
+                  className="h-8"
+                >
+                  {categoryLabels[categoryValue]} ({count}개)
+                </Button>
+              );
+            })}
+          </div>
+          {/* 상태 필터 버튼 */}
+          <div className="flex flex-wrap gap-2">
+            {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
+              const statusLabels: Record<StatusParam, string> = {
+                all: "전체",
+                assigned: "할당됨",
+                in_progress: "진행중",
+                waiting_confirm: "확인대기",
+                rejected: "거부됨",
+                approved: "승인됨",
+              };
+              // 카테고리 필터가 적용된 후의 개수 계산
+              const filteredByCategory = category === "all"
+                ? searchedMyTasks
+                : searchedMyTasks.filter((task) => task.task_category === category);
+              const dbStatus = statusMap[statusValue];
+              const count = dbStatus === null 
+                ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
+                : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+              
+              return (
+                <Button
+                  key={statusValue}
+                  variant={status === statusValue ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleMyTasksStatusChange(statusValue)}
+                  className="h-8"
+                >
+                  {statusLabels[statusValue]} ({count}개)
+                </Button>
+              );
+            })}
+          </div>
+          {/* 검색창 및 필터 */}
+          <div className="flex w-full items-center flex-row-reverse justify-between gap-4">
             {/* 검색창 */}
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="계정 ID, 고객명, Task 제목, 담당자명 또는 지시자명으로 검색..."
+                placeholder="고유 ID, 고객명, Task 제목, 담당자명 또는 지시자명으로 검색..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -712,7 +969,7 @@ export default function AdminDashboardPage() {
               <thead>
                 <tr className="border-b">
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    계정 ID
+                    고유 ID
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     고객명
@@ -722,7 +979,7 @@ export default function AdminDashboardPage() {
                   </th>
                   <th
                     className="hover:bg-muted/50 w-[14.285%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
-                    onClick={handleSortDueChange}
+                    onClick={handleMyTasksSortDueChange}
                   >
                     <div className="flex items-center gap-2">
                       마감일
@@ -732,8 +989,9 @@ export default function AdminDashboardPage() {
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     <StatusFilterDropdown
                       status={status}
-                      onStatusChange={handleStatusChange}
-                      tasks={searchedTasks}
+                      onStatusChange={handleMyTasksStatusChange}
+                      tasks={searchedMyTasks}
+                      hideApproved={true}
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
@@ -745,7 +1003,7 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedTasks.length === 0 ? (
+                {paginatedAllTasks.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
@@ -755,8 +1013,7 @@ export default function AdminDashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedTasks.map((task) => {
-                    const project = projectMap.get(task.project_id);
+                  paginatedAllTasks.map((task) => {
                     const dueDate = formatDueDate(task.due_date);
                     const daysDiff = calculateDaysDifference(task.due_date);
                     const dDayText = getDDayText(daysDiff);
@@ -776,19 +1033,9 @@ export default function AdminDashboardPage() {
                         className="hover:bg-muted/50 border-b transition-colors"
                       >
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs font-medium sm:text-sm">
-                            {project ? (
-                              <Link
-                                to={`/projects/${project.id}`}
-                                className="line-clamp-2 hover:underline cursor-pointer"
-                                onClick={() => {
-                                  const currentUrl =
-                                    window.location.pathname + window.location.search;
-                                  sessionStorage.setItem("previousDashboardUrl", currentUrl);
-                                }}
-                              >
-                                {project.title}
-                              </Link>
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {task.id ? (
+                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -796,7 +1043,7 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
-                            {project?.client_name || (
+                            {task.client_name || (
                               <span className="text-muted-foreground">-</span>
                             )}
                           </div>
@@ -848,132 +1095,255 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* 페이지네이션 */}
-          {sortedTasks.length > 0 && (
+          {sortedMyTasks.length > 0 && (
             <TablePagination
-              currentPage={tasksCurrentPage}
-              totalPages={tasksTotalPages}
-              pageSize={tasksItemsPerPage}
-              totalItems={sortedTasks.length}
+              currentPage={myTasksCurrentPage}
+              totalPages={myTasksTotalPages}
+              pageSize={myTasksItemsPerPage}
+              totalItems={sortedMyTasks.length}
               selectedCount={0}
               onPageChange={(page) => {
-                updateTasksUrlParams({ tasksPage: page });
+                updateMyTasksUrlParams({ myTasksPage: page });
               }}
               onPageSizeChange={(newPageSize) => {
-                setTasksItemsPerPage(newPageSize);
+                setMyTasksItemsPerPage(newPageSize);
                 sessionStorage.setItem("tablePageSize", newPageSize.toString());
-                updateTasksUrlParams({ tasksPage: 1 });
+                updateMyTasksUrlParams({ myTasksPage: 1 });
               }}
             />
           )}
         </TabsContent>
 
-        {/* 전체 프로젝트 탭 */}
-        <TabsContent value="projects" className="space-y-4">
-          {/* 검색 및 필터 */}
-          <div className="flex  gap-4 items-center mt-4">
+        {/* 전체 태스크 탭 */}
+        <TabsContent value="all-tasks" className="space-y-4">
+          {/* 카테고리 필터 버튼 */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {(["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+              const categoryLabels: Record<CategoryParam, string> = {
+                all: "전체",
+                REVIEW: "검토",
+                CONTRACT: "계약",
+                SPECIFICATION: "명세서",
+                APPLICATION: "출원",
+              };
+              // 상태 필터가 적용된 후의 개수 계산
+              const dbStatus = statusMap[status];
+              const filteredByStatus = dbStatus === null 
+                ? searchedAllTasks
+                : searchedAllTasks.filter((task) => task.task_status === dbStatus);
+              const count = categoryValue === "all"
+                ? filteredByStatus.length
+                : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+              
+              return (
+                <Button
+                  key={categoryValue}
+                  variant={category === categoryValue ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleAllTasksCategoryChange(categoryValue)}
+                  className="h-8"
+                >
+                  {categoryLabels[categoryValue]} ({count}개)
+                </Button>
+              );
+            })}
+          </div>
+          {/* 상태 필터 버튼 */}
+          <div className="flex flex-wrap gap-2">
+            {(["all", "assigned", "in_progress", "waiting_confirm", "rejected", "approved"] as StatusParam[]).map((statusValue) => {
+              const statusLabels: Record<StatusParam, string> = {
+                all: "전체",
+                assigned: "할당됨",
+                in_progress: "진행중",
+                waiting_confirm: "확인대기",
+                rejected: "거부됨",
+                approved: "승인됨",
+              };
+              // 카테고리 필터가 적용된 후의 개수 계산
+              const filteredByCategory = category === "all"
+                ? searchedAllTasks
+                : searchedAllTasks.filter((task) => task.task_category === category);
+              const dbStatus = statusMap[statusValue];
+              const count = dbStatus === null 
+                ? filteredByCategory.length
+                : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+              
+              return (
+                <Button
+                  key={statusValue}
+                  variant={status === statusValue ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleAllTasksStatusChange(statusValue)}
+                  className="h-8"
+                >
+                  {statusLabels[statusValue]} ({count}개)
+                </Button>
+              );
+            })}
+          </div>
+          {/* 검색창 및 필터 */}
+          <div className="flex w-full items-center flex-row-reverse justify-between gap-4">
+            {/* 검색창 */}
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="계정 ID, 고객명으로 검색..."
-                value={projectsSearchQuery}
-                onChange={(e) => setProjectsSearchQuery(e.target.value)}
+                placeholder="고유 ID, 고객명, Task 제목, 담당자명 또는 지시자명으로 검색..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
               />
             </div>
-            <div className="flex gap-2">
-              <Select
-                value={sortOrder}
-                onValueChange={(value) => updateProjectsUrlParams({ sortOrder: value as SortOrder })}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="정렬" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">최신순</SelectItem>
-                  <SelectItem value="oldest">오래된순</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-
-          {/* 프로젝트 테이블 */}
+          {/* Task 테이블 */}
           <div className="overflow-x-scroll">
             <table className="w-full min-w-[800px] table-fixed">
               <thead>
                 <tr className="border-b">
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    계정 ID
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고유 ID
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     고객명
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    전체 업무 수
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시사항
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    진행 중 업무
+                  <th
+                    className="hover:bg-muted/50 w-[14.285%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                    onClick={handleAllTasksSortDueChange}
+                  >
+                    <div className="flex items-center gap-2">
+                      마감일
+                      <ArrowUpDown className="size-3 sm:size-4" />
+                    </div>
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    완료 업무
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    <StatusFilterDropdown
+                      status={status}
+                      onStatusChange={handleAllTasksStatusChange}
+                      tasks={searchedAllTasks}
+                    />
                   </th>
-                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    생성일
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시자
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    담당자
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedProjects.length === 0 ? (
+                {paginatedAllTasks.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
                     >
-                      {debouncedProjectsSearch ? "검색 결과가 없습니다." : "프로젝트가 없습니다."}
+                      {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
                     </td>
                   </tr>
                 ) : (
-                  paginatedProjects.map((project) => (
-                    <ProjectTableRow
-                      key={project.id}
-                      project={project}
-                      myTasks={myTasks}
-                      currentUserId={currentProfile?.id}
-                    />
-                  ))
+                  paginatedAllTasks.map((task) => {
+                    const dueDate = formatDueDate(task.due_date);
+                    const daysDiff = calculateDaysDifference(task.due_date);
+                    const dDayText = getDDayText(daysDiff);
+                    const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+
+                    const assigneeDisplay = task.assignee?.full_name
+                      ? `${task.assignee.full_name} (${task.assignee.email})`
+                      : task.assignee?.email || task.assignee_id;
+
+                    const assignerDisplay = task.assigner?.full_name
+                      ? `${task.assigner.full_name} (${task.assigner.email})`
+                      : task.assigner?.email || task.assigner_id;
+
+                    return (
+                      <tr
+                        key={task.id}
+                        className="hover:bg-muted/50 border-b transition-colors"
+                      >
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {task.id ? (
+                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {task.client_name || (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            <Link
+                              to={`/tasks/${task.id}`}
+                              className="line-clamp-2 hover:underline cursor-pointer"
+                              onClick={() => {
+                                const currentUrl =
+                                  window.location.pathname + window.location.search;
+                                sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                              }}
+                            >
+                              {task.title}
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          {dueDate ? (
+                            <span
+                              className={cn(
+                                "text-xs whitespace-nowrap sm:text-sm",
+                                dueDateColorClass,
+                              )}
+                            >
+                              {dueDate} {dDayText}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <TaskStatusBadge status={task.task_status} />
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerDisplay}</div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assigneeDisplay}</div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
 
           {/* 페이지네이션 */}
-          {filteredProjects.length > 0 && (
+          {sortedAllTasks.length > 0 && (
             <TablePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={itemsPerPage}
-              totalItems={filteredProjects.length}
+              currentPage={allTasksCurrentPage}
+              totalPages={allTasksTotalPages}
+              pageSize={allTasksItemsPerPage}
+              totalItems={sortedAllTasks.length}
               selectedCount={0}
               onPageChange={(page) => {
-                updateProjectsUrlParams({ projectsPage: page });
+                updateAllTasksUrlParams({ allTasksPage: page });
               }}
               onPageSizeChange={(newPageSize) => {
-                setItemsPerPage(newPageSize);
+                setAllTasksItemsPerPage(newPageSize);
                 sessionStorage.setItem("tablePageSize", newPageSize.toString());
-                updateProjectsUrlParams({ projectsPage: 1 });
+                updateAllTasksUrlParams({ allTasksPage: 1 });
               }}
             />
           )}
         </TabsContent>
       </Tabs>
-
-      {/* 프로젝트 생성 다이얼로그 */}
-      <ProjectFormDialog
-        open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        onSubmit={handleCreateProject}
-        isLoading={createProject.isPending}
-        isAdmin={isAdmin}
-      />
 
       {/* 상태 변경 확인 다이얼로그 */}
       {pendingStatusChange && (
@@ -987,77 +1357,30 @@ export default function AdminDashboardPage() {
           isLoading={updateTaskStatus.isPending}
         />
       )}
+
+      {/* 태스크 생성 다이얼로그 */}
+      <TaskFormDialog
+        open={createTaskDialogOpen}
+        onOpenChange={(open) => {
+          setCreateTaskDialogOpen(open);
+          if (!open) {
+            setPreSelectedCategory(undefined);
+            setAutoFillMode(undefined);
+            setPreFilledTitle(undefined);
+            setIsSpecificationMode(false);
+          }
+        }}
+        onSubmit={handleCreateTask}
+        isLoading={createTask.isPending || createMessageWithFiles.isPending}
+        preSelectedCategory={preSelectedCategory}
+        autoFillMode={autoFillMode}
+        preFilledTitle={preFilledTitle}
+        isSpecificationMode={isSpecificationMode}
+      />
     </div>
   );
 }
 
-/**
- * 프로젝트 테이블 행 컴포넌트
- */
-function ProjectTableRow({
-  project,
-  myTasks,
-  currentUserId,
-}: {
-  project: Project;
-  myTasks: TaskWithProfiles[];
-  currentUserId?: string;
-}) {
-  // 프로젝트의 모든 Task 조회
-  const { data: allProjectTasks = [], isLoading } = useTasks(project.id);
-
-  // 프로젝트 총 Task 개수
-  const totalTasks = allProjectTasks.length;
-
-  // 내가 관련된 Task (프로젝트의 모든 Task 중 내가 지시자 또는 담당자인 것만 필터링)
-  // allProjectTasks에서 직접 필터링하여 APPROVED 포함 모든 상태의 Task 계산
-  const myProjectTasks = currentUserId
-    ? allProjectTasks.filter(
-        (task) => task.assigner_id === currentUserId || task.assignee_id === currentUserId,
-      )
-    : [];
-
-  // 기여중인 Task (진행중: ASSIGNED + IN_PROGRESS + WAITING_CONFIRM + REJECTED)
-  const contributingTasks = myProjectTasks.filter((task) => task.task_status !== "APPROVED").length;
-
-  // 기여한 Task (승인됨: APPROVED)
-  const contributedTasks = myProjectTasks.filter((task) => task.task_status === "APPROVED").length;
-
-  return (
-    <tr className="hover:bg-muted/50 border-b transition-colors">
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="line-clamp-2 text-xs font-medium sm:text-sm">
-          <Link
-            to={`/projects/${project.id}`}
-            className="line-clamp-2 hover:underline cursor-pointer"
-            onClick={() => {
-              // 프로젝트 상세로 이동하기 전에 현재 대시보드 URL 저장
-              const currentUrl = window.location.pathname + window.location.search;
-              sessionStorage.setItem("previousDashboardUrl", currentUrl);
-            }}
-          >
-            {project.title}
-          </Link>
-        </div>
-      </td>
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="line-clamp-2 text-xs sm:text-sm">{project.client_name}</div>
-      </td>
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="text-xs sm:text-sm">{isLoading ? <DefaultSpinner /> : `${totalTasks}개`}</div>
-      </td>
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="text-xs sm:text-sm">{`${contributingTasks}개`}</div>
-      </td>
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="text-xs sm:text-sm">{`${contributedTasks}개`}</div>
-      </td>
-      <td className="px-2 py-3 sm:px-4 sm:py-4">
-        <div className="text-xs sm:text-sm">{formatDate(project.created_at)}</div>
-      </td>
-    </tr>
-  );
-}
 
 /**
  * 상태 필터 드롭다운 컴포넌트
@@ -1066,10 +1389,12 @@ function StatusFilterDropdown({
   status,
   onStatusChange,
   tasks,
+  hideApproved = false,
 }: {
   status: StatusParam;
   onStatusChange: (status: StatusParam) => void;
   tasks: TaskWithProfiles[];
+  hideApproved?: boolean;
 }) {
   const statusLabels: Record<StatusParam, string> = {
     all: "전체",
@@ -1097,7 +1422,14 @@ function StatusFilterDropdown({
     }
     const dbStatus = statusMap[statusValue];
     return tasks.filter((task) => task.task_status === dbStatus).length;
-  };  return (
+  };
+
+  // 표시할 상태 목록 필터링
+  const visibleStatuses = (Object.keys(statusLabels) as StatusParam[]).filter(
+    (statusValue) => !hideApproved || statusValue !== "approved"
+  );
+
+  return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-8 px-2">
@@ -1106,7 +1438,7 @@ function StatusFilterDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
-        {(Object.keys(statusLabels) as StatusParam[]).map((statusValue) => {
+        {visibleStatuses.map((statusValue) => {
           const count = getStatusCount(statusValue);
           return (
             <DropdownMenuItem

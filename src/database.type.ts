@@ -14,6 +14,109 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcement_attachments: {
+        Row: {
+          announcement_id: string
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+        }
+        Insert: {
+          announcement_id: string
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+        }
+        Update: {
+          announcement_id?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_attachments_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcement_dismissals: {
+        Row: {
+          announcement_id: string
+          dismissed_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          dismissed_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          dismissed_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_logs: {
         Row: {
           created_at: string
@@ -169,82 +272,6 @@ export type Database = {
         }
         Relationships: []
       }
-      project_participants: {
-        Row: {
-          created_at: string
-          id: string
-          invited_at: string
-          invited_by: string
-          project_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          invited_at?: string
-          invited_by: string
-          project_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          invited_at?: string
-          invited_by?: string
-          project_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "project_participants_invited_by_fkey"
-            columns: ["invited_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_participants_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "project_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      projects: {
-        Row: {
-          client_name: string
-          created_at: string
-          created_by: string
-          id: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          client_name: string
-          created_at?: string
-          created_by: string
-          id?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          client_name?: string
-          created_at?: string
-          created_by?: string
-          id?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       task_chat_log_items: {
         Row: {
           id: string
@@ -327,10 +354,12 @@ export type Database = {
         Row: {
           assignee_id: string | null
           assigner_id: string | null
+          client_name: string | null
           created_at: string
+          created_by: string | null
           due_date: string
           id: string
-          project_id: string
+          send_email_to_client: boolean
           task_category: Database["public"]["Enums"]["task_category"]
           task_status: Database["public"]["Enums"]["task_status"]
           title: string
@@ -339,10 +368,12 @@ export type Database = {
         Insert: {
           assignee_id?: string | null
           assigner_id?: string | null
+          client_name?: string | null
           created_at?: string
+          created_by?: string | null
           due_date: string
           id?: string
-          project_id: string
+          send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
           title: string
@@ -351,10 +382,12 @@ export type Database = {
         Update: {
           assignee_id?: string | null
           assigner_id?: string | null
+          client_name?: string | null
           created_at?: string
+          created_by?: string | null
           due_date?: string
           id?: string
-          project_id?: string
+          send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
           title?: string
@@ -375,13 +408,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
@@ -390,15 +416,6 @@ export type Database = {
     }
     Functions: {
       can_access_profile: { Args: { target_user_id: string }; Returns: boolean }
-      create_project_with_participants: {
-        Args: {
-          p_client_name: string
-          p_due_date: string
-          p_opportunity: string
-          p_participant_ids: string[]
-        }
-        Returns: string
-      }
       get_active_profiles: {
         Args: never
         Returns: {
@@ -421,26 +438,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      get_project_summaries: {
-        Args: never
-        Returns: {
-          client_name: string
-          created_at: string
-          due_date: string
-          id: string
-          opportunity: string
-          task_counts: Json
-        }[]
-      }
-      has_project_access: {
-        Args: { project_id: string; user_id: string }
-        Returns: boolean
-      }
       is_admin: { Args: { user_id: string }; Returns: boolean }
-      is_project_participant: {
-        Args: { query_project_id: string; query_user_id: string }
-        Returns: boolean
-      }
       mark_message_as_read: {
         Args: { message_id_param: string; reader_id_param: string }
         Returns: undefined

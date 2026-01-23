@@ -27,34 +27,15 @@ export type TaskWithProfiles = Task & {
     email: string;
     avatar_url: string | null;
   } | null;
-  project?: {
-    id: string;
-    title: string;
-    client_name: string;
-  } | null;
 };
 
 /**
- * 프로젝트의 Task 목록 조회
- * 프로젝트 접근 권한이 있으면 해당 프로젝트의 모든 Task 조회 가능
- * assigner와 assignee의 프로필 정보를 JOIN하여 함께 반환
+ * 프로젝트의 Task 목록 조회 (deprecated)
+ * 프로젝트 구조가 제거되어 더 이상 사용되지 않습니다.
+ * @deprecated 프로젝트 구조가 제거되었습니다. getTasksForAdmin 또는 getTasksForMember를 사용하세요.
  */
-export async function getTasksByProjectId(projectId: string): Promise<TaskWithProfiles[]> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select(`
-      *,
-      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
-    `)
-    .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new Error(`Task 목록 조회 실패: ${error.message}`);
-  }
-
-  return (data || []) as TaskWithProfiles[];
+export async function getTasksByProjectId(_projectId: string): Promise<TaskWithProfiles[]> {
+  throw new Error("프로젝트 구조가 제거되었습니다. getTasksForAdmin 또는 getTasksForMember를 사용하세요.");
 }
 
 /**
@@ -74,14 +55,13 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
 
   const userId = session.session.user.id;
 
-  // Task 조회 (project 정보 포함)
+  // Task 조회
   const { data, error } = await supabase
     .from("tasks")
     .select(`
       *,
       assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
-      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url),
-      project:projects!tasks_project_id_fkey(id, title, client_name)
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
     `)
     .eq("id", id)
     .single();
@@ -145,16 +125,8 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise
 
   const isAdmin = profile?.role === "admin";
 
-  // Admin이 아닌 경우 프로젝트 참여자인지 확인
-  if (!isAdmin) {
-    const { getProjectParticipants } = await import("@/api/project");
-    const participants = await getProjectParticipants(task.project_id);
-    const isParticipant = participants.some((p) => p.user_id === currentUserId);
-
-    if (!isParticipant) {
-      throw new Error("프로젝트 참여자만 Task를 생성할 수 있습니다.");
-    }
-  }
+  // 프로젝트 구조가 제거되어 프로젝트 참여자 확인 로직 제거
+  // 모든 인증된 사용자가 Task를 생성할 수 있습니다.
 
   // assignee_id가 설정되어 있는지 확인
   if (!task.assignee_id) {
@@ -167,12 +139,18 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise
   }
 
   // assigner_id를 현재 로그인한 사용자로 자동 설정
-  // task_category는 마이그레이션에 추가되었지만 타입 정의에 없으므로 타입 단언 사용
+  // created_by도 현재 사용자로 설정 (프로젝트 구조 제거 후)
   // description이 null이거나 undefined일 때는 객체에서 제거 (스키마 캐시 문제 방지)
   const taskWithAssigner: any = {
     ...task,
     assigner_id: currentUserId,
+    created_by: currentUserId,
   };
+  
+  // project_id 제거 (프로젝트 구조 제거)
+  if (taskWithAssigner.project_id !== undefined) {
+    delete taskWithAssigner.project_id;
+  }
   
   // description이 null이거나 undefined이면 객체에서 제거
   if (taskWithAssigner.description === null || taskWithAssigner.description === undefined) {
@@ -217,9 +195,16 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
   }
 
-  // 지시자(assigner) 권한 확인
-  if (task.assigner_id !== userId) {
-    throw new Error("Task 수정은 지시자만 가능합니다.");
+  // send_email_to_client 필드는 담당자(assignee)만 변경 가능
+  if (updates.send_email_to_client !== undefined) {
+    if (task.assignee_id !== userId) {
+      throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+    }
+  } else {
+    // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
+    if (task.assigner_id !== userId) {
+      throw new Error("Task 수정은 지시자만 가능합니다.");
+    }
   }
 
   // 수정 불가 필드 차단
@@ -232,22 +217,47 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   }
 
   // 허용된 필드만 명시적으로 포함 (whitelist 방식)
-  // 허용 필드: title, description, due_date만
+  // 허용 필드: title, description, due_date, client_name, send_email_to_client
   const allowedUpdates: Partial<TaskUpdate> = {};
   
-  // title 수정 허용
+  // title 수정 허용 (지시자만)
   if (updates.title !== undefined && updates.title !== null) {
+    if (task.assigner_id !== userId) {
+      throw new Error("Task 제목 수정은 지시자만 가능합니다.");
+    }
     allowedUpdates.title = updates.title;
   }
   
-  // description 수정 허용 (null도 허용)
+  // description 수정 허용 (null도 허용, 지시자만)
   if ("description" in updates && updates.description !== undefined) {
+    if (task.assigner_id !== userId) {
+      throw new Error("Task 설명 수정은 지시자만 가능합니다.");
+    }
     (allowedUpdates as any).description = updates.description;
   }
   
-  // due_date 수정 허용 (null도 허용)
+  // client_name 수정 허용 (지시자만)
+  if (updates.client_name !== undefined && updates.client_name !== null) {
+    if (task.assigner_id !== userId) {
+      throw new Error("고객명 수정은 지시자만 가능합니다.");
+    }
+    allowedUpdates.client_name = updates.client_name;
+  }
+  
+  // due_date 수정 허용 (null도 허용, 지시자만)
   if (updates.due_date !== undefined) {
+    if (task.assigner_id !== userId) {
+      throw new Error("마감일 수정은 지시자만 가능합니다.");
+    }
     allowedUpdates.due_date = updates.due_date;
+  }
+  
+  // send_email_to_client 수정 허용 (담당자만, 승인 상태일 때만 사용)
+  if (updates.send_email_to_client !== undefined) {
+    if (task.assignee_id !== userId) {
+      throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+    }
+    (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
   }
   
   // assigner_id, assignee_id, task_status는 이미 위에서 차단됨

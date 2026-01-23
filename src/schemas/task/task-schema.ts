@@ -17,6 +17,7 @@ export const taskCreateSchema = z.object({
   task_category: z.enum(["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"], {
     message: "카테고리를 선택해주세요.",
   }),
+  client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
   due_date: z.string().min(1, "마감일을 입력해주세요.").refine(
     (val) => {
       const selectedDate = new Date(val);
@@ -40,17 +41,19 @@ export const taskCreateSpecificationSchema = z.object({
   task_category: z.literal("SPECIFICATION", {
     message: "카테고리를 선택해주세요.",
   }),
+  client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
   due_date: z.string().optional(), // 명세서 모드에서는 자동 설정되므로 optional
 });
 
 /**
  * Task 수정 스키마
  * assigner_id와 assignee_id는 수정 불가이므로 제외
- * 허용 필드: title, description, due_date만
+ * 허용 필드: title, description, due_date, client_name
  */
 export const taskUpdateSchema = z.object({
   title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
   description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
+  client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
   due_date: z.string().min(1, "마감일을 입력해주세요.").refine(
     (val) => {
       const selectedDate = new Date(val);

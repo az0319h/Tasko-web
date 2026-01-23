@@ -13,11 +13,13 @@ import ProfileSetupPage from "./pages/profile-setup-page";
 import ForgotPasswordPage from "./pages/forgot-password-page";
 import SignupPage from "./pages/signup-page";
 import AdminUsersPage from "./pages/admin-users-page";
-import ProjectDetailPage from "./pages/project-detail-page";
 import TaskDetailPage from "./pages/task-detail-page";
 import CommunityPage from "./pages/community-page";
 import AgentsPage from "./pages/agents-page";
 import NotificationsPage from "./pages/notifications-page";
+import AdminAnnouncementListPage from "./pages/admin-announcement-list-page";
+import AdminAnnouncementCreatePage from "./pages/admin-announcement-create-page";
+import AdminAnnouncementEditPage from "./pages/admin-announcement-edit-page";
 
 export default function RootRoute() {
   return (
@@ -35,7 +37,6 @@ export default function RootRoute() {
         <Route element={<ProfileRequiredLayout />}>
           <Route element={<GlobalLayout />}>
             <Route path="/" element={<IndexPage />} />
-            <Route path="/projects/:id" element={<ProjectDetailPage />} />
             <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
@@ -44,6 +45,9 @@ export default function RootRoute() {
 
             <Route element={<AdminOnlyLayout />}>
               <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/announcements" element={<AdminAnnouncementListPage />} />
+              <Route path="/admin/announcements/create" element={<AdminAnnouncementCreatePage />} />
+              <Route path="/admin/announcements/:id/edit" element={<AdminAnnouncementEditPage />} />
             </Route>
           </Route>
         </Route>

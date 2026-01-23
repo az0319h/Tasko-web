@@ -9,7 +9,6 @@ import {
 import { TaskCard } from "./task-card";
 import type { TaskWithProfiles } from "@/api/task";
 import type { TaskStatus } from "@/lib/task-status";
-import type { Project } from "@/api/project";
 
 type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
@@ -18,7 +17,6 @@ interface CategoryTaskListModalProps {
   onOpenChange: (open: boolean) => void;
   category: TaskCategory;
   tasks: TaskWithProfiles[];
-  projects: Project[];
   currentUserId?: string;
   isAdmin?: boolean;
   onTaskStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
@@ -40,7 +38,6 @@ export function CategoryTaskListModal({
   onOpenChange,
   category,
   tasks,
-  projects,
   currentUserId,
   isAdmin = false,
   onTaskStatusChange,
@@ -57,15 +54,6 @@ export function CategoryTaskListModal({
 
   const categoryLabel = CATEGORY_LABELS[category];
 
-  // 프로젝트 맵 생성 (빠른 조회를 위해)
-  const projectMap = useMemo(() => {
-    const map = new Map<string, Project>();
-    projects.forEach((project) => {
-      map.set(project.id, project);
-    });
-    return map;
-  }, [projects]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100vh-2rem)] !max-w-5xl">
@@ -81,21 +69,17 @@ export function CategoryTaskListModal({
               {categoryLabel} 카테고리의 Task가 없습니다.
             </div>
           ) : (
-            sortedTasks.map((task) => {
-              const project = projectMap.get(task.project_id);
-              return (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  projectTitle={project?.title}
-                  currentUserId={currentUserId}
-                  isAdmin={isAdmin}
-                  onStatusChange={onTaskStatusChange}
-                  showActions={false}
-                  showFullInfo={false}
-                />
-              );
-            })
+            sortedTasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                onStatusChange={onTaskStatusChange}
+                showActions={false}
+                showFullInfo={false}
+              />
+            ))
           )}
         </div>
       </DialogContent>

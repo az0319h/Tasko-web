@@ -14,9 +14,7 @@ import type { TaskStatus } from "@/lib/task-status";
 describe("useUpdateTaskStatus optimistic update logic", () => {
   const createMockTask = (id: string, status: TaskStatus): TaskWithProfiles => ({
     id,
-    project_id: "project-1",
     title: `Task ${id}`,
-    description: null,
     assigner_id: "user-1",
     assignee_id: "user-2",
     task_category: "REVIEW",
@@ -24,6 +22,9 @@ describe("useUpdateTaskStatus optimistic update logic", () => {
     due_date: "2024-01-02T00:00:00Z",
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",
+    created_by: "user-1",
+    client_name: "Test Client",
+    send_email_to_client: false,
     assigner: {
       id: "user-1",
       full_name: "User 1",

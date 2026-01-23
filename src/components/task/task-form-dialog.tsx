@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { taskCreateSchema, taskCreateSpecificationSchema, taskUpdateSchema, type TaskCreateFormData, type TaskCreateSpecificationFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
-import { useCurrentProfile, useProjectParticipants } from "@/hooks";
+import { useCurrentProfile, useProfiles } from "@/hooks";
 import type { TaskWithProfiles } from "@/api/task";
 import {
   Dialog,
@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useProject } from "@/hooks";
 import { File, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,6 @@ interface TaskFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TaskCreateFormData | TaskUpdateFormData, files?: File[], notes?: string) => Promise<void>;
-  projectId: string;
   isLoading?: boolean;
   task?: TaskWithProfiles | null; // 수정 모드일 때 Task 데이터
   preSelectedCategory?: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 미리 선택된 카테고리
@@ -47,7 +45,6 @@ export function TaskFormDialog({
   open,
   onOpenChange,
   onSubmit,
-  projectId,
   isLoading = false,
   task = null,
   preSelectedCategory,
@@ -56,8 +53,7 @@ export function TaskFormDialog({
   isSpecificationMode = false,
 }: TaskFormDialogProps) {
   const { data: currentProfile } = useCurrentProfile();
-  const { data: project } = useProject(projectId);
-  const { data: participants } = useProjectParticipants(projectId);
+  const { data: profiles = [] } = useProfiles();
   const isEditMode = !!task;
   
   // 파일 상태 관리 (생성 모드에서만 사용)
@@ -88,12 +84,14 @@ export function TaskFormDialog({
     defaultValues: isEditMode
       ? {
           title: "",
+          client_name: "",
           due_date: "",
         }
       : {
           title: "",
           assignee_id: "",
           task_category: preSelectedCategory || undefined,
+          client_name: "",
           due_date: "",
         },
   });
@@ -177,8 +175,9 @@ export function TaskFormDialog({
   // 수정 모드일 때 폼 초기값 설정
   useEffect(() => {
     if (task && open && isEditMode) {
-      // 수정 모드: title, due_date만 설정 (description 제거됨)
+      // 수정 모드: title, client_name, due_date 설정
       setValue("title", task.title);
+      setValue("client_name", task.client_name || "");
       setValue("due_date", task.due_date ? task.due_date.split("T")[0] : "");
     } else if (!task && open && !isEditMode) {
       // 생성 모드일 때 폼 초기화
@@ -189,6 +188,7 @@ export function TaskFormDialog({
         title: preFilledTitle || "",
         assignee_id: "",
         task_category: initialCategory,
+        client_name: "",
         due_date: defaultDueDate || "",
       });
       // preSelectedCategory가 있으면 자동으로 설정
@@ -211,14 +211,10 @@ export function TaskFormDialog({
     }
   }, [task, open, isEditMode, setValue, reset, preSelectedCategory, preFilledTitle]);
 
-  // 프로젝트 참여자 목록 필터링 (현재 사용자 제외, 프로필 완료된 사용자만)
-  const availableParticipants = participants?.filter(
-    (participant) =>
-      participant.profile && // profile이 null이 아닌 경우만
-      participant.profile.profile_completed &&
-      participant.profile.is_active &&
-      participant.user_id !== currentProfile?.id
-  ) || [];
+  // 사용 가능한 담당자 목록 (현재 사용자 제외, 활성 상태인 사용자만)
+  const availableAssignees = profiles.filter(
+    (profile) => profile.id !== currentProfile?.id && profile.is_active === true
+  );
 
   // 마감일 검증: 오늘 이전 날짜 선택 불가
   // 로컬 날짜 기준으로 계산하여 타임존 문제 방지
@@ -373,6 +369,22 @@ export function TaskFormDialog({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="client_name">
+                  고객명 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="client_name"
+                  {...register("client_name")}
+                  placeholder="고객명을 입력하세요"
+                  maxLength={100}
+                  aria-invalid={"client_name" in errors && (errors as any).client_name ? "true" : "false"}
+                />
+                {"client_name" in errors && (errors as any).client_name && (
+                  <p className="text-sm text-destructive">{(errors as any).client_name.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="assignee_id">
                   담당자 (할당받은 사람) <span className="text-destructive">*</span>
                 </Label>
@@ -384,19 +396,17 @@ export function TaskFormDialog({
                     <SelectValue placeholder="담당자를 선택하세요" />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableParticipants.length === 0 ? (
-                      <SelectItem value="no-participants" disabled>
-                        선택 가능한 참여자가 없습니다
+                    {availableAssignees.length === 0 ? (
+                      <SelectItem value="no-assignees" disabled>
+                        선택 가능한 담당자가 없습니다
                       </SelectItem>
                     ) : (
-                      availableParticipants.map((participant) => {
-                        // 이미 필터링에서 profile이 null이 아닌 경우만 포함했으므로 안전함
-                        const profile = participant.profile!;
+                      availableAssignees.map((profile) => {
                         const displayName = profile.full_name 
                           ? `${profile.full_name} (${profile.email})`
                           : profile.email;
                         return (
-                          <SelectItem key={participant.user_id} value={participant.user_id}>
+                          <SelectItem key={profile.id} value={profile.id}>
                             {displayName}
                           </SelectItem>
                         );
@@ -422,6 +432,21 @@ export function TaskFormDialog({
                   {task.task_category === "SPECIFICATION" && "명세서"}
                   {task.task_category === "APPLICATION" && "출원"}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client_name">
+                  고객명 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="client_name"
+                  {...register("client_name")}
+                  placeholder="고객명을 입력하세요"
+                  maxLength={100}
+                  aria-invalid={"client_name" in errors && (errors as any).client_name ? "true" : "false"}
+                />
+                {"client_name" in errors && (errors as any).client_name && (
+                  <p className="text-sm text-destructive">{(errors as any).client_name.message}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>지시자 (할당하는 사람)</Label>
