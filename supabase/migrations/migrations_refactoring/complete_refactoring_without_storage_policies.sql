@@ -1,31 +1,8 @@
 -- ============================================================================
--- Phase 1: 통합 마이그레이션 파일
+-- Phase 1: 통합 마이그레이션 파일 (Storage 정책 제외 버전)
 -- ============================================================================
--- 목적: 모든 Phase 1 마이그레이션을 순서대로 통합
--- 
--- 실행 순서:
--- 1. 02_01_add_columns.sql - tasks 테이블 컬럼 추가
--- 2. 01_data_migration.sql - 데이터 마이그레이션 (projects → tasks)
--- 3. 03_tasks_rls_policies.sql - tasks 테이블 RLS 정책 변경
--- 4. 03_02_other_tables_rls_policies.sql - 다른 테이블 RLS 정책 변경
--- 5. 02_02_remove_project_id.sql - project_id 제거
--- 6. 04_functions_triggers.sql - 함수 및 트리거 수정
--- 7. 04_02_fix_profiles_rls_and_can_access_profile.sql - profiles RLS 정책 및 can_access_profile 함수 수정
--- 8. 05_indexes_foreign_keys.sql - 인덱스 및 외래키 정리
--- 9. 06_announcements_tables.sql - 공지사항 테이블 생성 및 RLS 정책
--- 10. 06_02_storage_bucket.sql - 공지사항 스토리지 버킷 생성 및 RLS 정책
--- 11. 20260123000001_allow_active_profiles_for_task_creation.sql - 태스크 생성 시 활성 프로필 조회 허용
--- 
--- ⚠️ 중요: 이 파일은 자동 생성 파일입니다. 수동 수정 금지.
--- 개별 마이그레이션 파일이 변경될 때마다 재생성해야 합니다.
--- ============================================================================
-
--- ============================================================================
--- 0. 데이터베이스 설정 변수 설정 (사용 안 함)
--- ============================================================================
--- ⚠️ 참고: Edge Function URL과 Service Role Key는 함수 내부에 하드코딩되어 있습니다.
--- 다른 데이터베이스 환경에 적용할 때는 send_task_status_change_email 함수 내부의
--- 하드코딩된 값을 해당 환경에 맞게 변경해야 합니다.
+-- ⚠️ 주의: storage.objects에 대한 RLS 정책 생성 부분(라인 1190-1255)이 제외되었습니다.
+-- Storage 정책은 Supabase Dashboard에서 수동으로 설정해야 합니다.
 -- ============================================================================
 
 -- ============================================================================
@@ -511,11 +488,11 @@ BEGIN
   
   -- Edge Function URL 설정
   -- TODO: 데이터베이스 환경에 따라 변경 필요 (예: 개발/스테이징/프로덕션)
-  function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-email';
+  function_url := 'https://qskjqqhyrvebrccvunkx.supabase.co/functions/v1/send-task-email';
 
   -- Service Role Key 설정
   -- TODO: 데이터베이스 환경에 따라 변경 필요 (Supabase Dashboard > Settings > API > service_role key에서 확인)
-  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o'
+  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFza2pxcWh5cnZlYnJjY3Z1bmt4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTM1MjcwNCwiZXhwIjoyMDg0OTI4NzA0fQ.P_MK21l-Knc8125xoe3vz5eiUMPbfRS58NRi4UJ8RGI';
 
   RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
   RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;
@@ -1141,7 +1118,7 @@ COMMENT ON POLICY "announcement_attachments_delete_admin" ON public.announcement
 COMMIT;
 
 -- ============================================================================
--- 10. 공지사항 스토리지 버킷 생성 및 RLS 정책 (06_02_storage_bucket.sql)
+-- 10. 공지사항 스토리지 버킷 생성 (Storage 정책 제외)
 -- ============================================================================
 
 BEGIN;
@@ -1187,82 +1164,10 @@ BEGIN
   END IF;
 END $$;
 
--- ----------------------------------------------------------------------------
--- 2. announcements 버킷 RLS 정책 설정
--- ----------------------------------------------------------------------------
--- ⚠️ 주의: storage.objects에 대한 정책 생성은 권한 오류가 발생할 수 있습니다.
--- 실패 시 경고만 출력하고 마이그레이션을 계속 진행합니다.
--- 정책 생성이 실패하면 Supabase Dashboard에서 수동으로 설정해야 합니다.
-
-DO $$
-BEGIN
-  -- SELECT 정책: 모든 인증 사용자가 읽기 가능
-  DROP POLICY IF EXISTS "announcements_storage_select_all" ON storage.objects;
-  CREATE POLICY "announcements_storage_select_all"
-  ON storage.objects
-  FOR SELECT
-  TO authenticated
-  USING (bucket_id = 'announcements');
-
-  -- INSERT 정책: 관리자만 업로드 가능
-  DROP POLICY IF EXISTS "announcements_storage_insert_admin" ON storage.objects;
-  CREATE POLICY "announcements_storage_insert_admin"
-  ON storage.objects
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'announcements'
-    AND is_admin(auth.uid())
-  );
-
-  -- UPDATE 정책: 관리자만 수정 가능
-  DROP POLICY IF EXISTS "announcements_storage_update_admin" ON storage.objects;
-  CREATE POLICY "announcements_storage_update_admin"
-  ON storage.objects
-  FOR UPDATE
-  TO authenticated
-  USING (
-    bucket_id = 'announcements'
-    AND is_admin(auth.uid())
-  )
-  WITH CHECK (
-    bucket_id = 'announcements'
-    AND is_admin(auth.uid())
-  );
-
-  -- DELETE 정책: 관리자만 삭제 가능
-  DROP POLICY IF EXISTS "announcements_storage_delete_admin" ON storage.objects;
-  CREATE POLICY "announcements_storage_delete_admin"
-  ON storage.objects
-  FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'announcements'
-    AND is_admin(auth.uid())
-  );
-
-  -- RLS 정책 코멘트 추가
-  COMMENT ON POLICY "announcements_storage_select_all" ON storage.objects IS 
-  '공지사항 스토리지 읽기 정책: 모든 인증 사용자가 announcements 버킷의 파일을 읽을 수 있음';
-
-  COMMENT ON POLICY "announcements_storage_insert_admin" ON storage.objects IS 
-  '공지사항 스토리지 업로드 정책: 관리자만 announcements 버킷에 파일을 업로드할 수 있음';
-
-  COMMENT ON POLICY "announcements_storage_update_admin" ON storage.objects IS 
-  '공지사항 스토리지 수정 정책: 관리자만 announcements 버킷의 파일을 수정할 수 있음';
-
-  COMMENT ON POLICY "announcements_storage_delete_admin" ON storage.objects IS 
-  '공지사항 스토리지 삭제 정책: 관리자만 announcements 버킷의 파일을 삭제할 수 있음';
-
-  RAISE NOTICE 'announcements 버킷의 Storage RLS 정책이 성공적으로 생성되었습니다.';
-EXCEPTION
-  WHEN insufficient_privilege OR OTHERS THEN
-    RAISE WARNING 'Storage RLS 정책 생성 실패: % (SQLSTATE: %)', SQLERRM, SQLSTATE;
-    RAISE WARNING 'announcements 버킷의 Storage RLS 정책을 Supabase Dashboard에서 수동으로 설정해야 합니다.';
-    RAISE WARNING '필요한 정책:';
-    RAISE WARNING '  1. SELECT: 모든 인증 사용자 (bucket_id = ''announcements'')';
-    RAISE WARNING '  2. INSERT/UPDATE/DELETE: 관리자만 (bucket_id = ''announcements'' AND is_admin(auth.uid()))';
-END $$;
+-- ⚠️ 주의: storage.objects에 대한 RLS 정책은 Supabase Dashboard에서 수동으로 설정해야 합니다.
+-- Storage > Policies > announcements 버킷에 다음 정책을 추가하세요:
+-- 1. SELECT: 모든 인증 사용자 (bucket_id = 'announcements')
+-- 2. INSERT/UPDATE/DELETE: 관리자만 (bucket_id = 'announcements' AND is_admin(auth.uid()))
 
 COMMIT;
 

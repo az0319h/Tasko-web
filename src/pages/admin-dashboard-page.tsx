@@ -1003,7 +1003,7 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedAllTasks.length === 0 ? (
+                {paginatedMyTasks.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
@@ -1013,7 +1013,7 @@ export default function AdminDashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedAllTasks.map((task) => {
+                  paginatedMyTasks.map((task) => {
                     const dueDate = formatDueDate(task.due_date);
                     const daysDiff = calculateDaysDifference(task.due_date);
                     const dDayText = getDDayText(daysDiff);
