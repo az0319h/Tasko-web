@@ -1,15 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTasksByProjectId, getTaskById, getTasksForMember, getTasksForAdmin } from "@/api/task";
+import { getTaskById, getTasksForMember, getTasksForAdmin } from "@/api/task";
 import type { Task, TaskWithProfiles } from "@/api/task";
 
 /**
- * 프로젝트의 Task 목록 조회 훅
+ * 전체 태스크 목록 조회 훅 (관리자용)
+ * 프로젝트 구조 제거 후 모든 태스크를 조회합니다.
+ * 
+ * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: false, 전체 태스크 탭에서는 false)
  */
-export function useTasks(projectId: string | undefined) {
+export function useTasks(excludeApproved: boolean = false) {
   return useQuery<TaskWithProfiles[]>({
-    queryKey: ["tasks", projectId],
-    queryFn: () => (projectId ? getTasksByProjectId(projectId) : Promise.resolve([])),
-    enabled: !!projectId,
+    queryKey: ["tasks", "all", excludeApproved],
+    queryFn: () => getTasksForAdmin(excludeApproved),
     staleTime: 30 * 1000,
   });
 }

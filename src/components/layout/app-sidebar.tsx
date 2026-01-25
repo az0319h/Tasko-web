@@ -21,11 +21,13 @@ import {
   FileText,
   Building2,
   Bot,
+  Megaphone,
+  Shield,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import LanguageDialog from "../dialog/language-dialog";
 import {
   DropdownMenu,
@@ -110,12 +112,11 @@ const getMenuItems = (isAdmin: boolean) => {
   ];
 
   if (isAdmin) {
-    // 관리자만 사용자 관리 메뉴 추가 (프로필 다음)
+    // 관리자만 Tasko 관리 메뉴 추가 (프로필 다음) - Collapsible로 변경
     items.push({
-      id: "users",
-      key: "layout.sidebar.menu.users",
-      url: "/admin/users",
-      icon: Users,
+      id: "tasko-management",
+      key: "Tasko 관리",
+      icon: Shield,
     });
     // 관리자만 게시 버튼 표시
     items.push({ id: "post", key: "layout.sidebar.menu.post", icon: FileText });
@@ -131,12 +132,18 @@ const settingsSubItems = [
   { id: "change-password", key: "layout.sidebar.settingsSub.changePassword" },
 ];
 
+const taskoManagementSubItems = [
+  { id: "users-management", key: "사용자 관리", url: "/admin/users" },
+  { id: "announcements-management", key: "공지사항 관리", url: "/admin/announcements" },
+];
+
 export function AppSidebar() {
   const { i18n, t } = useTranslation();
   const mode = useResolvedThemeMode();
   const { data: profile } = useCurrentProfile();
   const { data: isAdmin, refetch: refetchAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { isMobile, setOpenMobile, setOpen } = useSidebar();
+  const navigate = useNavigate();
 
   // [핵심] 세션/유저 변경에 따라 admin 권한 refetch
   useEffect(() => {
@@ -275,6 +282,50 @@ export function AppSidebar() {
                   );
                 }
 
+                if (item.id === "tasko-management") {
+                  return (
+                    <Collapsible key={item.id} className="group/collapsible">
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="flex items-center gap-2 rounded-md px-3 py-2 md:gap-3 md:py-6">
+                            {item.icon && <item.icon className="size-4! md:size-5!" />}
+                            <span className="text-14-regular md:text-16-regular">
+                              Tasko 관리
+                            </span>
+                            <ChevronDown className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+
+                        <CollapsibleContent>
+                          <div className="flex flex-col">
+                            {taskoManagementSubItems.map((sub) => (
+                              <Button
+                                key={sub.id}
+                                type="button"
+                                variant="ghost"
+                                className="text-14-regular block w-full rounded-md px-6 py-2 text-left"
+                                asChild
+                              >
+                                <Link
+                                  to={sub.url}
+                                  onClick={() => {
+                                    // 모바일에서만 사이드바 닫기
+                                    if (isMobile) {
+                                      setOpenMobile(false);
+                                    }
+                                  }}
+                                >
+                                  {sub.key}
+                                </Link>
+                              </Button>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+
                 // 일반 메뉴
                 return (
                   <SidebarMenuItem key={item.id}>
@@ -298,6 +349,13 @@ export function AppSidebar() {
                       <Button
                         type="button"
                         className="xs:text-14-semibold md:text-16-semibold text-background bg-foreground my-2 w-full cursor-pointer rounded-full py-2 md:my-3 md:py-3"
+                        onClick={() => {
+                          navigate("/admin/announcements/create");
+                          // 모바일에서만 사이드바 닫기
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
+                        }}
                       >
                         {t(item.key)}
                       </Button>

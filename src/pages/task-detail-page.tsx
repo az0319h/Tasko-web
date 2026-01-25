@@ -357,6 +357,21 @@ export default function TaskDetailPage() {
     await updateTaskStatus.mutateAsync({ taskId: task.id, newStatus: pendingNewStatus });
   };
 
+  // 고객에게 이메일 발송 완료 체크박스 변경 핸들러
+  const handleSendEmailToClientChange = async (checked: boolean) => {
+    if (!task) return;
+    try {
+      await updateTask.mutateAsync({
+        id: task.id,
+        updates: {
+          send_email_to_client: checked,
+        },
+      });
+    } catch (error) {
+      toast.error("이메일 발송 상태 업데이트에 실패했습니다.");
+    }
+  };
+
   // 강제 승인 핸들러 (프론트엔드에서 직접 Supabase 호출)
   const handleForceApprove = async () => {
     if (!task || !currentUserId) return;
@@ -411,6 +426,7 @@ export default function TaskDetailPage() {
       id: task.id,
       updates: {
         title: data.title,
+        client_name: data.client_name,
         due_date: data.due_date,
       },
     });
@@ -420,7 +436,7 @@ export default function TaskDetailPage() {
   // Task 삭제 핸들러
   const handleDeleteTask = async () => {
     await deleteTask.mutateAsync(task.id);
-    navigate(`/projects/${task.project_id}`);
+    navigate("/");
   };
 
   // 메시지 삭제 핸들러
@@ -1162,12 +1178,7 @@ export default function TaskDetailPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  // 항상 프로젝트 상세로 이동
-                  if (task?.project_id) {
-                    navigate(`/projects/${task.project_id}`);
-                  } else {
-                    navigate("/");
-                  }
+                  navigate("/");
                 }}
                 className="h-9 w-9 shrink-0"
               >
@@ -1549,7 +1560,6 @@ export default function TaskDetailPage() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdateTask}
-        projectId={task.project_id}
         task={task}
         isLoading={updateTask.isPending}
       />
@@ -1604,8 +1614,10 @@ export default function TaskDetailPage() {
         task={task}
         canEdit={canEdit}
         canDelete={canDelete}
+        currentUserId={currentUserId}
         onEdit={() => setEditDialogOpen(true)}
         onDelete={() => setDeleteDialogOpen(true)}
+        onSendEmailToClientChange={handleSendEmailToClientChange}
       />
     </div>
   );

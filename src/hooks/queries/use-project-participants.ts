@@ -1,15 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { getProjectParticipants, type ProjectParticipant } from "@/api/project";
 
 /**
- * 프로젝트 참여자 목록 조회 훅
+ * 프로젝트 참여자 목록 조회 훅 (deprecated)
+ * 프로젝트 구조 제거로 인해 더 이상 사용되지 않음
  */
-export function useProjectParticipants(projectId: string | undefined) {
-  return useQuery<ProjectParticipant[]>({
-    queryKey: ["project-participants", projectId],
-    queryFn: () => (projectId ? getProjectParticipants(projectId) : Promise.resolve([])),
-    enabled: !!projectId,
-    staleTime: 0, // 즉시 stale로 만들어 항상 최신 데이터 조회
+export function useProjectParticipants(_projectId: string | undefined) {
+  return useQuery<never[]>({
+    queryKey: ["project-participants", _projectId],
+    queryFn: () => Promise.resolve([]),
+    enabled: false,
   });
 }
 

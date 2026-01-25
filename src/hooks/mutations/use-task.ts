@@ -21,8 +21,7 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (task: Omit<TaskInsert, "assigner_id">) => createTask(task),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", data.project_id] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task가 생성되었습니다.");
     },
     onError: (error: Error) => {
@@ -41,7 +40,7 @@ export function useUpdateTask() {
     mutationFn: ({ id, updates }: { id: string; updates: TaskUpdate }) =>
       updateTask(id, updates),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks", data.project_id] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
       toast.success("Task가 수정되었습니다.");
     },
@@ -61,7 +60,6 @@ export function useDeleteTask() {
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Task가 삭제되었습니다.");
     },
     onError: (error: Error) => {
@@ -126,7 +124,7 @@ export function useUpdateTaskStatus() {
     },
     onSuccess: (data) => {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
-      queryClient.invalidateQueries({ queryKey: ["tasks", data.project_id] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
       toast.success("상태가 변경되었습니다.");
     },

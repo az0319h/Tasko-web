@@ -1,65 +1,39 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { addProjectParticipant, addProjectParticipants, removeProjectParticipant } from "@/api/project";
+// 프로젝트 참여자 관련 mutation 훅은 제거되었습니다.
+// 프로젝트 구조가 태스크 중심 구조로 전환되었습니다.
+// 이 파일은 하위 호환성을 위해 유지되지만 사용되지 않습니다.
+
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-/**
- * 프로젝트 참여자 추가 뮤테이션 훅 (단일)
- */
 export function useAddProjectParticipant() {
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: ({ projectId, userId }: { projectId: string; userId: string }) =>
-      addProjectParticipant(projectId, userId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["project-participants", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("참여자가 추가되었습니다.");
+    mutationFn: async () => {
+      throw new Error("프로젝트 구조가 제거되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "참여자 추가에 실패했습니다.");
+      toast.error(error.message);
     },
   });
 }
 
-/**
- * 프로젝트 참여자 여러명 추가 뮤테이션 훅
- */
 export function useAddProjectParticipants() {
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: ({ projectId, userIds }: { projectId: string; userIds: string[] }) =>
-      addProjectParticipants(projectId, userIds),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["project-participants", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      const count = variables.userIds.length;
-      toast.success(`${count}명의 참여자가 추가되었습니다.`);
+    mutationFn: async () => {
+      throw new Error("프로젝트 구조가 제거되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "참여자 추가에 실패했습니다.");
+      toast.error(error.message);
     },
   });
 }
 
-/**
- * 프로젝트 참여자 삭제 뮤테이션 훅
- */
 export function useRemoveProjectParticipant() {
-  const queryClient = useQueryClient();
-
   return useMutation({
-    mutationFn: ({ projectId, userId }: { projectId: string; userId: string }) =>
-      removeProjectParticipant(projectId, userId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["project-participants", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("참여자가 삭제되었습니다.");
+    mutationFn: async () => {
+      throw new Error("프로젝트 구조가 제거되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "참여자 삭제에 실패했습니다.");
+      toast.error(error.message);
     },
   });
 }
-

@@ -19,8 +19,7 @@ interface EmailRequest {
   assigneeName?: string;
   taskTitle: string;
   taskDescription?: string;
-  projectTitle: string;
-  projectId?: string;
+  clientName?: string;
   dueDate?: string;
   // Status change specific fields
   oldStatus?: string;
@@ -56,7 +55,7 @@ function getEmailTemplate(
 
     if (recipientRole === "assignee") {
       // Assignee receives: "○○님(assigner)이 당신에게 업무를 할당했습니다"
-      const subject = `[Tasko] 새로운 업무가 할당되었습니다: ${data.taskTitle}`;
+      const subject = `[Tasko] 새로운 업무가 할당되었습니다(${data.taskTitle})`;
       const html = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -84,8 +83,8 @@ function getEmailTemplate(
               <h2 style="margin: 0 0 24px; font-size: 20px; font-weight: 600; color: #1d1d1f; line-height: 1.4;">${assignerName}님이 당신에게 업무를 할당했습니다</h2>
               
               <div style="margin: 0 0 32px;">
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">프로젝트:</strong> ${data.projectTitle}</p>
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">업무 제목:</strong> ${data.taskTitle}</p>
+                ${data.clientName ? `<p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">고객명:</strong> ${data.clientName}</p>` : ""}
+                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">지시사항:</strong> ${data.taskTitle}</p>
                 ${data.taskDescription ? `<p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">설명:</strong> ${data.taskDescription}</p>` : ""}
                 <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">마감일:</strong> ${dueDateText}</p>
                 <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">할당자:</strong> ${assignerName} (${data.assignerEmail})</p>
@@ -128,7 +127,7 @@ function getEmailTemplate(
       return { subject, html };
     } else {
       // Assigner receives: "당신이 ○○님(assignee)에게 업무를 할당했습니다"
-      const subject = `[Tasko] 업무 할당이 완료되었습니다: ${data.taskTitle}`;
+      const subject = `[Tasko] 업무 할당이 완료되었습니다(${data.taskTitle})`;
       const html = `
 <!DOCTYPE html>
 <html lang="ko">
@@ -156,8 +155,8 @@ function getEmailTemplate(
               <h2 style="margin: 0 0 24px; font-size: 20px; font-weight: 600; color: #1d1d1f; line-height: 1.4;">당신이 ${assigneeName}님에게 업무를 할당했습니다</h2>
               
               <div style="margin: 0 0 32px;">
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">프로젝트:</strong> ${data.projectTitle}</p>
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">업무 제목:</strong> ${data.taskTitle}</p>
+                ${data.clientName ? `<p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">고객명:</strong> ${data.clientName}</p>` : ""}
+                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">지시사항:</strong> ${data.taskTitle}</p>
                 ${data.taskDescription ? `<p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">설명:</strong> ${data.taskDescription}</p>` : ""}
                 <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">마감일:</strong> ${dueDateText}</p>
                 <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">담당자:</strong> ${assigneeName} (${data.assigneeEmail})</p>
@@ -243,16 +242,16 @@ function getEmailTemplate(
     let subject = "";
     if (data.oldStatus === "IN_PROGRESS" && data.newStatus === "WAITING_CONFIRM") {
       // 케이스 2: 완료 요청
-      subject = `[Tasko] 업무를 완료해서 당신에게 확인을 요청했습니다: ${data.taskTitle}`;
+      subject = `[Tasko] 업무를 완료해서 당신에게 확인을 요청했습니다(${data.taskTitle})`;
     } else if (data.oldStatus === "WAITING_CONFIRM" && data.newStatus === "APPROVED") {
       // 케이스 3: 승인
-      subject = `[Tasko] 당신의 업무가 승인되었습니다: ${data.taskTitle}`;
+      subject = `[Tasko] 당신의 업무가 승인되었습니다(${data.taskTitle})`;
     } else if (data.oldStatus === "WAITING_CONFIRM" && data.newStatus === "REJECTED") {
       // 케이스 4: 반려
-      subject = `[Tasko] 당신의 업무가 반려처리 되었습니다: ${data.taskTitle}`;
+      subject = `[Tasko] 당신의 업무가 반려처리 되었습니다(${data.taskTitle})`;
     } else {
       // 기타 케이스 (현재는 케이스 1, 5번은 이메일 전송 안 함)
-      subject = `[Tasko] 업무 상태 변경: ${data.taskTitle}`;
+      subject = `[Tasko] 업무 상태 변경(${data.taskTitle})`;
     }
     const html = `
 <!DOCTYPE html>
@@ -281,8 +280,8 @@ function getEmailTemplate(
               <h2 style="margin: 0 0 24px; font-size: 20px; font-weight: 600; color: #1d1d1f; line-height: 1.4;">${statusMessage}</h2>
               
               <div style="margin: 0 0 32px;">
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">프로젝트:</strong> ${data.projectTitle}</p>
-                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">업무 제목:</strong> ${data.taskTitle}</p>
+                ${data.clientName ? `<p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">고객명:</strong> ${data.clientName}</p>` : ""}
+                <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">지시사항:</strong> ${data.taskTitle}</p>
                 <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">상태 변경:</strong> <span style="color: #dc2626;">${oldStatusLabel}</span> → <span style="color: #16a34a;">${newStatusLabel}</span></p>
                 <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #1d1d1f;"><strong style="color: #6e6e73;">변경자:</strong> ${changerName}</p>
               </div>
@@ -326,7 +325,7 @@ function getEmailTemplate(
 
   // Fallback template (should not reach here)
   return {
-    subject: `[Tasko] 업무 알림: ${data.taskTitle}`,
+    subject: `[Tasko] 업무 알림(${data.taskTitle})`,
     html: `<p>업무 알림입니다.</p>`,
   };
 }
@@ -402,7 +401,6 @@ Deno.serve(async (req: Request) => {
       !emailData.assignerEmail ||
       !emailData.assigneeEmail ||
       !emailData.taskTitle ||
-      !emailData.projectTitle ||
       !emailData.recipients ||
       emailData.recipients.length === 0
     ) {

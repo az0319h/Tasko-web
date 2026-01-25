@@ -7,6 +7,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import type { TaskWithProfiles } from "@/api/task";
 
@@ -16,8 +18,10 @@ interface TaskDetailDialogProps {
   task: TaskWithProfiles;
   canEdit: boolean;
   canDelete: boolean;
+  currentUserId?: string;
   onEdit: () => void;
   onDelete: () => void;
+  onSendEmailToClientChange?: (checked: boolean) => void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -37,9 +41,13 @@ export function TaskDetailDialog({
   task,
   canEdit,
   canDelete,
+  currentUserId,
   onEdit,
   onDelete,
+  onSendEmailToClientChange,
 }: TaskDetailDialogProps) {
+  // 담당자(assignee)인지 확인
+  const isAssignee = currentUserId === task.assignee_id;
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "미정";
     return new Date(dateString).toLocaleDateString("ko-KR", {
@@ -79,14 +87,6 @@ export function TaskDetailDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* 계정 ID */}
-          {task.project && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">계정 ID</h3>
-              <p className="text-base font-medium">{task.project.title}</p>
-            </div>
-          )}
-
           {/* 고유 ID */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">고유 ID</h3>
@@ -94,10 +94,10 @@ export function TaskDetailDialog({
           </div>
 
           {/* 고객명 */}
-          {task.project && (
+          {task.client_name && (
             <div className="space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">고객명</h3>
-              <p className="text-base font-medium">{task.project.client_name}</p>
+              <p className="text-base font-medium">{task.client_name}</p>
             </div>
           )}
 
@@ -152,6 +152,32 @@ export function TaskDetailDialog({
             <h3 className="text-sm font-medium text-muted-foreground">상태</h3>
             <TaskStatusBadge status={task.task_status} />
           </div>
+
+          {/* 고객에게 이메일 발송 완료 토글 (승인 상태일 때만 표시, 담당자만 변경 가능) */}
+          {task.task_status === "APPROVED" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="send-email-to-client" className="text-sm font-medium">
+                  고객에게 이메일 발송 완료
+                </Label>
+                <Switch
+                  id="send-email-to-client"
+                  checked={task.send_email_to_client || false}
+                  disabled={!isAssignee || !onSendEmailToClientChange}
+                  onCheckedChange={(checked) => {
+                    if (onSendEmailToClientChange) {
+                      onSendEmailToClientChange(checked);
+                    }
+                  }}
+                />
+              </div>
+              {!isAssignee && (
+                <p className="text-xs text-muted-foreground">
+                  담당자만 변경할 수 있습니다.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* 액션 버튼 */}
           {(canEdit || canDelete) && (

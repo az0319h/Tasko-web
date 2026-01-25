@@ -10,10 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProjectCard } from "@/components/project/project-card";
 import { CategoryTaskListModal } from "./category-task-list-modal";
+import { TaskCard } from "./task-card";
 import type { TaskWithProfiles } from "@/api/task";
-import type { Project } from "@/api/project";
 import type { TaskStatus } from "@/lib/task-status";
 
 type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
@@ -22,7 +21,6 @@ type SortOrder = "dueDateAsc" | "dueDateDesc" | "createdAt";
 
 interface KanbanBoardWithProjectsProps {
   tasks: TaskWithProfiles[];
-  projects: Project[];
   currentUserId?: string;
   isAdmin?: boolean;
   onTaskStatusChange?: (taskId: string, newStatus: TaskStatus) => void;
@@ -59,13 +57,12 @@ const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
 ];
 
 /**
- * 프로젝트별로 그룹화된 칸반 보드 컴포넌트
- * 멤버 대시보드에서 사용
- * 프로젝트별로 Task를 그룹화하고, 카테고리별로 표시하며, 프로젝트 카드 아코디언으로 표시
+ * 카테고리별로 그룹화된 칸반 보드 컴포넌트
+ * 프로젝트 구조 제거 후 태스크 중심 구조로 변경
+ * 카테고리별로 Task를 그룹화하여 표시
  */
 export function KanbanBoardWithProjects({
   tasks,
-  projects,
   currentUserId,
   isAdmin = false,
   onTaskStatusChange,
@@ -89,15 +86,6 @@ export function KanbanBoardWithProjects({
       setInternalStatusFilter(value);
     }
   };
-
-  // 프로젝트 맵 생성 (빠른 조회를 위해)
-  const projectMap = useMemo(() => {
-    const map = new Map<string, Project>();
-    projects.forEach((project) => {
-      map.set(project.id, project);
-    });
-    return map;
-  }, [projects]);
 
   // 1단계: 역할 필터 적용 (지시자/담당자)
   const roleFilteredTasks = useMemo(() => {
@@ -134,15 +122,11 @@ export function KanbanBoardWithProjects({
       const assigneeMatch = assigneeName.includes(query);
       const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
       const assignerMatch = assignerName.includes(query);
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
       
-      // 프로젝트 정보도 검색에 포함
-      const project = projectMap.get(task.project_id);
-      const projectTitleMatch = project?.title.toLowerCase().includes(query) || false;
-      const projectClientMatch = project?.client_name.toLowerCase().includes(query) || false;
-      
-      return titleMatch || assigneeMatch || assignerMatch || projectTitleMatch || projectClientMatch;
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch;
     });
-  }, [statusFilteredTasks, searchQuery, projectMap]);
+  }, [statusFilteredTasks, searchQuery]);
 
   // 4단계: 정렬 적용
   const filteredTasks = useMemo(() => {
@@ -170,80 +154,7 @@ export function KanbanBoardWithProjects({
     return sorted;
   }, [searchedTasks, sortOrder]);
 
-  // 프로젝트별, 카테고리별 Task 그룹화
-  const tasksByProjectAndCategory = useMemo(() => {
-    const grouped: Record<string, Record<TaskCategory, TaskWithProfiles[]>> = {};
-
-    filteredTasks.forEach((task) => {
-      const projectId = task.project_id;
-      const category = task.task_category as TaskCategory;
-
-      if (!grouped[projectId]) {
-        grouped[projectId] = {
-          REVIEW: [],
-          CONTRACT: [],
-          SPECIFICATION: [],
-          APPLICATION: [],
-        };
-      }
-
-      if (category && category in grouped[projectId]) {
-        grouped[projectId][category].push(task);
-      }
-    });
-
-    return grouped;
-  }, [filteredTasks]);
-
-  // 카테고리별 프로젝트 목록 및 Task 개수 계산
-  const categoryData = useMemo(() => {
-    const data: Record<
-      TaskCategory,
-      { projects: Project[]; taskCount: number }
-    > = {
-      REVIEW: { projects: [], taskCount: 0 },
-      CONTRACT: { projects: [], taskCount: 0 },
-      SPECIFICATION: { projects: [], taskCount: 0 },
-      APPLICATION: { projects: [], taskCount: 0 },
-    };
-
-    CATEGORIES.forEach((category) => {
-      const projectIds = new Set<string>();
-      let taskCount = 0;
-
-      Object.keys(tasksByProjectAndCategory).forEach((projectId) => {
-        const tasks = tasksByProjectAndCategory[projectId][category.value];
-        if (tasks.length > 0) {
-          projectIds.add(projectId);
-          taskCount += tasks.length;
-        }
-      });
-
-      data[category.value] = {
-        projects: Array.from(projectIds)
-          .map((id) => projectMap.get(id))
-          .filter((p): p is Project => p !== undefined),
-        taskCount,
-      };
-    });
-
-    return data;
-  }, [tasksByProjectAndCategory, projectMap]);
-
-  // 역할 필터별 Task 개수 계산
-  const roleFilterCounts = useMemo(() => {
-    if (!currentUserId) return {};
-
-    return {
-      MY_ASSIGNER: tasks.filter((t) => t.assigner_id === currentUserId).length,
-      MY_ASSIGNEE: tasks.filter((t) => t.assignee_id === currentUserId).length,
-      MY_TASKS: tasks.filter(
-        (t) => t.assigner_id === currentUserId || t.assignee_id === currentUserId,
-      ).length,
-    };
-  }, [tasks, currentUserId]);
-
-  // 카테고리별 모든 Task 수집 (프로젝트 구분 없이)
+  // 카테고리별 Task 그룹화
   const tasksByCategory = useMemo(() => {
     const grouped: Record<TaskCategory, TaskWithProfiles[]> = {
       REVIEW: [],
@@ -261,6 +172,38 @@ export function KanbanBoardWithProjects({
 
     return grouped;
   }, [filteredTasks]);
+
+  // 카테고리별 Task 개수 계산
+  const categoryData = useMemo(() => {
+    const data: Record<TaskCategory, { taskCount: number }> = {
+      REVIEW: { taskCount: 0 },
+      CONTRACT: { taskCount: 0 },
+      SPECIFICATION: { taskCount: 0 },
+      APPLICATION: { taskCount: 0 },
+    };
+
+    CATEGORIES.forEach((category) => {
+      data[category.value] = {
+        taskCount: tasksByCategory[category.value].length,
+      };
+    });
+
+    return data;
+  }, [tasksByCategory]);
+
+  // 역할 필터별 Task 개수 계산
+  const roleFilterCounts = useMemo(() => {
+    if (!currentUserId) return {};
+
+    return {
+      MY_ASSIGNER: tasks.filter((t) => t.assigner_id === currentUserId).length,
+      MY_ASSIGNEE: tasks.filter((t) => t.assignee_id === currentUserId).length,
+      MY_TASKS: tasks.filter(
+        (t) => t.assigner_id === currentUserId || t.assignee_id === currentUserId,
+      ).length,
+    };
+  }, [tasks, currentUserId]);
+
 
   return (
     <div className="space-y-4">
@@ -326,7 +269,8 @@ export function KanbanBoardWithProjects({
       {/* 칸반 보드 - 카테고리별 컬럼 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4">
         {CATEGORIES.map((category) => {
-          const { projects, taskCount } = categoryData[category.value];
+          const { taskCount } = categoryData[category.value];
+          const categoryTasks = tasksByCategory[category.value];
 
           return (
             <div
@@ -352,26 +296,24 @@ export function KanbanBoardWithProjects({
                 </Button>
               </div>
 
-              {/* 프로젝트 카드 목록 */}
+              {/* Task 카드 목록 */}
               <div className="space-y-3 flex-1 overflow-y-auto max-h-[calc(100vh-300px)]">
-                {projects.length === 0 ? (
+                {categoryTasks.length === 0 ? (
                   <div className="text-center py-8 text-sm text-muted-foreground">
                     Task가 없습니다
                   </div>
                 ) : (
-                  projects.map((project) => {
-                    const projectTasks = tasksByProjectAndCategory[project.id][category.value];
-                    return (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        tasks={projectTasks}
-                        currentUserId={currentUserId}
-                        isAdmin={isAdmin}
-                        onTaskStatusChange={onTaskStatusChange}
-                      />
-                    );
-                  })
+                  categoryTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      currentUserId={currentUserId}
+                      isAdmin={isAdmin}
+                      onStatusChange={onTaskStatusChange}
+                      showActions={true}
+                      showFullInfo={false}
+                    />
+                  ))
                 )}
               </div>
             </div>
@@ -393,7 +335,6 @@ export function KanbanBoardWithProjects({
           }}
           category={category.value}
           tasks={tasksByCategory[category.value]}
-          projects={projects}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           onTaskStatusChange={onTaskStatusChange}
