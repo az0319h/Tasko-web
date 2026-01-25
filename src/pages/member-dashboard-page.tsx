@@ -629,7 +629,7 @@ export default function MemberDashboardPage() {
       const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
       const assignerMatch = assignerName.includes(query);
       const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
-      const uniqueIdMatch = task.id.slice(0, 8).toUpperCase().includes(query.toUpperCase());
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
 
       return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
     });
@@ -701,8 +701,9 @@ export default function MemberDashboardPage() {
       const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
       const assignerMatch = assignerName.includes(query);
       const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
 
-      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch;
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
     });
   }, [myTasks, debouncedSearch]);
 
@@ -978,7 +979,7 @@ export default function MemberDashboardPage() {
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="Task 제목, 담당자명 또는 지시자명, 고객명으로 검색..."
+                placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -1208,7 +1209,7 @@ export default function MemberDashboardPage() {
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="Task 제목, 담당자명 또는 지시자명, 고객명으로 검색..."
+                placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
