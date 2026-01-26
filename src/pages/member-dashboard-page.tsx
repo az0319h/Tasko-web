@@ -123,7 +123,7 @@ type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rej
 type SortDueParam = "asc" | "desc";
 type SortEmailSentParam = "asc" | "desc";
 type EmailSentParam = "all" | "sent" | "not_sent";
-type CategoryParam = "all" | "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+type CategoryParam = "all" | "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
 /**
  * Member 대시보드 페이지
@@ -168,7 +168,7 @@ export default function MemberDashboardPage() {
     emailSentParam && validEmailSentParams.includes(emailSentParam) ? emailSentParam : "all";
 
   const categoryParam = searchParams.get("category") as CategoryParam | null;
-  const validCategoryParams: CategoryParam[] = ["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"];
+  const validCategoryParams: CategoryParam[] = ["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"];
   const category: CategoryParam =
     categoryParam && validCategoryParams.includes(categoryParam) ? categoryParam : "all";
 
@@ -196,10 +196,10 @@ export default function MemberDashboardPage() {
 
   // 빠른 생성 관련 상태
   const [preSelectedCategory, setPreSelectedCategory] = useState<
-    "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
+    "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
   >(undefined);
   const [autoFillMode, setAutoFillMode] = useState<
-    "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
+    "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION" | undefined
   >(undefined);
   const [preFilledTitle, setPreFilledTitle] = useState<string | undefined>(undefined);
   const [isSpecificationMode, setIsSpecificationMode] = useState(false);
@@ -400,7 +400,7 @@ export default function MemberDashboardPage() {
 
   // 빠른 생성 핸들러
   const handleQuickCreate = (
-    category: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION",
+    category: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION",
     title?: string,
   ) => {
     setPreSelectedCategory(category);
@@ -848,30 +848,52 @@ export default function MemberDashboardPage() {
               : `${filteredProjects.length}개의 프로젝트`}
           </p> */}
         </div>
-        <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <Plus className="mr-2 h-4 w-4" />
-                빠른 생성
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
-                검토
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
-                계약
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
-                명세서
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
-                출원
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => handleQuickCreate("REVIEW", "검토")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            검토
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => handleQuickCreate("REVISION", "수정")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            수정
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => handleQuickCreate("CONTRACT", "계약")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            계약
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => handleQuickCreate("SPECIFICATION")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            명세서
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9"
+            onClick={() => handleQuickCreate("APPLICATION", "출원")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            출원
+          </Button>
           <Button
             onClick={() => {
               setPreSelectedCategory(undefined);
@@ -910,10 +932,11 @@ export default function MemberDashboardPage() {
         <TabsContent value="my-tasks" className="space-y-4">
           {/* 카테고리 필터 버튼 */}
           <div className="flex flex-wrap gap-2 mb-2">
-            {(["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+            {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
               const categoryLabels: Record<CategoryParam, string> = {
                 all: "전체",
                 REVIEW: "검토",
+                REVISION: "수정",
                 CONTRACT: "계약",
                 SPECIFICATION: "명세서",
                 APPLICATION: "출원",
@@ -1053,7 +1076,13 @@ export default function MemberDashboardPage() {
                     return (
                       <tr
                         key={task.id}
-                        className="hover:bg-muted/50 border-b transition-colors"
+                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                        onClick={() => {
+                          const currentUrl =
+                            window.location.pathname + window.location.search;
+                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                          navigate(`/tasks/${task.id}`);
+                        }}
                       >
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
@@ -1076,7 +1105,8 @@ export default function MemberDashboardPage() {
                             <Link
                               to={`/tasks/${task.id}`}
                               className="line-clamp-2 hover:underline cursor-pointer"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
                                 const currentUrl =
                                   window.location.pathname + window.location.search;
                                 sessionStorage.setItem("previousDashboardUrl", currentUrl);
@@ -1141,10 +1171,11 @@ export default function MemberDashboardPage() {
         <TabsContent value="all-tasks" className="space-y-4">
           {/* 카테고리 필터 버튼 */}
           <div className="flex flex-wrap gap-2 mb-2">
-            {(["all", "REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+            {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
               const categoryLabels: Record<CategoryParam, string> = {
                 all: "전체",
                 REVIEW: "검토",
+                REVISION: "수정",
                 CONTRACT: "계약",
                 SPECIFICATION: "명세서",
                 APPLICATION: "출원",
@@ -1282,7 +1313,13 @@ export default function MemberDashboardPage() {
                     return (
                       <tr
                         key={task.id}
-                        className="hover:bg-muted/50 border-b transition-colors"
+                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                        onClick={() => {
+                          const currentUrl =
+                            window.location.pathname + window.location.search;
+                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                          navigate(`/tasks/${task.id}`);
+                        }}
                       >
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
@@ -1305,7 +1342,8 @@ export default function MemberDashboardPage() {
                             <Link
                               to={`/tasks/${task.id}`}
                               className="line-clamp-2 hover:underline cursor-pointer"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
                                 const currentUrl =
                                   window.location.pathname + window.location.search;
                                 sessionStorage.setItem("previousDashboardUrl", currentUrl);

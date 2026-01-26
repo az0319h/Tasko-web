@@ -32,9 +32,9 @@ interface TaskFormDialogProps {
   onSubmit: (data: TaskCreateFormData | TaskUpdateFormData, files?: File[], notes?: string) => Promise<void>;
   isLoading?: boolean;
   task?: TaskWithProfiles | null; // 수정 모드일 때 Task 데이터
-  preSelectedCategory?: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 미리 선택된 카테고리
+  preSelectedCategory?: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 미리 선택된 카테고리
   preFilledTitle?: string; // 자동 입력할 지시사항
-  autoFillMode?: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 자동 채우기 모드
+  autoFillMode?: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 자동 채우기 모드
   isSpecificationMode?: boolean; // 명세서 모드 (2개 task 생성)
 }
 
@@ -117,6 +117,7 @@ export function TaskFormDialog({
     
     switch (category) {
       case "REVIEW":
+      case "REVISION":
       case "CONTRACT":
         // 오늘 기준 +1일
         defaultDate.setDate(date + 1);
@@ -358,6 +359,7 @@ export function TaskFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="REVIEW">검토</SelectItem>
+                    <SelectItem value="REVISION">수정</SelectItem>
                     <SelectItem value="CONTRACT">계약</SelectItem>
                     <SelectItem value="SPECIFICATION">명세서</SelectItem>
                     <SelectItem value="APPLICATION">출원</SelectItem>
@@ -428,6 +430,7 @@ export function TaskFormDialog({
                 <Label>카테고리</Label>
                 <div className="px-3 py-2 border rounded-md bg-muted text-sm">
                   {task.task_category === "REVIEW" && "검토"}
+                  {task.task_category === "REVISION" && "수정"}
                   {task.task_category === "CONTRACT" && "계약"}
                   {task.task_category === "SPECIFICATION" && "명세서"}
                   {task.task_category === "APPLICATION" && "출원"}

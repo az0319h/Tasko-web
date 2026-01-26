@@ -461,7 +461,7 @@ export type Database = {
     Enums: {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
-      task_category: "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
+      task_category: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
       task_status:
         | "ASSIGNED"
         | "IN_PROGRESS"
@@ -597,7 +597,7 @@ export const Constants = {
     Enums: {
       chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
-      task_category: ["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"],
+      task_category: ["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"],
       task_status: [
         "ASSIGNED",
         "IN_PROGRESS",
