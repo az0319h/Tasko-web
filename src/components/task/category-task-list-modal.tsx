@@ -10,7 +10,7 @@ import { TaskCard } from "./task-card";
 import type { TaskWithProfiles } from "@/api/task";
 import type { TaskStatus } from "@/lib/task-status";
 
-type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+type TaskCategory = "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
 interface CategoryTaskListModalProps {
   open: boolean;
@@ -24,6 +24,7 @@ interface CategoryTaskListModalProps {
 
 const CATEGORY_LABELS: Record<TaskCategory, string> = {
   REVIEW: "검토",
+  REVISION: "수정",
   CONTRACT: "계약",
   SPECIFICATION: "명세서",
   APPLICATION: "출원",

@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Task 카테고리 타입
  */
-export type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+export type TaskCategory = "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
 /**
  * Task 생성 스키마
@@ -14,7 +14,7 @@ export const taskCreateSchema = z.object({
   title: z.string().min(1, "제목을 입력해주세요.").max(200, "제목은 200자 이하여야 합니다."),
   description: z.string().max(1000, "설명은 1000자 이하여야 합니다.").optional().nullable(),
   assignee_id: z.string().uuid("올바른 할당받은 사람 ID를 선택해주세요."),
-  task_category: z.enum(["REVIEW", "CONTRACT", "SPECIFICATION", "APPLICATION"], {
+  task_category: z.enum(["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"], {
     message: "카테고리를 선택해주세요.",
   }),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),

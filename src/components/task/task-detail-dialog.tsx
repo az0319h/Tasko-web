@@ -26,6 +26,7 @@ interface TaskDetailDialogProps {
 
 const CATEGORY_LABELS: Record<string, string> = {
   REVIEW: "검토",
+  REVISION: "수정",
   CONTRACT: "계약",
   SPECIFICATION: "명세서",
   APPLICATION: "출원",

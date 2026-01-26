@@ -15,7 +15,7 @@ import type { TaskWithProfiles } from "@/api/task";
 import type { TaskStatus } from "@/lib/task-status";
 import { cn } from "@/lib/utils";
 
-type TaskCategory = "REVIEW" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+type TaskCategory = "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 type RoleFilter = "ALL" | "MY_ASSIGNER" | "MY_ASSIGNEE" | "MY_TASKS";
 type SortOrder = "dueDateAsc" | "dueDateDesc" | "createdAt";
 
@@ -33,6 +33,7 @@ interface KanbanBoardProps {
 
 const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: "REVIEW", label: "검토" },
+  { value: "REVISION", label: "수정" },
   { value: "CONTRACT", label: "계약" },
   { value: "SPECIFICATION", label: "명세서" },
   { value: "APPLICATION", label: "출원" },
@@ -148,6 +149,7 @@ export function KanbanBoard({
   const tasksByCategory = useMemo(() => {
     const categorized: Record<TaskCategory, TaskWithProfiles[]> = {
       REVIEW: [],
+      REVISION: [],
       CONTRACT: [],
       SPECIFICATION: [],
       APPLICATION: [],
