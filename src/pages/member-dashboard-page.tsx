@@ -151,8 +151,9 @@ export default function MemberDashboardPage() {
   // URL params 읽기 (전체 태스크 탭 및 담당 업무 탭용)
   const currentTabFromUrl = searchParams.get("tab") as DashboardTab | null;
 
-  // 검색어는 로컬 state만 사용 (URL params 제거, 전체 프로젝트 탭과 동일)
-  const [searchQuery, setSearchQuery] = useState("");
+  // 검색어는 URL params에서 읽기
+  const keywordParam = searchParams.get("keyword");
+  const [searchQuery, setSearchQuery] = useState(keywordParam || "");
 
   const sortDueParam = searchParams.get("sortDue") as SortDueParam | null;
   const sortDue: SortDueParam =
@@ -243,6 +244,7 @@ export default function MemberDashboardPage() {
       sortEmailSent: SortEmailSentParam;
       category: CategoryParam;
       emailSent: EmailSentParam;
+      keyword?: string;
       allTasksPage?: number;
     }>,
   ) => {
@@ -256,6 +258,7 @@ export default function MemberDashboardPage() {
     const sortEmailSentToSet = updates?.sortEmailSent !== undefined ? updates.sortEmailSent : sortEmailSent;
     const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const emailSentToSet = updates?.emailSent !== undefined ? updates.emailSent : emailSent;
+    const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const allTasksPageToSet = updates?.allTasksPage !== undefined ? updates.allTasksPage : allTasksCurrentPage;
 
     // sortDue 설정
@@ -278,6 +281,11 @@ export default function MemberDashboardPage() {
       newParams.set("emailSent", emailSentToSet);
     }
 
+    // keyword 설정
+    if (keywordToSet && keywordToSet.trim()) {
+      newParams.set("keyword", keywordToSet);
+    }
+
     // allTasksPage 설정
     if (allTasksPageToSet !== undefined && allTasksPageToSet !== 1) {
       newParams.set("allTasksPage", allTasksPageToSet.toString());
@@ -292,6 +300,7 @@ export default function MemberDashboardPage() {
       sortDue: SortDueParam;
       category: CategoryParam;
       status: StatusParam;
+      keyword?: string;
       myTasksPage?: number;
     }>,
   ) => {
@@ -304,6 +313,7 @@ export default function MemberDashboardPage() {
     const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
     const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const myTasksPageToSet = updates?.myTasksPage !== undefined ? updates.myTasksPage : myTasksCurrentPage;
 
     // sortDue 설정
@@ -321,6 +331,11 @@ export default function MemberDashboardPage() {
       newParams.set("status", statusToSet);
     }
 
+    // keyword 설정
+    if (keywordToSet && keywordToSet.trim()) {
+      newParams.set("keyword", keywordToSet);
+    }
+
     // myTasksPage 설정
     if (myTasksPageToSet !== undefined && myTasksPageToSet !== 1) {
       newParams.set("myTasksPage", myTasksPageToSet.toString());
@@ -329,9 +344,15 @@ export default function MemberDashboardPage() {
     setSearchParams(newParams, { replace: true });
   };
 
-  // 검색어 변경 핸들러 (로컬 state만 업데이트, URL params 사용 안 함)
+  // 검색어 변경 핸들러 (로컬 state 및 URL params 업데이트)
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
+    // 현재 활성 탭에 따라 URL params 업데이트
+    if (activeTab === "all-tasks") {
+      updateAllTasksUrlParams({ keyword: value });
+    } else {
+      updateMyTasksUrlParams({ keyword: value });
+    }
   };
 
   // 정렬 변경 핸들러 (전체 태스크 탭용)
@@ -766,15 +787,21 @@ export default function MemberDashboardPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // URL 쿼리 파라미터 변경 시 탭 상태 동기화
+  // URL 쿼리 파라미터 변경 시 탭 상태 및 검색어 동기화
   useEffect(() => {
     const tabParam = searchParams.get("tab") as DashboardTab | null;
     const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" ? tabParam : "my-tasks";
+    const keywordFromUrl = searchParams.get("keyword") || "";
     
     if (newTab !== activeTab) {
       setActiveTab(newTab);
     }
-  }, [searchParams, activeTab]);
+    
+    // URL에서 keyword가 변경되었을 때 searchQuery 동기화 (브라우저 뒤로가기/앞으로가기 등)
+    if (keywordFromUrl !== searchQuery) {
+      setSearchQuery(keywordFromUrl);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 검색어/필터 변경 시 1페이지로 리셋 (전체 태스크 탭)
   useEffect(() => {
