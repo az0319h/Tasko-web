@@ -848,52 +848,83 @@ export default function MemberDashboardPage() {
               : `${filteredProjects.length}개의 프로젝트`}
           </p> */}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => handleQuickCreate("REVIEW", "검토")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            검토
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => handleQuickCreate("REVISION", "수정")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            수정
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => handleQuickCreate("CONTRACT", "계약")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            계약
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => handleQuickCreate("SPECIFICATION")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            명세서
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => handleQuickCreate("APPLICATION", "출원")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            출원
-          </Button>
+        <div className="flex items-center gap-2">
+          {/* 모바일: 빠른 생성 드롭다운 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 md:hidden">
+                <Plus className="mr-2 h-4 w-4" />
+                빠른 생성
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
+                검토
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("REVISION", "수정")}>
+                수정
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
+                계약
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
+                명세서
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
+                출원
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* PC: 빠른 생성 버튼들 */}
+          <div className="hidden md:flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("REVIEW", "검토")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              검토
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("REVISION", "수정")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              수정
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("CONTRACT", "계약")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              계약
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("SPECIFICATION")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              명세서
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("APPLICATION", "출원")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              출원
+            </Button>
+          </div>
+          {/* Task 생성 버튼 (공통) */}
           <Button
             onClick={() => {
               setPreSelectedCategory(undefined);
@@ -902,6 +933,7 @@ export default function MemberDashboardPage() {
               setIsSpecificationMode(false);
               setCreateTaskDialogOpen(true);
             }}
+            className="h-9"
           >
             <Plus className="mr-2 h-4 w-4" />
             Task 생성
@@ -930,76 +962,159 @@ export default function MemberDashboardPage() {
 
         {/* 담당 업무 탭 */}
         <TabsContent value="my-tasks" className="space-y-4">
-          {/* 카테고리 필터 버튼 */}
-          <div className="flex flex-wrap gap-2 mb-2">
-            {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
-              const categoryLabels: Record<CategoryParam, string> = {
-                all: "전체",
-                REVIEW: "검토",
-                REVISION: "수정",
-                CONTRACT: "계약",
-                SPECIFICATION: "명세서",
-                APPLICATION: "출원",
-              };
-              // 상태 필터가 적용된 후의 개수 계산
-              const dbStatus = statusMap[status];
-              const filteredByStatus = dbStatus === null 
-                ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
-                : searchedMyTasks.filter((task) => task.task_status === dbStatus);
-              const count = categoryValue === "all"
-                ? filteredByStatus.length
-                : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
-              
-              return (
-                <Button
-                  key={categoryValue}
-                  variant={category === categoryValue ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleMyTasksCategoryChange(categoryValue)}
-                  className="h-8"
-                >
-                  {categoryLabels[categoryValue]} ({count}개)
-                </Button>
-              );
-            })}
+          {/* 필터 영역 */}
+          <div className="space-y-3">
+            {/* 모바일: Select 드롭다운 */}
+            <div className="flex gap-2 sm:hidden">
+              <Select value={category} onValueChange={(value) => handleMyTasksCategoryChange(value as CategoryParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {category === "all" 
+                      ? "전체 카테고리" 
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVIEW" ? "검토"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVISION" ? "수정"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "CONTRACT" ? "계약"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "SPECIFICATION" ? "명세서"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "APPLICATION" ? "출원"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                    const categoryLabels: Record<CategoryParam, string> = {
+                      all: "전체",
+                      REVIEW: "검토",
+                      REVISION: "수정",
+                      CONTRACT: "계약",
+                      SPECIFICATION: "명세서",
+                      APPLICATION: "출원",
+                    };
+                    const dbStatus = statusMap[status];
+                    const filteredByStatus = dbStatus === null 
+                      ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
+                      : searchedMyTasks.filter((task) => task.task_status === dbStatus);
+                    const count = categoryValue === "all"
+                      ? filteredByStatus.length
+                      : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                    return (
+                      <SelectItem key={categoryValue} value={categoryValue}>
+                        {categoryLabels[categoryValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Select value={status} onValueChange={(value) => handleMyTasksStatusChange(value as StatusParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {status === "all" 
+                      ? "전체 상태" 
+                      : status === "assigned" ? "할당됨"
+                      : status === "in_progress" ? "진행중"
+                      : status === "waiting_confirm" ? "확인대기"
+                      : status === "rejected" ? "거부됨"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
+                    const statusLabels: Record<StatusParam, string> = {
+                      all: "전체",
+                      assigned: "할당됨",
+                      in_progress: "진행중",
+                      waiting_confirm: "확인대기",
+                      rejected: "거부됨",
+                      approved: "승인됨",
+                    };
+                    const filteredByCategory = category === "all"
+                      ? searchedMyTasks
+                      : searchedMyTasks.filter((task) => task.task_category === category);
+                    const dbStatus = statusMap[statusValue];
+                    const count = dbStatus === null 
+                      ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
+                      : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+                    return (
+                      <SelectItem key={statusValue} value={statusValue}>
+                        {statusLabels[statusValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 태블릿/PC: 버튼 그룹 */}
+            <div className="hidden sm:block space-y-2">
+              {/* 카테고리 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                  const categoryLabels: Record<CategoryParam, string> = {
+                    all: "전체",
+                    REVIEW: "검토",
+                    REVISION: "수정",
+                    CONTRACT: "계약",
+                    SPECIFICATION: "명세서",
+                    APPLICATION: "출원",
+                  };
+                  const dbStatus = statusMap[status];
+                  const filteredByStatus = dbStatus === null 
+                    ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
+                    : searchedMyTasks.filter((task) => task.task_status === dbStatus);
+                  const count = categoryValue === "all"
+                    ? filteredByStatus.length
+                    : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                  
+                  return (
+                    <Button
+                      key={categoryValue}
+                      variant={category === categoryValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleMyTasksCategoryChange(categoryValue)}
+                      className="p-1 sm:p-1.5"
+
+                    >
+                      {categoryLabels[categoryValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* 상태 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
+                  const statusLabels: Record<StatusParam, string> = {
+                    all: "전체",
+                    assigned: "할당됨",
+                    in_progress: "진행중",
+                    waiting_confirm: "확인대기",
+                    rejected: "거부됨",
+                    approved: "승인됨",
+                  };
+                  const filteredByCategory = category === "all"
+                    ? searchedMyTasks
+                    : searchedMyTasks.filter((task) => task.task_category === category);
+                  const dbStatus = statusMap[statusValue];
+                  const count = dbStatus === null 
+                    ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
+                    : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+                  
+                  return (
+                    <Button
+                      key={statusValue}
+                      variant={status === statusValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleMyTasksStatusChange(statusValue)}
+                      className="p-1 sm:p-1.5"
+
+                    >
+                      {statusLabels[statusValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          {/* 상태 필터 버튼 */}
-          <div className="flex flex-wrap gap-2">
-            {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
-              const statusLabels: Record<StatusParam, string> = {
-                all: "전체",
-                assigned: "할당됨",
-                in_progress: "진행중",
-                waiting_confirm: "확인대기",
-                rejected: "거부됨",
-                approved: "승인됨",
-              };
-              // 카테고리 필터가 적용된 후의 개수 계산
-              const filteredByCategory = category === "all"
-                ? searchedMyTasks
-                : searchedMyTasks.filter((task) => task.task_category === category);
-              const dbStatus = statusMap[statusValue];
-              const count = dbStatus === null 
-                ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
-                : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
-              
-              return (
-                <Button
-                  key={statusValue}
-                  variant={status === statusValue ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleMyTasksStatusChange(statusValue)}
-                  className="h-8"
-                >
-                  {statusLabels[statusValue]} ({count}개)
-                </Button>
-              );
-            })}
-          </div>
-          {/* 검색창 및 필터 */}
-          <div className="flex w-full items-center flex-row-reverse justify-between gap-4">
-            {/* 검색창 */}
-            <div className="relative flex-1">
+          {/* 검색창 */}
+          <div className="w-full">
+            <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
@@ -1169,75 +1284,155 @@ export default function MemberDashboardPage() {
 
         {/* 승인된 태스크 탭 */}
         <TabsContent value="all-tasks" className="space-y-4">
-          {/* 카테고리 필터 버튼 */}
-          <div className="flex flex-wrap gap-2 mb-2">
-            {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
-              const categoryLabels: Record<CategoryParam, string> = {
-                all: "전체",
-                REVIEW: "검토",
-                REVISION: "수정",
-                CONTRACT: "계약",
-                SPECIFICATION: "명세서",
-                APPLICATION: "출원",
-              };
-              // 이메일 발송 필터가 적용된 후의 개수 계산
-              const filteredByEmailSent = emailSent === "all"
-                ? searchedAllTasks
-                : emailSent === "sent"
-                ? searchedAllTasks.filter((task) => task.send_email_to_client === true)
-                : searchedAllTasks.filter((task) => task.send_email_to_client === false);
-              const count = categoryValue === "all"
-                ? filteredByEmailSent.length
-                : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
-              
-              return (
-                <Button
-                  key={categoryValue}
-                  variant={category === categoryValue ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleAllTasksCategoryChange(categoryValue)}
-                  className="h-8"
-                >
-                  {categoryLabels[categoryValue]} ({count}개)
-                </Button>
-              );
-            })}
+          {/* 필터 영역 */}
+          <div className="space-y-3">
+            {/* 모바일: Select 드롭다운 */}
+            <div className="flex gap-2 sm:hidden">
+              <Select value={category} onValueChange={(value) => handleAllTasksCategoryChange(value as CategoryParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {category === "all" 
+                      ? "전체 카테고리" 
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVIEW" ? "검토"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVISION" ? "수정"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "CONTRACT" ? "계약"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "SPECIFICATION" ? "명세서"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "APPLICATION" ? "출원"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                    const categoryLabels: Record<CategoryParam, string> = {
+                      all: "전체",
+                      REVIEW: "검토",
+                      REVISION: "수정",
+                      CONTRACT: "계약",
+                      SPECIFICATION: "명세서",
+                      APPLICATION: "출원",
+                    };
+                    const filteredByEmailSent = emailSent === "all"
+                      ? searchedAllTasks
+                      : emailSent === "sent"
+                      ? searchedAllTasks.filter((task) => task.send_email_to_client === true)
+                      : searchedAllTasks.filter((task) => task.send_email_to_client === false);
+                    const count = categoryValue === "all"
+                      ? filteredByEmailSent.length
+                      : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                    return (
+                      <SelectItem key={categoryValue} value={categoryValue}>
+                        {categoryLabels[categoryValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Select value={emailSent} onValueChange={(value) => handleAllTasksEmailSentChange(value as EmailSentParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {emailSent === "all" 
+                      ? "전체 이메일" 
+                      : emailSent === "sent" ? "전송완료"
+                      : emailSent === "not_sent" ? "미전송"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                    const emailSentLabels: Record<EmailSentParam, string> = {
+                      all: "전체",
+                      sent: "전송완료",
+                      not_sent: "미전송",
+                    };
+                    const filteredByCategory = category === "all"
+                      ? searchedAllTasks
+                      : searchedAllTasks.filter((task) => task.task_category === category);
+                    const count = emailSentValue === "all"
+                      ? filteredByCategory.length
+                      : emailSentValue === "sent"
+                      ? filteredByCategory.filter((task) => task.send_email_to_client === true).length
+                      : filteredByCategory.filter((task) => task.send_email_to_client === false).length;
+                    return (
+                      <SelectItem key={emailSentValue} value={emailSentValue}>
+                        {emailSentLabels[emailSentValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 태블릿/PC: 버튼 그룹 */}
+            <div className="hidden sm:block space-y-2">
+              {/* 카테고리 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                  const categoryLabels: Record<CategoryParam, string> = {
+                    all: "전체",
+                    REVIEW: "검토",
+                    REVISION: "수정",
+                    CONTRACT: "계약",
+                    SPECIFICATION: "명세서",
+                    APPLICATION: "출원",
+                  };
+                  const filteredByEmailSent = emailSent === "all"
+                    ? searchedAllTasks
+                    : emailSent === "sent"
+                    ? searchedAllTasks.filter((task) => task.send_email_to_client === true)
+                    : searchedAllTasks.filter((task) => task.send_email_to_client === false);
+                  const count = categoryValue === "all"
+                    ? filteredByEmailSent.length
+                    : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                  
+                  return (
+                    <Button
+                      key={categoryValue}
+                      variant={category === categoryValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleAllTasksCategoryChange(categoryValue)}
+                      className="p-1 sm:p-1.5"
+
+                    >
+                      {categoryLabels[categoryValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* 이메일 발송 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                  const emailSentLabels: Record<EmailSentParam, string> = {
+                    all: "전체",
+                    sent: "전송완료",
+                    not_sent: "미전송",
+                  };
+                  const filteredByCategory = category === "all"
+                    ? searchedAllTasks
+                    : searchedAllTasks.filter((task) => task.task_category === category);
+                  const count = emailSentValue === "all"
+                    ? filteredByCategory.length
+                    : emailSentValue === "sent"
+                    ? filteredByCategory.filter((task) => task.send_email_to_client === true).length
+                    : filteredByCategory.filter((task) => task.send_email_to_client === false).length;
+                  
+                  return (
+                    <Button
+                      key={emailSentValue}
+                      variant={emailSent === emailSentValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleAllTasksEmailSentChange(emailSentValue)}
+                      className="p-1 sm:p-1.5"
+
+                    >
+                      {emailSentLabels[emailSentValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          {/* 이메일 발송 필터 버튼 */}
-          <div className="flex flex-wrap gap-2">
-            {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
-              const emailSentLabels: Record<EmailSentParam, string> = {
-                all: "전체",
-                sent: "전송완료",
-                not_sent: "미전송",
-              };
-              // 카테고리 필터가 적용된 후의 개수 계산
-              const filteredByCategory = category === "all"
-                ? searchedAllTasks
-                : searchedAllTasks.filter((task) => task.task_category === category);
-              const count = emailSentValue === "all"
-                ? filteredByCategory.length
-                : emailSentValue === "sent"
-                ? filteredByCategory.filter((task) => task.send_email_to_client === true).length
-                : filteredByCategory.filter((task) => task.send_email_to_client === false).length;
-              
-              return (
-                <Button
-                  key={emailSentValue}
-                  variant={emailSent === emailSentValue ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleAllTasksEmailSentChange(emailSentValue)}
-                  className="h-8"
-                >
-                  {emailSentLabels[emailSentValue]} ({count}개)
-                </Button>
-              );
-            })}
-          </div>
-          {/* 검색창 및 필터 */}
-          <div className="flex w-full items-center flex-row-reverse justify-between gap-4">
-            {/* 검색창 */}
-            <div className="relative flex-1">
+          {/* 검색창 */}
+          <div className="w-full">
+            <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
