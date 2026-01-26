@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearchParams, useNavigate, useLocation } from "react-router";
-import { Search, Plus, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Search, Plus, ArrowUpDown, ChevronDown, Mail, CheckCircle2, XCircle } from "lucide-react";
 import {
   useIsAdmin,
   useTasksForMember,
@@ -123,9 +123,11 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
   }
 }
 
-type DashboardTab = "all-tasks" | "my-tasks";
+type DashboardTab = "my-tasks" | "all-tasks" | "approved-tasks";
 type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rejected" | "approved";
 type SortDueParam = "asc" | "desc";
+type SortEmailSentParam = "asc" | "desc";
+type EmailSentParam = "all" | "sent" | "not_sent";
 type CategoryParam = "all" | "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
 
 /**
@@ -136,8 +138,17 @@ export default function AdminDashboardPage() {
   const location = useLocation();
   const { data: isAdmin } = useIsAdmin();
   const { data: currentProfile } = useCurrentProfile();
-  // 전체 태스크 탭: 모든 태스크 조회 (승인됨 포함)
-  const { data: allTasks = [], isLoading: allTasksLoading } = useTasksForAdmin(false);
+  // 전체 태스크 탭: 모든 태스크 조회 (승인됨 제외)
+  const { data: allTasksRaw = [], isLoading: allTasksLoading } = useTasksForAdmin(false);
+  const allTasks = useMemo(() => 
+    allTasksRaw.filter((task) => task.task_status !== "APPROVED"), 
+    [allTasksRaw]
+  );
+  // 승인된 태스크 탭: 모든 사용자의 승인된 태스크만
+  const approvedTasks = useMemo(() => 
+    allTasksRaw.filter((task) => task.task_status === "APPROVED"), 
+    [allTasksRaw]
+  );
   // 담당 업무 탭: 지시자/담당자인 태스크 중 승인됨이 아닌 것만
   const { data: myTasks = [], isLoading: myTasksLoading } = useTasksForMember(true);
   const updateTaskStatus = useUpdateTaskStatus();
@@ -148,7 +159,7 @@ export default function AdminDashboardPage() {
   // 탭 상태 - URL 쿼리 파라미터에서 읽기
   const tabParam = searchParams.get("tab") as DashboardTab | null;
   const [activeTab, setActiveTab] = useState<DashboardTab>(
-    tabParam === "all-tasks" || tabParam === "my-tasks" ? tabParam : "my-tasks",
+    tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" ? tabParam : "my-tasks",
   );
 
   // URL params 읽기 (전체 태스크 탭 및 담당 업무 탭용)
@@ -162,12 +173,29 @@ export default function AdminDashboardPage() {
   const sortDue: SortDueParam =
     sortDueParam === "asc" || sortDueParam === "desc" ? sortDueParam : "asc";
 
+  const sortEmailSentParam = searchParams.get("sortEmailSent") as SortEmailSentParam | null;
+  const sortEmailSent: SortEmailSentParam =
+    sortEmailSentParam === "asc" || sortEmailSentParam === "desc" ? sortEmailSentParam : "asc";
+
+  const emailSentParam = searchParams.get("emailSent") as EmailSentParam | null;
+  const validEmailSentParams: EmailSentParam[] = ["all", "sent", "not_sent"];
+  const emailSent: EmailSentParam =
+    emailSentParam && validEmailSentParams.includes(emailSentParam) ? emailSentParam : "all";
+
   const categoryParam = searchParams.get("category") as CategoryParam | null;
   const validCategoryParams: CategoryParam[] = ["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"];
   const category: CategoryParam =
     categoryParam && validCategoryParams.includes(categoryParam) ? categoryParam : "all";
 
   const statusParam = searchParams.get("status") as StatusParam | null;
+  // 전체 태스크 탭에서는 승인됨 제외, 다른 탭에서는 승인됨 포함
+  const validStatusParamsForAllTasks: StatusParam[] = [
+    "all",
+    "assigned",
+    "in_progress",
+    "waiting_confirm",
+    "rejected",
+  ];
   const validStatusParams: StatusParam[] = [
     "all",
     "assigned",
@@ -176,8 +204,11 @@ export default function AdminDashboardPage() {
     "rejected",
     "approved",
   ];
+  // 현재 탭에 따라 유효한 상태 파라미터 결정 (tabParam 사용하여 초기화 순서 문제 방지)
+  const currentTabForStatus = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" ? tabParam : "my-tasks";
+  const currentValidStatusParams = currentTabForStatus === "all-tasks" ? validStatusParamsForAllTasks : validStatusParams;
   const status: StatusParam =
-    statusParam && validStatusParams.includes(statusParam) ? statusParam : "all";
+    statusParam && currentValidStatusParams.includes(statusParam) ? statusParam : "all";
 
   // 다이얼로그 상태
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
@@ -215,6 +246,14 @@ export default function AdminDashboardPage() {
     return saved ? parseInt(saved, 10) : 10;
   });
 
+  // 페이지네이션 상태 (승인된 태스크 탭용)
+  const approvedTasksPageParam = searchParams.get("approvedTasksPage");
+  const approvedTasksCurrentPage = approvedTasksPageParam ? Math.max(1, parseInt(approvedTasksPageParam, 10)) : 1;
+  const [approvedTasksItemsPerPage, setApprovedTasksItemsPerPage] = useState(() => {
+    const saved = sessionStorage.getItem("tablePageSize");
+    return saved ? parseInt(saved, 10) : 10;
+  });
+
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -222,6 +261,7 @@ export default function AdminDashboardPage() {
   const isFirstRenderRef = useRef(true);
   const prevAllTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
   const prevMyTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
+  const prevApprovedTasksFiltersRef = useRef<{ search: string; category: CategoryParam; sortDue: SortDueParam; sortEmailSent: SortEmailSentParam; emailSent: EmailSentParam }>({ search: "", category: "all", sortDue: "asc", sortEmailSent: "asc", emailSent: "all" });
 
   // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
   useEffect(() => {
@@ -332,12 +372,71 @@ export default function AdminDashboardPage() {
     setSearchParams(newParams, { replace: true });
   };
 
+  // URL params 업데이트 헬퍼 함수 (승인된 태스크 탭용)
+  const updateApprovedTasksUrlParams = (
+    updates?: Partial<{
+      sortDue: SortDueParam;
+      sortEmailSent: SortEmailSentParam;
+      category: CategoryParam;
+      emailSent: EmailSentParam;
+      keyword?: string;
+      approvedTasksPage?: number;
+    }>,
+  ) => {
+    const newParams = new URLSearchParams();
+
+    // tab 파라미터 설정 (항상 설정)
+    newParams.set("tab", "approved-tasks");
+
+    // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const sortEmailSentToSet = updates?.sortEmailSent !== undefined ? updates.sortEmailSent : sortEmailSent;
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
+    const emailSentToSet = updates?.emailSent !== undefined ? updates.emailSent : emailSent;
+    const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
+    const approvedTasksPageToSet = updates?.approvedTasksPage !== undefined ? updates.approvedTasksPage : approvedTasksCurrentPage;
+
+    // sortDue 설정
+    if (sortDueToSet !== "asc") {
+      newParams.set("sortDue", sortDueToSet);
+    }
+
+    // sortEmailSent 설정
+    if (sortEmailSentToSet !== "asc") {
+      newParams.set("sortEmailSent", sortEmailSentToSet);
+    }
+
+    // category 설정
+    if (categoryToSet !== "all") {
+      newParams.set("category", categoryToSet);
+    }
+
+    // emailSent 설정
+    if (emailSentToSet !== "all") {
+      newParams.set("emailSent", emailSentToSet);
+    }
+
+    // keyword 설정
+    if (keywordToSet && keywordToSet.trim()) {
+      newParams.set("keyword", keywordToSet);
+    }
+
+    // approvedTasksPage 설정
+    if (approvedTasksPageToSet !== undefined && approvedTasksPageToSet !== 1) {
+      newParams.set("approvedTasksPage", approvedTasksPageToSet.toString());
+    }
+
+    setSearchParams(newParams, { replace: true });
+  };
+
   // 검색어 변경 핸들러 (로컬 state 및 URL params 업데이트)
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     // 현재 활성 탭에 따라 URL params 업데이트
     if (activeTab === "all-tasks") {
       updateAllTasksUrlParams({ keyword: value });
+    } else if (activeTab === "approved-tasks") {
+      updateApprovedTasksUrlParams({ keyword: value });
     } else {
       updateMyTasksUrlParams({ keyword: value });
     }
@@ -355,6 +454,12 @@ export default function AdminDashboardPage() {
     updateMyTasksUrlParams({ sortDue: newSortDue });
   };
 
+  // 정렬 변경 핸들러 (승인된 태스크 탭용)
+  const handleApprovedTasksSortDueChange = () => {
+    const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
+    updateApprovedTasksUrlParams({ sortDue: newSortDue });
+  };
+
   // 카테고리 필터 변경 핸들러 (전체 태스크 탭용)
   const handleAllTasksCategoryChange = (newCategory: CategoryParam) => {
     updateAllTasksUrlParams({ category: newCategory });
@@ -363,6 +468,16 @@ export default function AdminDashboardPage() {
   // 카테고리 필터 변경 핸들러 (담당 업무 탭용)
   const handleMyTasksCategoryChange = (newCategory: CategoryParam) => {
     updateMyTasksUrlParams({ category: newCategory });
+  };
+
+  // 카테고리 필터 변경 핸들러 (승인된 태스크 탭용)
+  const handleApprovedTasksCategoryChange = (newCategory: CategoryParam) => {
+    updateApprovedTasksUrlParams({ category: newCategory });
+  };
+
+  // 이메일 발송 필터 변경 핸들러 (승인된 태스크 탭용)
+  const handleApprovedTasksEmailSentChange = (newEmailSent: EmailSentParam) => {
+    updateApprovedTasksUrlParams({ emailSent: newEmailSent });
   };
 
   // 상태 필터 변경 핸들러 (전체 태스크 탭용)
@@ -377,9 +492,14 @@ export default function AdminDashboardPage() {
 
   // Task 상태 변경 핸들러
   const handleTaskStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    const task = activeTab === "all-tasks" 
-      ? allTasks.find((t) => t.id === taskId)
-      : myTasks.find((t) => t.id === taskId);
+    let task: TaskWithProfiles | undefined;
+    if (activeTab === "all-tasks") {
+      task = allTasks.find((t) => t.id === taskId);
+    } else if (activeTab === "approved-tasks") {
+      task = approvedTasks.find((t) => t.id === taskId);
+    } else {
+      task = myTasks.find((t) => t.id === taskId);
+    }
     if (task) {
       setPendingStatusChange({
         taskId,
@@ -762,6 +882,78 @@ export default function AdminDashboardPage() {
   // 담당 업무 탭: 총 페이지 수
   const myTasksTotalPages = Math.ceil(sortedMyTasks.length / myTasksItemsPerPage) || 1;
 
+  // 승인된 태스크 탭: 검색 필터링
+  const searchedApprovedTasks = useMemo(() => {
+    if (!debouncedSearch.trim()) return approvedTasks;
+
+    const query = debouncedSearch.toLowerCase();
+    return approvedTasks.filter((task) => {
+      const titleMatch = task.title.toLowerCase().includes(query);
+      const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase();
+      const assigneeMatch = assigneeName.includes(query);
+      const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
+      const assignerMatch = assignerName.includes(query);
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
+
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
+    });
+  }, [approvedTasks, debouncedSearch]);
+
+  // 승인된 태스크 탭: 카테고리 필터링
+  const categoryFilteredApprovedTasks = useMemo(() => {
+    if (category === "all") {
+      return searchedApprovedTasks;
+    }
+    return searchedApprovedTasks.filter((task) => task.task_category === category);
+  }, [searchedApprovedTasks, category]);
+
+  // 승인된 태스크 탭: 이메일 발송 필터링
+  const emailSentFilteredApprovedTasks = useMemo(() => {
+    if (emailSent === "all") {
+      return categoryFilteredApprovedTasks;
+    } else if (emailSent === "sent") {
+      return categoryFilteredApprovedTasks.filter((task) => task.send_email_to_client === true);
+    } else {
+      // not_sent
+      return categoryFilteredApprovedTasks.filter((task) => task.send_email_to_client === false);
+    }
+  }, [categoryFilteredApprovedTasks, emailSent]);
+
+  // 승인된 태스크 탭: 정렬
+  const sortedApprovedTasks = useMemo(() => {
+    const sorted = [...emailSentFilteredApprovedTasks];
+
+    sorted.sort((a, b) => {
+      // 마감일로 정렬
+      if (sortDue === "asc") {
+        // 마감일 빠른 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else {
+        // 마감일 느린 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      }
+    });
+
+    return sorted;
+  }, [emailSentFilteredApprovedTasks, sortDue]);
+
+  // 승인된 태스크 탭: 페이지네이션
+  const paginatedApprovedTasks = useMemo(() => {
+    const startIndex = (approvedTasksCurrentPage - 1) * approvedTasksItemsPerPage;
+    const endIndex = startIndex + approvedTasksItemsPerPage;
+    return sortedApprovedTasks.slice(startIndex, endIndex);
+  }, [sortedApprovedTasks, approvedTasksCurrentPage, approvedTasksItemsPerPage]);
+
+  // 승인된 태스크 탭: 총 페이지 수
+  const approvedTasksTotalPages = Math.ceil(sortedApprovedTasks.length / approvedTasksItemsPerPage) || 1;
+
   // URL에서 q 파라미터 제거 (컴포넌트 마운트 시)
   useEffect(() => {
     if (searchParams.has("q")) {
@@ -771,10 +963,17 @@ export default function AdminDashboardPage() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 전체 태스크 탭에서 승인됨 상태가 URL에 있으면 제거
+  useEffect(() => {
+    if (activeTab === "all-tasks" && statusParam === "approved") {
+      updateAllTasksUrlParams({ status: "all" });
+    }
+  }, [activeTab, statusParam]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // URL 쿼리 파라미터 변경 시 탭 상태 및 검색어 동기화
   useEffect(() => {
     const tabParam = searchParams.get("tab") as DashboardTab | null;
-    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" ? tabParam : "my-tasks";
+    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" ? tabParam : "my-tasks";
     const keywordFromUrl = searchParams.get("keyword") || "";
     
     if (newTab !== activeTab) {
@@ -826,6 +1025,28 @@ export default function AdminDashboardPage() {
     prevMyTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
   }, [debouncedSearch, category, status, sortDue, activeTab, myTasksCurrentPage]);
 
+  // 검색어/필터 변경 시 1페이지로 리셋 (승인된 태스크 탭)
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      prevApprovedTasksFiltersRef.current = { search: debouncedSearch, category, sortDue, sortEmailSent, emailSent };
+      return;
+    }
+
+    const prev = prevApprovedTasksFiltersRef.current;
+    const approvedTasksFiltersChanged =
+      prev.search !== debouncedSearch ||
+      prev.category !== category ||
+      prev.sortDue !== sortDue ||
+      prev.sortEmailSent !== sortEmailSent ||
+      prev.emailSent !== emailSent;
+
+    if (approvedTasksFiltersChanged && activeTab === "approved-tasks" && approvedTasksCurrentPage !== 1) {
+      updateApprovedTasksUrlParams({ approvedTasksPage: 1 });
+    }
+
+    prevApprovedTasksFiltersRef.current = { search: debouncedSearch, category, sortDue, sortEmailSent, emailSent };
+  }, [debouncedSearch, category, sortDue, sortEmailSent, emailSent, activeTab, approvedTasksCurrentPage]);
+
   // 잘못된 페이지 번호 체크 및 리셋
   useEffect(() => {
     if (activeTab === "all-tasks" && allTasksTotalPages > 0 && allTasksCurrentPage > allTasksTotalPages) {
@@ -834,7 +1055,10 @@ export default function AdminDashboardPage() {
     if (activeTab === "my-tasks" && myTasksTotalPages > 0 && myTasksCurrentPage > myTasksTotalPages) {
       updateMyTasksUrlParams({ myTasksPage: 1 });
     }
-  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, activeTab]);
+    if (activeTab === "approved-tasks" && approvedTasksTotalPages > 0 && approvedTasksCurrentPage > approvedTasksTotalPages) {
+      updateApprovedTasksUrlParams({ approvedTasksPage: 1 });
+    }
+  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, approvedTasksCurrentPage, approvedTasksTotalPages, activeTab]);
 
   const isLoading = allTasksLoading || myTasksLoading;
 
@@ -959,10 +1183,11 @@ export default function AdminDashboardPage() {
           setSearchQuery(""); // 검색어도 초기화
         }}
       >
-        {/* 담당 업무 / 전체 태스크 탭 */}
+        {/* 담당 업무 / 전체 태스크 / 승인된 태스크 탭 */}
         <TabsList className="mt-4">
           <TabsTrigger value="my-tasks">담당 업무</TabsTrigger>
           <TabsTrigger value="all-tasks">전체 태스크</TabsTrigger>
+          <TabsTrigger value="approved-tasks">승인된 태스크</TabsTrigger>
         </TabsList>
 
         {/* 담당 업무 탭 */}
@@ -1339,12 +1564,11 @@ export default function AdminDashboardPage() {
                       : status === "in_progress" ? "진행중"
                       : status === "waiting_confirm" ? "확인대기"
                       : status === "rejected" ? "거부됨"
-                      : status === "approved" ? "승인됨"
                       : "전체"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(["all", "assigned", "in_progress", "waiting_confirm", "rejected", "approved"] as StatusParam[]).map((statusValue) => {
+                  {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
                     const statusLabels: Record<StatusParam, string> = {
                       all: "전체",
                       assigned: "할당됨",
@@ -1406,7 +1630,7 @@ export default function AdminDashboardPage() {
               </div>
               {/* 상태 필터 버튼 */}
               <div className="flex flex-wrap gap-2">
-                {(["all", "assigned", "in_progress", "waiting_confirm", "rejected", "approved"] as StatusParam[]).map((statusValue) => {
+                {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
                   const statusLabels: Record<StatusParam, string> = {
                     all: "전체",
                     assigned: "할당됨",
@@ -1479,6 +1703,7 @@ export default function AdminDashboardPage() {
                       status={status}
                       onStatusChange={handleAllTasksStatusChange}
                       tasks={searchedAllTasks}
+                      hideApproved={true}
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
@@ -1607,6 +1832,333 @@ export default function AdminDashboardPage() {
             />
           )}
         </TabsContent>
+
+        {/* 승인된 태스크 탭 */}
+        <TabsContent value="approved-tasks" className="space-y-4">
+          {/* 필터 영역 */}
+          <div className="space-y-3">
+            {/* 모바일: Select 드롭다운 */}
+            <div className="flex gap-2 sm:hidden">
+              <Select value={category} onValueChange={(value) => handleApprovedTasksCategoryChange(value as CategoryParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {category === "all" 
+                      ? "전체 카테고리" 
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVIEW" ? "검토"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVISION" ? "수정"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "CONTRACT" ? "계약"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "SPECIFICATION" ? "명세서"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "APPLICATION" ? "출원"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                    const categoryLabels: Record<CategoryParam, string> = {
+                      all: "전체",
+                      REVIEW: "검토",
+                      REVISION: "수정",
+                      CONTRACT: "계약",
+                      SPECIFICATION: "명세서",
+                      APPLICATION: "출원",
+                    };
+                    const filteredByEmailSent = emailSent === "all"
+                      ? searchedApprovedTasks
+                      : emailSent === "sent"
+                      ? searchedApprovedTasks.filter((task) => task.send_email_to_client === true)
+                      : searchedApprovedTasks.filter((task) => task.send_email_to_client === false);
+                    const count = categoryValue === "all"
+                      ? filteredByEmailSent.length
+                      : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                    return (
+                      <SelectItem key={categoryValue} value={categoryValue}>
+                        {categoryLabels[categoryValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Select value={emailSent} onValueChange={(value) => handleApprovedTasksEmailSentChange(value as EmailSentParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {emailSent === "all" 
+                      ? "전체 이메일" 
+                      : emailSent === "sent" ? "전송완료"
+                      : emailSent === "not_sent" ? "미전송"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                    const emailSentLabels: Record<EmailSentParam, string> = {
+                      all: "전체",
+                      sent: "전송완료",
+                      not_sent: "미전송",
+                    };
+                    const filteredByCategory = category === "all"
+                      ? searchedApprovedTasks
+                      : searchedApprovedTasks.filter((task) => task.task_category === category);
+                    const count = emailSentValue === "all"
+                      ? filteredByCategory.length
+                      : emailSentValue === "sent"
+                      ? filteredByCategory.filter((task) => task.send_email_to_client === true).length
+                      : filteredByCategory.filter((task) => task.send_email_to_client === false).length;
+                    return (
+                      <SelectItem key={emailSentValue} value={emailSentValue}>
+                        {emailSentLabels[emailSentValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 태블릿/PC: 버튼 그룹 */}
+            <div className="hidden sm:block space-y-2">
+              {/* 카테고리 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                  const categoryLabels: Record<CategoryParam, string> = {
+                    all: "전체",
+                    REVIEW: "검토",
+                    REVISION: "수정",
+                    CONTRACT: "계약",
+                    SPECIFICATION: "명세서",
+                    APPLICATION: "출원",
+                  };
+                  const filteredByEmailSent = emailSent === "all"
+                    ? searchedApprovedTasks
+                    : emailSent === "sent"
+                    ? searchedApprovedTasks.filter((task) => task.send_email_to_client === true)
+                    : searchedApprovedTasks.filter((task) => task.send_email_to_client === false);
+                  const count = categoryValue === "all"
+                    ? filteredByEmailSent.length
+                    : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                  
+                  return (
+                    <Button
+                      key={categoryValue}
+                      variant={category === categoryValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleApprovedTasksCategoryChange(categoryValue)}
+                      className="p-1 sm:p-1.5"
+                    >
+                      {categoryLabels[categoryValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* 이메일 발송 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                  const emailSentLabels: Record<EmailSentParam, string> = {
+                    all: "전체",
+                    sent: "전송완료",
+                    not_sent: "미전송",
+                  };
+                  const filteredByCategory = category === "all"
+                    ? searchedApprovedTasks
+                    : searchedApprovedTasks.filter((task) => task.task_category === category);
+                  const count = emailSentValue === "all"
+                    ? filteredByCategory.length
+                    : emailSentValue === "sent"
+                    ? filteredByCategory.filter((task) => task.send_email_to_client === true).length
+                    : filteredByCategory.filter((task) => task.send_email_to_client === false).length;
+                  
+                  return (
+                    <Button
+                      key={emailSentValue}
+                      variant={emailSent === emailSentValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleApprovedTasksEmailSentChange(emailSentValue)}
+                      className="p-1 sm:p-1.5"
+                    >
+                      {emailSentLabels[emailSentValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {/* 검색창 */}
+          <div className="w-full">
+            <div className="relative">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          {/* Task 테이블 */}
+          <div className="overflow-x-scroll">
+            <table className="w-full min-w-[800px] table-fixed">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고유 ID
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고객명
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시사항
+                  </th>
+                  <th
+                    className="hover:bg-muted/50 w-[14.285%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                    onClick={handleApprovedTasksSortDueChange}
+                  >
+                    <div className="flex items-center gap-2">
+                      마감일
+                      <ArrowUpDown className="size-3 sm:size-4" />
+                    </div>
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    <EmailSentFilterDropdown
+                      emailSent={emailSent}
+                      onEmailSentChange={handleApprovedTasksEmailSentChange}
+                      tasks={searchedApprovedTasks}
+                    />
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시자
+                  </th>
+                  <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    담당자
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedApprovedTasks.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
+                    >
+                      {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedApprovedTasks.map((task) => {
+                    const dueDate = formatDueDate(task.due_date);
+                    const daysDiff = calculateDaysDifference(task.due_date);
+                    const dDayText = getDDayText(daysDiff);
+                    const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+
+                    const assigneeDisplay = task.assignee?.full_name
+                      ? `${task.assignee.full_name} (${task.assignee.email})`
+                      : task.assignee?.email || task.assignee_id;
+
+                    const assignerDisplay = task.assigner?.full_name
+                      ? `${task.assigner.full_name} (${task.assigner.email})`
+                      : task.assigner?.email || task.assigner_id;
+
+                    return (
+                      <tr
+                        key={task.id}
+                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                        onClick={() => {
+                          const currentUrl =
+                            window.location.pathname + window.location.search;
+                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                          navigate(`/tasks/${task.id}`);
+                        }}
+                      >
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {task.id ? (
+                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            {task.client_name || (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">
+                            <Link
+                              to={`/tasks/${task.id}`}
+                              className="line-clamp-2 hover:underline cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
+                                const currentUrl =
+                                  window.location.pathname + window.location.search;
+                                sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                              }}
+                            >
+                              {task.title}
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          {dueDate ? (
+                            <span
+                              className={cn(
+                                "text-xs whitespace-nowrap sm:text-sm",
+                                dueDateColorClass,
+                              )}
+                            >
+                              {dueDate} {dDayText}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="flex items-center gap-2">
+                            {task.send_email_to_client ? (
+                              <>
+                                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
+                                <span className="text-xs sm:text-sm">전송 완료</span>
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-xs sm:text-sm">미전송</span>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerDisplay}</div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assigneeDisplay}</div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 페이지네이션 */}
+          {sortedApprovedTasks.length > 0 && (
+            <TablePagination
+              currentPage={approvedTasksCurrentPage}
+              totalPages={approvedTasksTotalPages}
+              pageSize={approvedTasksItemsPerPage}
+              totalItems={sortedApprovedTasks.length}
+              selectedCount={0}
+              onPageChange={(page) => {
+                updateApprovedTasksUrlParams({ approvedTasksPage: page });
+              }}
+              onPageSizeChange={(newPageSize) => {
+                setApprovedTasksItemsPerPage(newPageSize);
+                sessionStorage.setItem("tablePageSize", newPageSize.toString());
+                updateApprovedTasksUrlParams({ approvedTasksPage: 1 });
+              }}
+            />
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* 상태 변경 확인 다이얼로그 */}
@@ -1645,6 +2197,62 @@ export default function AdminDashboardPage() {
   );
 }
 
+
+/**
+ * 이메일 발송 필터 드롭다운 컴포넌트
+ */
+function EmailSentFilterDropdown({
+  emailSent,
+  onEmailSentChange,
+  tasks,
+}: {
+  emailSent: EmailSentParam;
+  onEmailSentChange: (emailSent: EmailSentParam) => void;
+  tasks: TaskWithProfiles[];
+}) {
+  const emailSentLabels: Record<EmailSentParam, string> = {
+    all: "전체",
+    sent: "전송완료",
+    not_sent: "미전송",
+  };
+
+  // 각 상태별 개수 계산
+  const getEmailSentCount = (emailSentValue: EmailSentParam): number => {
+    if (emailSentValue === "all") {
+      return tasks.length;
+    } else if (emailSentValue === "sent") {
+      return tasks.filter((task) => task.send_email_to_client === true).length;
+    } else {
+      // not_sent
+      return tasks.filter((task) => task.send_email_to_client === false).length;
+    }
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="h-8 px-2">
+          <span className="font-medium">{emailSentLabels[emailSent]}</span>
+          <ChevronDown className="ml-2 h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {(Object.keys(emailSentLabels) as EmailSentParam[]).map((emailSentValue) => {
+          const count = getEmailSentCount(emailSentValue);
+          return (
+            <DropdownMenuItem
+              key={emailSentValue}
+              onClick={() => onEmailSentChange(emailSentValue)}
+              className={emailSent === emailSentValue ? "bg-accent" : ""}
+            >
+              {emailSentLabels[emailSentValue]} ({count}개)
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 /**
  * 상태 필터 드롭다운 컴포넌트
