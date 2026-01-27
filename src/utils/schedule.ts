@@ -32,6 +32,9 @@ export function convertToFullCalendarEvents(
           taskId: schedule.task_id,
           taskCategory: schedule.task.task_category,
           taskStatus: schedule.task.task_status,
+          taskClientName: schedule.task.client_name,
+          taskCreatedAt: schedule.task.created_at,
+          taskDueDate: schedule.task.due_date,
         },
       };
 

@@ -1,15 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import koLocale from "@fullcalendar/core/locales/ko";
-import type { EventDropArg, EventClickArg, DatesSetArg } from "@fullcalendar/core";
+import type { EventDropArg, EventClickArg, DatesSetArg, EventContentArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTaskSchedules, useUpdateTaskSchedule } from "@/hooks/queries/use-schedules";
 import { convertToFullCalendarEvents } from "@/utils/schedule";
 import DefaultSpinner from "../common/default-spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { createRoot } from "react-dom/client";
+import type { TaskScheduleWithTask } from "@/types/schedule";
 // FullCalendar v6 automatically injects CSS, no manual import needed
 
 interface TaskCalendarProps {
@@ -33,9 +36,15 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
   // Fetch schedules for the current date range
   const { data: schedules = [], isLoading, error } = useTaskSchedules(startDate, endDate, true);
   const updateScheduleMutation = useUpdateTaskSchedule();
+  const scheduleMapRef = useRef<Map<string, TaskScheduleWithTask>>(new Map());
 
   // Convert schedules to FullCalendar events
   const events = useMemo(() => {
+    // Schedule map을 업데이트 (tooltip에서 사용)
+    scheduleMapRef.current.clear();
+    schedules.forEach((schedule) => {
+      scheduleMapRef.current.set(schedule.id, schedule);
+    });
     return convertToFullCalendarEvents(schedules);
   }, [schedules]);
 
@@ -74,6 +83,28 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
     }
   };
 
+  // Format date for display
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return "미정";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  // Format time for display (HH:mm format)
+  const formatTime = (date: Date | string | null | undefined): string => {
+    if (!date) return "";
+    const d = date instanceof Date ? date : new Date(date);
+    return d.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
   // Handle event click - navigate to task detail page
   const handleEventClick = (info: EventClickArg) => {
     const taskId = info.event.extendedProps?.taskId;
@@ -81,6 +112,93 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
       navigate(`/tasks/${taskId}`);
     }
   };
+
+  // Handle event content rendering - display instructions and schedule time with tooltip
+  const handleEventContent = (arg: EventContentArg) => {
+    const schedule = scheduleMapRef.current.get(arg.event.id);
+    if (!schedule) {
+      // Fallback to default title if schedule not found
+      return { html: arg.event.title };
+    }
+
+    const task = schedule.task;
+    const startTime = schedule.start_time instanceof Date ? schedule.start_time : new Date(schedule.start_time);
+    const endTime = schedule.end_time instanceof Date ? schedule.end_time : new Date(schedule.end_time);
+    
+    // 지시사항 (task title)
+    const instructions = task.title;
+    
+    // 일정 관리 시간 (HH:mm - HH:mm 형식)
+    const timeRange = schedule.is_all_day 
+      ? "종일" 
+      : `${formatTime(startTime)} - ${formatTime(endTime)}`;
+
+    // Tooltip 내용 생성
+    const tooltipContent = [
+      `고유 ID: ${task.id.slice(0, 8).toUpperCase()}`,
+      task.client_name && `고객명: ${task.client_name}`,
+      `지시사항: ${task.title}`,
+      `생성일: ${formatDate(task.created_at)}`,
+      task.due_date && `마감일: ${formatDate(task.due_date)}`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // DOM 요소 생성 (tooltip을 포함한 wrapper)
+    const wrapper = document.createElement("div");
+    wrapper.style.width = "100%";
+    wrapper.style.height = "100%";
+    wrapper.style.cursor = "pointer";
+    
+    // React 컴포넌트로 tooltip과 내용 렌더링
+    const root = createRoot(wrapper);
+    
+    root.render(
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div 
+            style={{ 
+              width: "100%", 
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              padding: "2px 4px",
+              fontSize: "12px",
+              lineHeight: "1.3"
+            }}
+          >
+            {/* 지시사항 */}
+            <div 
+              style={{
+                fontWeight: "500",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {instructions}
+            </div>
+            {/* 시간 */}
+            <div 
+              style={{
+                fontSize: "11px",
+                opacity: "0.8"
+              }}
+            >
+              {timeRange}
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs whitespace-pre-line text-left">
+          {tooltipContent}
+        </TooltipContent>
+      </Tooltip>
+    );
+
+    return { domNodes: [wrapper] };
+  };
+
 
   // Handle event drop - update schedule (날짜/시간 변경)
   const handleEventDrop = async (info: EventDropArg) => {
@@ -226,6 +344,7 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
         eventDrop={handleEventDrop}
         eventResize={handleEventResize}
         datesSet={handleDatesSet}
+        eventContent={handleEventContent}
         height="auto"
         locale={koLocale}
         buttonText={{

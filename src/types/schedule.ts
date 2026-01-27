@@ -27,6 +27,9 @@ export interface TaskScheduleWithTask {
     task_status: TaskStatus;
     assigner_id: string | null;
     assignee_id: string | null;
+    client_name: string | null;
+    created_at: string;
+    due_date: string | null;
   };
 }
 

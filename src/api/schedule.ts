@@ -46,7 +46,7 @@ export async function getTaskSchedules(
   const taskIds = schedules.map((s) => s.task_id);
   const { data: tasks, error: tasksError } = await supabase
     .from("tasks")
-    .select("id, title, task_category, task_status, assigner_id, assignee_id")
+    .select("id, title, task_category, task_status, assigner_id, assignee_id, client_name, created_at, due_date")
     .in("id", taskIds);
 
   if (tasksError) {
@@ -100,6 +100,9 @@ export async function getTaskSchedules(
         task_status: item.task.task_status,
         assigner_id: item.task.assigner_id,
         assignee_id: item.task.assignee_id,
+        client_name: item.task.client_name,
+        created_at: item.task.created_at,
+        due_date: item.task.due_date,
       },
     }));
 }

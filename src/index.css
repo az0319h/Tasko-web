@@ -513,3 +513,20 @@ textarea::placeholder {
 .dark .overflow-x-scroll::-webkit-scrollbar-thumb:active {
   background-color: rgba(255, 255, 255, 0.7) !important;
 }
+
+/* FullCalendar 요일 헤더(day headers) 다크모드 텍스트 색상 */
+.dark .fc-col-header-cell {
+  color: black !important;
+}
+
+.dark .fc-col-header-cell * {
+  color: black !important;
+}
+
+.dark .fc-day-header {
+  color: black !important;
+}
+
+.dark .fc-day-header * {
+  color: black !important;
+}
