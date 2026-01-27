@@ -350,6 +350,44 @@ export type Database = {
           },
         ]
       }
+      task_schedules: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          is_all_day: boolean
+          start_time: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          is_all_day?: boolean
+          start_time: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_all_day?: boolean
+          start_time?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_schedules_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_id: string | null
@@ -461,7 +499,12 @@ export type Database = {
     Enums: {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
-      task_category: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
+      task_category:
+        | "REVIEW"
+        | "REVISION"
+        | "CONTRACT"
+        | "SPECIFICATION"
+        | "APPLICATION"
       task_status:
         | "ASSIGNED"
         | "IN_PROGRESS"
@@ -597,7 +640,13 @@ export const Constants = {
     Enums: {
       chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
-      task_category: ["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"],
+      task_category: [
+        "REVIEW",
+        "REVISION",
+        "CONTRACT",
+        "SPECIFICATION",
+        "APPLICATION",
+      ],
       task_status: [
         "ASSIGNED",
         "IN_PROGRESS",

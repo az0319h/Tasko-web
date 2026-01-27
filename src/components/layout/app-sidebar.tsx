@@ -23,6 +23,7 @@ import {
   Bot,
   Megaphone,
   Shield,
+  Calendar,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -90,10 +91,10 @@ const getMenuItems = (isAdmin: boolean) => {
   const items = [
     { id: "home", key: "layout.sidebar.menu.home", url: "/", icon: Home },
     {
-      id: "notifications",
-      key: "layout.sidebar.menu.notifications",
-      url: "/notifications",
-      icon: Bell,
+      id: "schedule",
+      key: "layout.sidebar.menu.schedule",
+      url: "/schedule",
+      icon: Calendar,
     },
     {
       id: "community",
