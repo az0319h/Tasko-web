@@ -7,29 +7,60 @@ export type TaskScheduleUpdate = TablesUpdate<"task_schedules">;
 /**
  * Get task schedules for a date range
  * Only returns schedules where the current user is assigner or assignee
+ * If userId is provided (admin viewing another user's schedule), returns schedules for that user
  * 
  * @param startDate Start date of the range
  * @param endDate End date of the range
  * @param excludeApproved Whether to exclude approved tasks (default: true)
+ * @param userId Optional user ID to view specific user's schedules (admin only, read-only mode)
  * @returns Array of task schedules with task information
  */
 export async function getTaskSchedules(
   startDate: Date,
   endDate: Date,
-  excludeApproved: boolean = true
+  excludeApproved: boolean = true,
+  userId?: string
 ): Promise<TaskScheduleWithTask[]> {
+
+  // Get current user ID
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session) {
+  const currentUserId = session.session?.user?.id;
+
+  if (!currentUserId) {
     throw new Error("인증이 필요합니다.");
   }
 
-  // First, get schedules (RLS will filter based on assigner/assignee)
-  const { data: schedules, error: schedulesError } = await supabase
+  // First, get schedules
+  let schedulesQuery = supabase
     .from("task_schedules")
     .select("*")
     .gte("start_time", startDate.toISOString())
-    .lte("end_time", endDate.toISOString())
-    .order("start_time", { ascending: true });
+    .lte("end_time", endDate.toISOString());
+
+  // Determine which user's schedules to show
+  // If userId is provided (admin viewing another user), filter by that user's assignee_id
+  // If userId is undefined, filter by current user's assignee_id (even for admin)
+  const targetUserId = userId || currentUserId;
+
+  // Get tasks where the target user is assignee
+  const { data: userTasks, error: tasksError } = await supabase
+    .from("tasks")
+    .select("id")
+    .eq("assignee_id", targetUserId);
+
+  if (tasksError) {
+    console.error("사용자 Task 조회 에러:", tasksError);
+    throw new Error(`사용자 Task 조회 실패: ${tasksError.message}`);
+  }
+
+  const taskIds = userTasks?.map((t) => t.id) || [];
+  if (taskIds.length === 0) {
+    return [];
+  }
+
+  schedulesQuery = schedulesQuery.in("task_id", taskIds);
+
+  const { data: schedules, error: schedulesError } = await schedulesQuery.order("start_time", { ascending: true });
 
   if (schedulesError) {
     console.error("일정 조회 에러:", schedulesError);
@@ -43,15 +74,15 @@ export async function getTaskSchedules(
   }
 
   // Then, get task information for each schedule
-  const taskIds = schedules.map((s) => s.task_id);
-  const { data: tasks, error: tasksError } = await supabase
+  const scheduleTaskIds = schedules.map((s) => s.task_id);
+  const { data: tasks, error: tasksFetchError } = await supabase
     .from("tasks")
     .select("id, title, task_category, task_status, assigner_id, assignee_id, client_name, created_at, due_date")
-    .in("id", taskIds);
+    .in("id", scheduleTaskIds);
 
-  if (tasksError) {
-    console.error("Task 조회 에러:", tasksError);
-    throw new Error(`Task 조회 실패: ${tasksError.message}`);
+  if (tasksFetchError) {
+    console.error("Task 조회 에러:", tasksFetchError);
+    throw new Error(`Task 조회 실패: ${tasksFetchError.message}`);
   }
 
   // Create a map for quick lookup

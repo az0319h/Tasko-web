@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -7,6 +7,7 @@ import koLocale from "@fullcalendar/core/locales/ko";
 import type { EventDropArg, EventClickArg, DatesSetArg, EventContentArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { useNavigate, useSearchParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTaskSchedules, useUpdateTaskSchedule } from "@/hooks/queries/use-schedules";
 import { convertToFullCalendarEvents } from "@/utils/schedule";
 import DefaultSpinner from "../common/default-spinner";
@@ -17,10 +18,13 @@ import type { TaskScheduleWithTask } from "@/types/schedule";
 
 interface TaskCalendarProps {
   initialView?: "dayGridMonth" | "timeGridWeek" | "timeGridDay";
+  selectedUserId?: string; // 선택된 사용자 ID (관리자가 다른 사용자 일정 조회 시)
+  readOnly?: boolean; // 읽기 전용 모드 (드래그/리사이즈 불가)
 }
 
-export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps) {
+export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, readOnly = false }: TaskCalendarProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [startDate, setStartDate] = useState<Date>(() => {
     // Initialize with current month start
@@ -32,11 +36,74 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
   });
+  const prevSelectedUserIdRef = useRef<string | undefined>(selectedUserId);
+  const prevStartDateRef = useRef<Date>(startDate);
+  const prevEndDateRef = useRef<Date>(endDate);
+  const prevViewTypeRef = useRef<string | null>(searchParams.get("view") || "month");
 
   // Fetch schedules for the current date range
-  const { data: schedules = [], isLoading, error } = useTaskSchedules(startDate, endDate, true);
-  const updateScheduleMutation = useUpdateTaskSchedule();
+  // placeholderData로 인해 이전 데이터가 표시되면서 새 데이터 로드
+  const { data: schedules = [], isLoading, error } = useTaskSchedules(startDate, endDate, true, selectedUserId);
+  const updateScheduleMutation = useUpdateTaskSchedule(startDate, endDate, selectedUserId);
+
+  // selectedUserId가 변경될 때 이전 쿼리 캐시 무효화
+  useEffect(() => {
+    if (prevSelectedUserIdRef.current !== selectedUserId) {
+      // 이전 userId의 모든 쿼리 캐시 무효화 (날짜 범위와 관계없이)
+      if (prevSelectedUserIdRef.current !== undefined) {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => {
+            const key = query.queryKey;
+            // 쿼리 키가 ["task-schedules", startDateStr, endDateStr, excludeApproved, userId] 형식
+            return (
+              key[0] === "task-schedules" &&
+              key.length >= 5 &&
+              typeof key[1] === "string" && // ISO 문자열
+              typeof key[2] === "string" && // ISO 문자열
+              key[4] === prevSelectedUserIdRef.current
+            );
+          }
+        });
+      }
+      // 새로운 userId의 모든 쿼리도 무효화하여 새로 로드되도록 함
+      // undefined인 경우도 포함 (내 일정으로 돌아올 때)
+      if (selectedUserId !== undefined) {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              key[0] === "task-schedules" &&
+              key.length >= 5 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string" &&
+              key[4] === selectedUserId
+            );
+          }
+        });
+      }
+      // selectedUserId가 undefined일 때는 모든 userId에 대한 쿼리도 무효화
+      if (selectedUserId === undefined) {
+        queryClient.invalidateQueries({ 
+          predicate: (query) => {
+            const key = query.queryKey;
+            // userId가 없는 쿼리: ["task-schedules", startDateStr, endDateStr, excludeApproved]
+            return (
+              key[0] === "task-schedules" &&
+              key.length === 4 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string"
+            );
+          }
+        });
+      }
+      prevSelectedUserIdRef.current = selectedUserId;
+    }
+  }, [selectedUserId, queryClient]);
   const scheduleMapRef = useRef<Map<string, TaskScheduleWithTask>>(new Map());
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef<number>(0);
+  const isUpdatingRef = useRef<boolean>(false);
+  const scrollRestoreAttemptsRef = useRef<number>(0);
 
   // Convert schedules to FullCalendar events
   const events = useMemo(() => {
@@ -52,8 +119,16 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
   // Also updates URL search params when view changes
   const handleDatesSet = (arg: DatesSetArg) => {
     // FullCalendar provides start and end dates for the current view
-    setStartDate(arg.start);
-    setEndDate(arg.end);
+    const newStartDate = arg.start;
+    const newEndDate = arg.end;
+    
+    // 날짜 범위 업데이트 (placeholderData로 인해 이전 데이터가 표시되면서 새 데이터 로드)
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+    
+    // 이전 날짜 범위 추적
+    prevStartDateRef.current = newStartDate;
+    prevEndDateRef.current = newEndDate;
 
     // Update URL search params based on current view
     const viewType = arg.view.type;
@@ -69,7 +144,51 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
 
     // URL 파라미터 업데이트 (replace: true로 브라우저 히스토리 쌓지 않음)
     const newParams = new URLSearchParams(searchParams);
-    const currentViewParam = newParams.get("view");
+    const currentViewParam = newParams.get("view") || "month";
+    
+    // 뷰 타입이 변경되었는지 확인
+    const viewChanged = prevViewTypeRef.current !== viewParam;
+    
+    // 뷰 타입이 변경되었을 때 쿼리 무효화 및 재패치
+    if (viewChanged) {
+      const startDateStr = newStartDate.toISOString();
+      const endDateStr = newEndDate.toISOString();
+      
+      // 현재 날짜 범위의 모든 쿼리 무효화
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          return (
+            key[0] === "task-schedules" &&
+            key.length >= 5 &&
+            typeof key[1] === "string" &&
+            typeof key[2] === "string" &&
+            key[1] === startDateStr &&
+            key[2] === endDateStr &&
+            key[4] === selectedUserId
+          );
+        }
+      });
+      
+      // selectedUserId가 undefined일 때도 처리
+      if (selectedUserId === undefined) {
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              key[0] === "task-schedules" &&
+              key.length === 4 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string" &&
+              key[1] === startDateStr &&
+              key[2] === endDateStr
+            );
+          }
+        });
+      }
+      
+      prevViewTypeRef.current = viewParam;
+    }
     
     // 현재 URL 파라미터와 다를 때만 업데이트 (무한 루프 방지)
     if (currentViewParam !== viewParam) {
@@ -200,9 +319,39 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
   };
 
 
+  // 스크롤 위치 저장 헬퍼 함수
+  const saveScrollPosition = () => {
+    if (calendarContainerRef.current) {
+      // 월 뷰의 경우 window 스크롤 확인
+      const windowScroll = window.scrollY || window.pageYOffset;
+      if (windowScroll > 0) {
+        scrollPositionRef.current = windowScroll;
+        return;
+      }
+      
+      // FullCalendar 내부 스크롤 컨테이너 확인
+      const scrollContainer = calendarContainerRef.current.querySelector('.fc-scroller') as HTMLElement;
+      if (scrollContainer && scrollContainer.scrollTop > 0) {
+        scrollPositionRef.current = scrollContainer.scrollTop;
+        return;
+      }
+      
+      // 부모 컨테이너의 스크롤 확인
+      const parentScrollable = calendarContainerRef.current.closest('[style*="overflow"], .overflow-auto, .overflow-y-auto') as HTMLElement;
+      if (parentScrollable && parentScrollable.scrollTop > 0) {
+        scrollPositionRef.current = parentScrollable.scrollTop;
+      }
+    }
+  };
+
   // Handle event drop - update schedule (날짜/시간 변경)
   const handleEventDrop = async (info: EventDropArg) => {
     try {
+      // 스크롤 위치 저장 (mutation 시작 전)
+      saveScrollPosition();
+      isUpdatingRef.current = true;
+      scrollRestoreAttemptsRef.current = 0;
+
       console.log("일정 드래그 시작:", {
         eventId: info.event.id,
         start: info.event.start,
@@ -246,6 +395,7 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
       });
 
       console.log("일정 이동 성공");
+      // finally에서 isUpdatingRef를 false로 설정하지 않음 - useEffect에서 스크롤 복원 후 설정
     } catch (error) {
       // Revert the event on error
       console.error("일정 이동 실패:", error);
@@ -254,12 +404,18 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
         console.error("에러 스택:", error.stack);
       }
       info.revert();
+      isUpdatingRef.current = false; // 에러 시에만 false로 설정
     }
   };
 
   // Handle event resize - update schedule (기간/시간 조정)
   const handleEventResize = async (info: EventResizeDoneArg) => {
     try {
+      // 스크롤 위치 저장 (mutation 시작 전)
+      saveScrollPosition();
+      isUpdatingRef.current = true;
+      scrollRestoreAttemptsRef.current = 0;
+
       console.log("일정 리사이즈 시작:", {
         eventId: info.event.id,
         start: info.event.start,
@@ -287,6 +443,7 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
       });
 
       console.log("일정 리사이즈 성공");
+      // finally에서 isUpdatingRef를 false로 설정하지 않음 - useEffect에서 스크롤 복원 후 설정
     } catch (error) {
       // Revert the event on error
       console.error("일정 기간 조정 실패:", error);
@@ -295,8 +452,50 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
         console.error("에러 스택:", error.stack);
       }
       info.revert();
+      isUpdatingRef.current = false; // 에러 시에만 false로 설정
     }
   };
+
+  // 스크롤 위치 복원 (데이터 업데이트 후)
+  useEffect(() => {
+    if (isUpdatingRef.current && scrollPositionRef.current > 0 && calendarContainerRef.current) {
+      // 여러 프레임에 걸쳐 스크롤 복원 시도 (DOM 렌더링 완료 대기)
+      const restoreScroll = () => {
+        scrollRestoreAttemptsRef.current += 1;
+        
+        // 월 뷰의 경우 window 스크롤 복원
+        if (window.scrollY === 0 && scrollPositionRef.current > 0) {
+          window.scrollTo(0, scrollPositionRef.current);
+        }
+        
+        // FullCalendar 내부 스크롤 컨테이너 복원
+        const scrollContainer = calendarContainerRef.current?.querySelector('.fc-scroller') as HTMLElement;
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollPositionRef.current;
+        }
+        
+        // 부모 컨테이너의 스크롤 복원
+        const parentScrollable = calendarContainerRef.current?.closest('[style*="overflow"], .overflow-auto, .overflow-y-auto') as HTMLElement;
+        if (parentScrollable) {
+          parentScrollable.scrollTop = scrollPositionRef.current;
+        }
+        
+        // 최대 5번까지 재시도 (DOM 렌더링 완료 대기)
+        if (scrollRestoreAttemptsRef.current < 5) {
+          requestAnimationFrame(restoreScroll);
+        } else {
+          // 복원 완료 후 플래그 리셋
+          isUpdatingRef.current = false;
+          scrollRestoreAttemptsRef.current = 0;
+        }
+      };
+      
+      // 첫 번째 시도는 약간의 지연 후 실행
+      setTimeout(() => {
+        requestAnimationFrame(restoreScroll);
+      }, 50);
+    }
+  }, [schedules]);
 
   if (isLoading) {
     return (
@@ -326,7 +525,7 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
   });
 
   return (
-    <div className="w-full h-full">
+    <div ref={calendarContainerRef} className="w-full h-full">
       <FullCalendar
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={initialView}
@@ -336,10 +535,10 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
           right: "dayGridMonth,timeGridWeek,timeGridDay",
         }}
         events={events}
-        editable={true}
+        editable={!readOnly}
         droppable={false}
-        eventStartEditable={true}
-        eventDurationEditable={true}
+        eventStartEditable={!readOnly}
+        eventDurationEditable={!readOnly}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
         eventResize={handleEventResize}
