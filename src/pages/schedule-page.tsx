@@ -1,6 +1,19 @@
+import { useSearchParams } from "react-router";
 import { TaskCalendar } from "@/components/schedule/task-calendar";
 
+type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay";
+
+function getViewFromUrl(viewParam: string | null): CalendarView {
+  if (viewParam === "week") return "timeGridWeek";
+  if (viewParam === "day") return "timeGridDay";
+  return "dayGridMonth"; // 기본값: 월
+}
+
 export default function SchedulePage() {
+  const [searchParams] = useSearchParams();
+  const viewParam = searchParams.get("view");
+  const initialView = getViewFromUrl(viewParam);
+
   return (
     <div className=" md:p-4 ">
       <div className="mb-6">
@@ -10,7 +23,7 @@ export default function SchedulePage() {
         </p>
       </div>
       <div className="bg-card rounded-lg border p-4 md:p-6">
-        <TaskCalendar initialView="dayGridMonth" />
+        <TaskCalendar initialView={initialView} />
       </div>
     </div>
   );

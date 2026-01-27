@@ -6,9 +6,10 @@ import interactionPlugin from "@fullcalendar/interaction";
 import koLocale from "@fullcalendar/core/locales/ko";
 import type { EventDropArg, EventClickArg, DatesSetArg } from "@fullcalendar/core";
 import type { EventResizeDoneArg } from "@fullcalendar/interaction";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useTaskSchedules, useUpdateTaskSchedule } from "@/hooks/queries/use-schedules";
 import { convertToFullCalendarEvents } from "@/utils/schedule";
+import DefaultSpinner from "../common/default-spinner";
 // FullCalendar v6 automatically injects CSS, no manual import needed
 
 interface TaskCalendarProps {
@@ -17,6 +18,7 @@ interface TaskCalendarProps {
 
 export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [startDate, setStartDate] = useState<Date>(() => {
     // Initialize with current month start
     const now = new Date();
@@ -38,10 +40,38 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
   }, [schedules]);
 
   // Handle date range changes from FullCalendar
+  // Also updates URL search params when view changes
   const handleDatesSet = (arg: DatesSetArg) => {
     // FullCalendar provides start and end dates for the current view
     setStartDate(arg.start);
     setEndDate(arg.end);
+
+    // Update URL search params based on current view
+    const viewType = arg.view.type;
+    let viewParam: string;
+    
+    if (viewType === "timeGridWeek") {
+      viewParam = "week";
+    } else if (viewType === "timeGridDay") {
+      viewParam = "day";
+    } else {
+      viewParam = "month"; // dayGridMonth
+    }
+
+    // URL 파라미터 업데이트 (replace: true로 브라우저 히스토리 쌓지 않음)
+    const newParams = new URLSearchParams(searchParams);
+    const currentViewParam = newParams.get("view");
+    
+    // 현재 URL 파라미터와 다를 때만 업데이트 (무한 루프 방지)
+    if (currentViewParam !== viewParam) {
+      if (viewParam === "month") {
+        // 기본값이므로 파라미터에서 제거
+        newParams.delete("view");
+      } else {
+        newParams.set("view", viewParam);
+      }
+      setSearchParams(newParams, { replace: true });
+    }
   };
 
   // Handle event click - navigate to task detail page
@@ -152,9 +182,7 @@ export function TaskCalendar({ initialView = "dayGridMonth" }: TaskCalendarProps
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-muted-foreground">일정을 불러오는 중...</div>
-      </div>
+      <DefaultSpinner />
     );
   }
 
