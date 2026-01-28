@@ -359,9 +359,9 @@ export function TaskFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="REVIEW">검토</SelectItem>
-                    <SelectItem value="REVISION">수정</SelectItem>
                     <SelectItem value="CONTRACT">계약</SelectItem>
                     <SelectItem value="SPECIFICATION">명세서</SelectItem>
+                    <SelectItem value="REVISION">수정</SelectItem>
                     <SelectItem value="APPLICATION">출원</SelectItem>
                   </SelectContent>
                 </Select>

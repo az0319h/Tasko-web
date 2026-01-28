@@ -1091,14 +1091,14 @@ export default function AdminDashboardPage() {
               <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
                 검토
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("REVISION", "수정")}>
-                수정
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
                 계약
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
                 명세서
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleQuickCreate("REVISION", "수정")}>
+                수정
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
                 출원
@@ -1120,15 +1120,6 @@ export default function AdminDashboardPage() {
               variant="outline"
               size="sm"
               className="h-9"
-              onClick={() => handleQuickCreate("REVISION", "수정")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              수정
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
               onClick={() => handleQuickCreate("CONTRACT", "계약")}
             >
               <Plus className="mr-2 h-4 w-4" />
@@ -1142,6 +1133,15 @@ export default function AdminDashboardPage() {
             >
               <Plus className="mr-2 h-4 w-4" />
               명세서
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => handleQuickCreate("REVISION", "수정")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              수정
             </Button>
             <Button
               variant="outline"
