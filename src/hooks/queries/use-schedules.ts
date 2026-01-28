@@ -25,7 +25,7 @@ export function useTaskSchedules(
   return useQuery<TaskScheduleWithTask[]>({
     queryKey: ["task-schedules", startDateStr, endDateStr, excludeApproved, userId],
     queryFn: () => getTaskSchedules(startDate, endDate, excludeApproved, userId),
-    staleTime: 30 * 1000,
+    staleTime: 0, // 항상 최신 데이터를 가져오도록 설정 (prev/next 버튼 클릭 시 무조건 새 데이터)
     enabled: true, // Always enabled, userId can be undefined
     placeholderData: (previousData) => {
       // 이전 쿼리의 데이터를 placeholder로 사용 (캘린더 즉시 이동, 데이터는 백그라운드에서 로드)

@@ -122,14 +122,15 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
     const newStartDate = arg.start;
     const newEndDate = arg.end;
     
+    // 날짜 범위가 변경되었는지 확인 (prev/next 버튼 클릭 감지)
+    const dateChanged = 
+      prevStartDateRef.current.getTime() !== newStartDate.getTime() ||
+      prevEndDateRef.current.getTime() !== newEndDate.getTime();
+    
     // 날짜 범위 업데이트 (placeholderData로 인해 이전 데이터가 표시되면서 새 데이터 로드)
     setStartDate(newStartDate);
     setEndDate(newEndDate);
     
-    // 이전 날짜 범위 추적
-    prevStartDateRef.current = newStartDate;
-    prevEndDateRef.current = newEndDate;
-
     // Update URL search params based on current view
     const viewType = arg.view.type;
     let viewParam: string;
@@ -149,32 +150,57 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
     // 뷰 타입이 변경되었는지 확인
     const viewChanged = prevViewTypeRef.current !== viewParam;
     
-    // 뷰 타입이 변경되었을 때 쿼리 무효화 및 재패치
-    if (viewChanged) {
-      const startDateStr = newStartDate.toISOString();
-      const endDateStr = newEndDate.toISOString();
+    const startDateStr = newStartDate.toISOString();
+    const endDateStr = newEndDate.toISOString();
+    
+    // 날짜가 변경되었거나 뷰 타입이 변경되었을 때 쿼리 무효화 및 재패치
+    if (dateChanged || viewChanged) {
+      // 이전 날짜 범위의 쿼리 무효화 (placeholderData를 위해)
+      const prevStartDateStr = prevStartDateRef.current.toISOString();
+      const prevEndDateStr = prevEndDateRef.current.toISOString();
       
-      // 현재 날짜 범위의 모든 쿼리 무효화
+      // 이전 날짜 범위의 쿼리 무효화
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey;
-          return (
-            key[0] === "task-schedules" &&
-            key.length >= 5 &&
-            typeof key[1] === "string" &&
-            typeof key[2] === "string" &&
-            key[1] === startDateStr &&
-            key[2] === endDateStr &&
-            key[4] === selectedUserId
-          );
+          if (selectedUserId !== undefined) {
+            return (
+              key[0] === "task-schedules" &&
+              key.length >= 5 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string" &&
+              key[1] === prevStartDateStr &&
+              key[2] === prevEndDateStr &&
+              key[4] === selectedUserId
+            );
+          } else {
+            return (
+              key[0] === "task-schedules" &&
+              key.length === 4 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string" &&
+              key[1] === prevStartDateStr &&
+              key[2] === prevEndDateStr
+            );
+          }
         }
       });
       
-      // selectedUserId가 undefined일 때도 처리
-      if (selectedUserId === undefined) {
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            const key = query.queryKey;
+      // 새 날짜 범위의 쿼리 무효화하여 강제로 새 데이터 가져오기
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (selectedUserId !== undefined) {
+            return (
+              key[0] === "task-schedules" &&
+              key.length >= 5 &&
+              typeof key[1] === "string" &&
+              typeof key[2] === "string" &&
+              key[1] === startDateStr &&
+              key[2] === endDateStr &&
+              key[4] === selectedUserId
+            );
+          } else {
             return (
               key[0] === "task-schedules" &&
               key.length === 4 &&
@@ -184,10 +210,16 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
               key[2] === endDateStr
             );
           }
-        });
-      }
+        }
+      });
       
-      prevViewTypeRef.current = viewParam;
+      // 이전 날짜 범위 추적 업데이트
+      prevStartDateRef.current = newStartDate;
+      prevEndDateRef.current = newEndDate;
+      
+      if (viewChanged) {
+        prevViewTypeRef.current = viewParam;
+      }
     }
     
     // 현재 URL 파라미터와 다를 때만 업데이트 (무한 루프 방지)
