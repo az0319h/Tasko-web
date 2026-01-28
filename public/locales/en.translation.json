@@ -21,6 +21,7 @@
     "sidebar": {
       "menu": {
         "home": "Home",
+        "schedule": "Schedule",
         "notifications": "Notifications",
         "community": "Community",
         "agents": "AI Agents",

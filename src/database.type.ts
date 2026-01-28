@@ -321,7 +321,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
-          log_type: Database["public"]["Enums"]["chat_log_type"]
+          log_type?: Database["public"]["Enums"]["chat_log_type"]
           task_id: string
           title?: string | null
         }
@@ -350,6 +350,44 @@ export type Database = {
           },
         ]
       }
+      task_schedules: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          is_all_day: boolean
+          start_time: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          is_all_day?: boolean
+          start_time: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_all_day?: boolean
+          start_time?: string
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_schedules_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_id: string | null
@@ -359,6 +397,7 @@ export type Database = {
           created_by: string | null
           due_date: string
           id: string
+          project_id: string | null
           send_email_to_client: boolean
           task_category: Database["public"]["Enums"]["task_category"]
           task_status: Database["public"]["Enums"]["task_status"]
@@ -373,6 +412,7 @@ export type Database = {
           created_by?: string | null
           due_date: string
           id?: string
+          project_id?: string | null
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
@@ -387,6 +427,7 @@ export type Database = {
           created_by?: string | null
           due_date?: string
           id?: string
+          project_id?: string | null
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
@@ -461,7 +502,12 @@ export type Database = {
     Enums: {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
-      task_category: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"
+      task_category:
+        | "REVIEW"
+        | "REVISION"
+        | "CONTRACT"
+        | "SPECIFICATION"
+        | "APPLICATION"
       task_status:
         | "ASSIGNED"
         | "IN_PROGRESS"
@@ -597,7 +643,13 @@ export const Constants = {
     Enums: {
       chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
-      task_category: ["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"],
+      task_category: [
+        "REVIEW",
+        "REVISION",
+        "CONTRACT",
+        "SPECIFICATION",
+        "APPLICATION",
+      ],
       task_status: [
         "ASSIGNED",
         "IN_PROGRESS",

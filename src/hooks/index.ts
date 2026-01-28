@@ -17,6 +17,7 @@ export * from "./queries/use-project-participants";
 // export * from "./queries/use-realtime-message-logs";
 export * from "./queries/use-chat-logs";
 export * from "./queries/use-realtime-chat-logs";
+export * from "./queries/use-schedules";
 export * from "./mutations/use-profile";
 export * from "./mutations/use-profile-auto";
 export * from "./mutations/use-profile-setup";
