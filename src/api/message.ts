@@ -495,6 +495,63 @@ export function isMessageReadByCounterpart(
 }
 
 /**
+ * Task의 읽지 않은 메시지 수 조회 (단일 Task)
+ * 현재 사용자가 지시자/담당자인 경우에만 의미 있는 값을 반환
+ * @param taskId Task ID
+ * @param userId 사용자 ID
+ * @returns 읽지 않은 메시지 수
+ */
+export async function getUnreadMessageCount(taskId: string, userId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("get_unread_message_count", {
+    p_task_id: taskId,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("읽지 않은 메시지 수 조회 실패:", error);
+    return 0; // 에러 발생 시 기본값 0 반환
+  }
+
+  return (data as number) || 0;
+}
+
+/**
+ * 여러 Task의 읽지 않은 메시지 수 조회 (배치 조회)
+ * 현재 사용자가 지시자/담당자인 경우에만 의미 있는 값을 반환
+ * @param taskIds Task ID 배열
+ * @param userId 사용자 ID
+ * @returns Task ID를 키로 하는 Map (taskId → unreadCount)
+ */
+export async function getUnreadMessageCounts(
+  taskIds: string[],
+  userId: string
+): Promise<Map<string, number>> {
+  if (taskIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase.rpc("get_unread_message_counts", {
+    p_task_ids: taskIds,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("읽지 않은 메시지 수 배치 조회 실패:", error);
+    return new Map(); // 에러 발생 시 빈 Map 반환
+  }
+
+  // 결과를 Map으로 변환
+  const countMap = new Map<string, number>();
+  if (data && Array.isArray(data)) {
+    for (const row of data) {
+      countMap.set(row.result_task_id, row.unread_count || 0);
+    }
+  }
+
+  return countMap;
+}
+
+/**
  * 메시지 삭제 (Soft Delete)
  * 본인이 보낸 메시지만 삭제 가능
  * 파일 메시지인 경우 Storage에서도 파일 삭제

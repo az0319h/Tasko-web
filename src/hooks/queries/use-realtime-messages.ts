@@ -73,6 +73,9 @@ export function useRealtimeMessages(
 
               // 먼저 쿼리 무효화하여 새 메시지 즉시 표시
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+              // 대시보드의 읽지 않은 메시지 수도 업데이트 (상대방의 대시보드 업데이트)
+              queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+              queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
 
               // 상대방 메시지이고 현재 사용자가 채팅 화면에 있는 경우 읽음 처리
               if (
@@ -92,6 +95,9 @@ export function useRealtimeMessages(
                     await markMessageAsRead(messageId);
                     // 읽음 처리 후 쿼리 다시 무효화하여 읽음 상태 반영
                     queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+                    // 대시보드의 읽지 않은 메시지 수도 업데이트
+                    queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+                    queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
                   } catch (error) {
                     console.error(`[Realtime] ❌ Failed to mark message as read:`, error);
                     // 읽음 처리 실패해도 쿼리 무효화는 이미 진행됨
@@ -115,6 +121,9 @@ export function useRealtimeMessages(
               // ⚠️ 중요: 읽음 처리 로직은 실행하지 않음 (무한 루프 방지)
               // 단순히 쿼리만 무효화하여 최신 읽음 상태를 가져옴
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+              // 대시보드의 읽지 않은 메시지 수도 업데이트
+              queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+              queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
             }
             // DELETE 이벤트: 메시지가 삭제됨
             else if (payload.eventType === "DELETE") {
@@ -125,6 +134,9 @@ export function useRealtimeMessages(
 
               // 삭제된 메시지 제거를 위해 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+              // 대시보드의 읽지 않은 메시지 수도 업데이트
+              queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+              queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
             }
           },
         )

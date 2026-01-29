@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearchParams, useLocation, useNavigate } from "react-router";
-import { Search, Plus, ArrowUpDown, ChevronDown, Mail, CheckCircle2, XCircle } from "lucide-react";
-import { useTasksForMember, useCurrentProfile } from "@/hooks";
+import { Search, Plus, ArrowUpDown, ChevronDown, Mail, CheckCircle2, XCircle, Bell } from "lucide-react";
+import { useTasksForMember, useCurrentProfile, useRealtimeDashboardMessages } from "@/hooks";
 import { useDebounce } from "@/hooks";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import { useUpdateTaskStatus, useCreateTask } from "@/hooks/mutations/use-task";
@@ -28,6 +28,7 @@ import {
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TablePagination } from "@/components/common/table-pagination";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TaskWithProfiles } from "@/api/task";
 import { checkDueDateExceeded } from "@/api/task";
@@ -858,6 +859,53 @@ export default function MemberDashboardPage() {
     return sortedMyTasks.slice(startIndex, endIndex);
   }, [sortedMyTasks, myTasksCurrentPage, myTasksItemsPerPage]);
 
+  // 현재 표시 중인 Task ID 목록 추출 (실시간 구독용)
+  // sortedMyTasks/sortedAllTasks를 사용하여 필터링/정렬이 완료된 Task ID를 추출
+  // 페이지네이션된 Task만 구독하여 성능 최적화
+  const currentTaskIds = useMemo(() => {
+    const taskIds = new Set<string>();
+    
+    // 현재 활성 탭에 따라 표시 중인 Task ID 수집
+    // activeTab을 사용하여 탭 구분 (category는 카테고리 필터이므로 사용하지 않음)
+    // paginatedMyTasks/paginatedAllTasks 대신 sortedMyTasks/sortedAllTasks에서 페이지네이션 범위만 추출
+    if (activeTab === "my-tasks") {
+      const startIndex = (myTasksCurrentPage - 1) * myTasksItemsPerPage;
+      const endIndex = startIndex + myTasksItemsPerPage;
+      sortedMyTasks.slice(startIndex, endIndex).forEach((task) => {
+        if (task.id) taskIds.add(task.id);
+      });
+    } else if (activeTab === "all-tasks") {
+      const startIndex = (allTasksCurrentPage - 1) * allTasksItemsPerPage;
+      const endIndex = startIndex + allTasksItemsPerPage;
+      sortedAllTasks.slice(startIndex, endIndex).forEach((task) => {
+        if (task.id) taskIds.add(task.id);
+      });
+    }
+    
+    const result = Array.from(taskIds);
+    console.log(`[Member Dashboard] 📋 Current task IDs for subscription:`, {
+      activeTab,
+      category,
+      count: result.length,
+      taskIds: result,
+      sortedMyTasksCount: sortedMyTasks.length,
+      sortedAllTasksCount: sortedAllTasks.length,
+      paginatedMyTasksCount: paginatedMyTasks.length,
+      paginatedAllTasksCount: paginatedAllTasks.length,
+      myTasksCurrentPage,
+      allTasksCurrentPage,
+    });
+    
+    return result;
+  }, [activeTab, category, sortedMyTasks, sortedAllTasks, myTasksCurrentPage, allTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage]);
+
+  // 실시간 구독 활성화
+  console.log(`[Member Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
+    taskIds: currentTaskIds,
+    enabled: true,
+  });
+  useRealtimeDashboardMessages(currentTaskIds, true);
+
   // 담당 업무 탭: 총 페이지 수
   const myTasksTotalPages = Math.ceil(sortedMyTasks.length / myTasksItemsPerPage) || 1;
 
@@ -1227,7 +1275,7 @@ export default function MemberDashboardPage() {
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
+                placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -1266,10 +1314,10 @@ export default function MemberDashboardPage() {
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    지시자
+                    읽지 않은 메시지
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    담당자
+                    지시자/담당자
                   </th>
                 </tr>
               </thead>
@@ -1290,13 +1338,9 @@ export default function MemberDashboardPage() {
                     const dDayText = getDDayText(daysDiff);
                     const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
 
-                    const assigneeDisplay = task.assignee?.full_name
-                      ? `${task.assignee.full_name} (${task.assignee.email})`
-                      : task.assignee?.email || task.assignee_id;
-
-                    const assignerDisplay = task.assigner?.full_name
-                      ? `${task.assigner.full_name} (${task.assigner.email})`
-                      : task.assigner?.email || task.assigner_id;
+                    const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
+                    const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
+                    const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
 
                     return (
                       <tr
@@ -1358,11 +1402,20 @@ export default function MemberDashboardPage() {
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <TaskStatusBadge status={task.task_status} />
                         </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerDisplay}</div>
+                        <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+                          {task.unread_message_count && task.unread_message_count > 0 ? (
+                            <div className="relative inline-flex">
+                              <Bell className="h-6 w-6 fill-primary text-primary" />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white dark:text-black">
+                                {task.unread_message_count}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          )}
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">{assigneeDisplay}</div>
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerAssigneeDisplay}</div>
                         </td>
                       </tr>
                     );
@@ -1545,7 +1598,7 @@ export default function MemberDashboardPage() {
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
-                placeholder="고유 ID, 고객명, 지시사항, 지시자, 담당자명으로 검색하세요..."
+                placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -1583,10 +1636,10 @@ export default function MemberDashboardPage() {
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    지시자
+                    읽지 않은 메시지
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    담당자
+                    지시자/담당자
                   </th>
                 </tr>
               </thead>
@@ -1607,13 +1660,9 @@ export default function MemberDashboardPage() {
                     const dDayText = getDDayText(daysDiff);
                     const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
 
-                    const assigneeDisplay = task.assignee?.full_name
-                      ? `${task.assignee.full_name} (${task.assignee.email})`
-                      : task.assignee?.email || task.assignee_id;
-
-                    const assignerDisplay = task.assigner?.full_name
-                      ? `${task.assigner.full_name} (${task.assigner.email})`
-                      : task.assigner?.email || task.assigner_id;
+                    const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
+                    const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
+                    const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
 
                     return (
                       <tr
@@ -1687,11 +1736,20 @@ export default function MemberDashboardPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerDisplay}</div>
+                        <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+                          {task.unread_message_count && task.unread_message_count > 0 ? (
+                            <div className="relative inline-flex">
+                              <Bell className="h-6 w-6 fill-primary text-primary" />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white dark:text-black">
+                                {task.unread_message_count}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          )}
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">{assigneeDisplay}</div>
+                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerAssigneeDisplay}</div>
                         </td>
                       </tr>
                     );
