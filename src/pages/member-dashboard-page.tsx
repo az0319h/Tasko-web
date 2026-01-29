@@ -4,7 +4,7 @@ import { Search, Plus, ArrowUpDown, ChevronDown, Mail, CheckCircle2, XCircle, Be
 import { useTasksForMember, useCurrentProfile, useRealtimeDashboardMessages } from "@/hooks";
 import { useDebounce } from "@/hooks";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
-import { useUpdateTaskStatus, useCreateTask } from "@/hooks/mutations/use-task";
+import { useUpdateTaskStatus, useCreateTask, useUpdateTask } from "@/hooks/mutations/use-task";
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { useCreateMessageWithFiles } from "@/hooks/mutations/use-message";
 import { uploadTaskFile } from "@/api/storage";
@@ -151,6 +151,7 @@ export default function MemberDashboardPage() {
   // 담당 업무 탭: 지시자/담당자인 태스크 중 승인됨이 아닌 것만
   const { data: myTasks = [], isLoading: myTasksLoading } = useTasksForMember(true);
   const updateTaskStatus = useUpdateTaskStatus();
+  const updateTask = useUpdateTask();
   const createTask = useCreateTask();
   const createMessageWithFiles = useCreateMessageWithFiles();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -419,6 +420,28 @@ export default function MemberDashboardPage() {
   };
 
   // 상태 변경 확인 핸들러
+  // 고객에게 이메일 발송 완료 상태 토글 핸들러
+  const handleEmailSentToggle = async (task: TaskWithProfiles, e: React.MouseEvent) => {
+    e.stopPropagation(); // 행 클릭 이벤트 차단
+    
+    // 담당자 권한 확인
+    if (task.assignee_id !== currentProfile?.id) {
+      toast.error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+      return;
+    }
+    
+    try {
+      await updateTask.mutateAsync({
+        id: task.id,
+        updates: {
+          send_email_to_client: !task.send_email_to_client,
+        },
+      });
+    } catch (error) {
+      // 에러는 훅에서 이미 처리됨
+    }
+  };
+
   const handleConfirmStatusChange = async () => {
     if (!pendingStatusChange) return;
 
@@ -1722,11 +1745,19 @@ export default function MemberDashboardPage() {
                           )}
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => handleEmailSentToggle(task, e)}
+                            disabled={task.assignee_id !== currentProfile?.id || updateTask.isPending}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
+                              "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
+                              task.assignee_id === currentProfile?.id && "cursor-pointer"
+                            )}
+                          >
                             {task.send_email_to_client ? (
                               <>
                                 <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
-                                <span className="text-xs sm:text-sm">전송 완료</span>
+                                <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
                               </>
                             ) : (
                               <>
@@ -1734,7 +1765,7 @@ export default function MemberDashboardPage() {
                                 <span className="text-xs sm:text-sm">미전송</span>
                               </>
                             )}
-                          </div>
+                          </button>
                         </td>
                         <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
                           {task.unread_message_count && task.unread_message_count > 0 ? (
