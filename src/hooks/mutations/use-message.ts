@@ -55,6 +55,9 @@ export function useCreateMessage() {
     onSuccess: (data) => {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["messages", data.task_id] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트 (상대방의 대시보드 업데이트)
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
     },
   });
 }
@@ -81,6 +84,9 @@ export function useCreateFileMessage() {
     }) => createFileMessage(taskId, fileUrl, fileName, fileType, fileSize),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["messages", data.task_id] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트 (상대방의 대시보드 업데이트)
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
       toast.success("파일이 전송되었습니다.");
     },
     onError: (error: Error) => {
@@ -124,6 +130,9 @@ export function useCreateMessageWithFiles() {
     onSuccess: (data, variables) => {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["messages", variables.taskId] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트 (상대방의 대시보드 업데이트)
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
     },
   });
 }
@@ -139,6 +148,9 @@ export function useMarkMessageAsRead() {
     onSuccess: () => {
       // 읽음 처리 후 메시지 목록 무효화
       queryClient.invalidateQueries({ queryKey: ["messages"] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
     },
   });
 }
@@ -154,6 +166,9 @@ export function useMarkTaskMessagesAsRead() {
     onSuccess: (_, taskId) => {
       // 읽음 처리 후 메시지 목록 무효화
       queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
     },
   });
 }
@@ -205,6 +220,9 @@ export function useDeleteMessage() {
     onSuccess: () => {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["messages"] });
+      // 대시보드의 읽지 않은 메시지 수도 업데이트
+      queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
       toast.success("메시지가 삭제되었습니다.");
     },
   });

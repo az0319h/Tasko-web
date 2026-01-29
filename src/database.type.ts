@@ -495,6 +495,17 @@ export type Database = {
           role: string
         }[]
       }
+      get_unread_message_count: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: number
+      }
+      get_unread_message_counts: {
+        Args: { p_task_ids: string[]; p_user_id: string }
+        Returns: {
+          result_task_id: string
+          unread_count: number
+        }[]
+      }
     }
     Enums: {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"

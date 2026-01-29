@@ -6,6 +6,7 @@ import {
   getStatusTransitionErrorMessage,
   isValidStatusTransition,
 } from "@/lib/task-status";
+import { getUnreadMessageCounts } from "./message";
 
 export type Task = Tables<"tasks">;
 export type TaskInsert = TablesInsert<"tasks">;
@@ -27,6 +28,7 @@ export type TaskWithProfiles = Task & {
     email: string;
     avatar_url: string | null;
   } | null;
+  unread_message_count?: number; // 읽지 않은 메시지 수
 };
 
 /**
@@ -350,7 +352,27 @@ export async function getTasksForMember(
     throw new Error(`Task 목록 조회 실패: ${error.message}`);
   }
 
-  return (data || []) as TaskWithProfiles[];
+  const tasks = (data || []) as TaskWithProfiles[];
+
+  // 읽지 않은 메시지 수 배치 조회
+  if (tasks.length > 0) {
+    const taskIds = tasks.map((task) => task.id);
+    try {
+      const unreadCounts = await getUnreadMessageCounts(taskIds, userId);
+      // 각 Task에 읽지 않은 메시지 수 추가
+      tasks.forEach((task) => {
+        task.unread_message_count = unreadCounts.get(task.id) || 0;
+      });
+    } catch (error) {
+      // 읽지 않은 메시지 수 조회 실패 시 기본값 0 설정
+      console.error("읽지 않은 메시지 수 조회 실패:", error);
+      tasks.forEach((task) => {
+        task.unread_message_count = 0;
+      });
+    }
+  }
+
+  return tasks;
 }
 
 /**
@@ -399,7 +421,27 @@ export async function getTasksForAdmin(
     throw new Error(`Task 목록 조회 실패: ${error.message}`);
   }
 
-  return (data || []) as TaskWithProfiles[];
+  const tasks = (data || []) as TaskWithProfiles[];
+
+  // 읽지 않은 메시지 수 배치 조회
+  if (tasks.length > 0) {
+    const taskIds = tasks.map((task) => task.id);
+    try {
+      const unreadCounts = await getUnreadMessageCounts(taskIds, userId);
+      // 각 Task에 읽지 않은 메시지 수 추가
+      tasks.forEach((task) => {
+        task.unread_message_count = unreadCounts.get(task.id) || 0;
+      });
+    } catch (error) {
+      // 읽지 않은 메시지 수 조회 실패 시 기본값 0 설정
+      console.error("읽지 않은 메시지 수 조회 실패:", error);
+      tasks.forEach((task) => {
+        task.unread_message_count = 0;
+      });
+    }
+  }
+
+  return tasks;
 }
 
 /**
