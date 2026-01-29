@@ -9,11 +9,13 @@ import type { EventResizeDoneArg } from "@fullcalendar/interaction";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTaskSchedules, useUpdateTaskSchedule } from "@/hooks/queries/use-schedules";
-import { convertToFullCalendarEvents } from "@/utils/schedule";
+import { convertToFullCalendarEvents, getStatusIcon } from "@/utils/schedule";
 import DefaultSpinner from "../common/default-spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createRoot } from "react-dom/client";
 import type { TaskScheduleWithTask } from "@/types/schedule";
+import type { TaskCategory } from "@/types/schedule";
+import { cn } from "@/lib/utils";
 // FullCalendar v6 automatically injects CSS, no manual import needed
 
 interface TaskCalendarProps {
@@ -43,7 +45,8 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
 
   // Fetch schedules for the current date range
   // placeholderData로 인해 이전 데이터가 표시되면서 새 데이터 로드
-  const { data: schedules = [], isLoading, error } = useTaskSchedules(startDate, endDate, true, selectedUserId);
+  // excludeApproved: false로 설정하여 APPROVED 상태 일정도 표시
+  const { data: schedules = [], isLoading, error } = useTaskSchedules(startDate, endDate, false, selectedUserId);
   const updateScheduleMutation = useUpdateTaskSchedule(startDate, endDate, selectedUserId);
 
   // selectedUserId가 변경될 때 이전 쿼리 캐시 무효화
@@ -256,6 +259,18 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
     });
   };
 
+  // Get category label in Korean
+  const getCategoryLabel = (category: TaskCategory): string => {
+    const categoryLabels: Record<TaskCategory, string> = {
+      REVIEW: "검토",
+      REVISION: "수정",
+      CONTRACT: "계약",
+      SPECIFICATION: "명세서",
+      APPLICATION: "출원",
+    };
+    return categoryLabels[category] || category;
+  };
+
   // Handle event click - navigate to task detail page
   const handleEventClick = (info: EventClickArg) => {
     const taskId = info.event.extendedProps?.taskId;
@@ -276,19 +291,28 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
     const startTime = schedule.start_time instanceof Date ? schedule.start_time : new Date(schedule.start_time);
     const endTime = schedule.end_time instanceof Date ? schedule.end_time : new Date(schedule.end_time);
     
-    // 지시사항 (task title)
-    const instructions = task.title;
+    // 지시사항 (task title) + 고객명
+    const clientName = task.client_name || "고객명 없음";
+    const instructions = `${task.title}(${clientName})`;
+    
+    // 카테고리 한글명 (툴팁용)
+    const categoryLabel = getCategoryLabel(task.task_category);
     
     // 일정 관리 시간 (HH:mm - HH:mm 형식)
     const timeRange = schedule.is_all_day 
       ? "종일" 
       : `${formatTime(startTime)} - ${formatTime(endTime)}`;
 
+    // 상태 아이콘 정보 가져오기
+    const statusIconConfig = getStatusIcon(task.task_status);
+    const StatusIcon = statusIconConfig.icon;
+
     // Tooltip 내용 생성
     const tooltipContent = [
       `고유 ID: ${task.id.slice(0, 8).toUpperCase()}`,
       task.client_name && `고객명: ${task.client_name}`,
       `지시사항: ${task.title}`,
+      `카테고리: ${categoryLabel}`,
       `생성일: ${formatDate(task.created_at)}`,
       task.due_date && `마감일: ${formatDate(task.due_date)}`,
     ]
@@ -319,16 +343,28 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
               lineHeight: "1.3"
             }}
           >
-            {/* 지시사항 */}
+            {/* 지시사항과 상태 아이콘 */}
             <div 
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
                 fontWeight: "500",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap"
               }}
             >
-              {instructions}
+              <StatusIcon 
+                className={cn(
+                  "size-3 flex-shrink-0",
+                  statusIconConfig.color,
+                  statusIconConfig.hasOpacity && "opacity-50"
+                )} 
+              />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {instructions}
+              </span>
             </div>
             {/* 시간 */}
             <div 
@@ -341,7 +377,7 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
             </div>
           </div>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs whitespace-pre-line text-left">
+        <TooltipContent side="left" className="max-w-xs whitespace-pre-line text-left">
           {tooltipContent}
         </TooltipContent>
       </Tooltip>

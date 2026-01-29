@@ -502,3 +502,63 @@ export async function updateTaskStatus(
   return updatedTask;
 }
 
+/**
+ * Edge Function을 통해 마감일 초과 여부 확인
+ * Task 생성 후 일정이 마감일을 초과했는지 확인
+ * 
+ * @param taskId 생성된 Task의 ID
+ * @param dueDate Task의 마감일 (YYYY-MM-DD 형식 문자열)
+ * @returns 마감일 초과 여부 및 관련 정보
+ */
+export async function checkDueDateExceeded(
+  taskId: string,
+  dueDate: string | null | undefined
+): Promise<{
+  exceeded: boolean;
+  scheduleDate?: string;
+  dueDate: string;
+  reason?: string;
+}> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  // due_date가 없으면 체크하지 않음
+  if (!dueDate) {
+    return {
+      exceeded: false,
+      dueDate: "",
+      reason: "no_due_date",
+    };
+  }
+
+  // Edge Function 호출
+  console.log("[checkDueDateExceeded] Edge Function 호출:", { taskId, dueDate });
+  
+  const { data, error } = await supabase.functions.invoke(
+    "check-due-date-exceeded",
+    {
+      body: {
+        taskId,
+        dueDate,
+      },
+    }
+  );
+
+  console.log("[checkDueDateExceeded] Edge Function 응답:", { data, error });
+
+  if (error) {
+    console.error("[checkDueDateExceeded] Edge Function 에러:", error);
+    throw new Error(`마감일 체크 실패: ${error.message}`);
+  }
+
+  if (data?.error) {
+    console.error("[checkDueDateExceeded] 응답 에러:", data.error);
+    throw new Error(data.error);
+  }
+
+  console.log("[checkDueDateExceeded] 최종 반환 데이터:", data);
+  return data;
+}
+

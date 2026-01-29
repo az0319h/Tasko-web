@@ -321,7 +321,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
-          log_type?: Database["public"]["Enums"]["chat_log_type"]
+          log_type: Database["public"]["Enums"]["chat_log_type"]
           task_id: string
           title?: string | null
         }
@@ -397,7 +397,6 @@ export type Database = {
           created_by: string | null
           due_date: string
           id: string
-          project_id: string | null
           send_email_to_client: boolean
           task_category: Database["public"]["Enums"]["task_category"]
           task_status: Database["public"]["Enums"]["task_status"]
@@ -412,7 +411,6 @@ export type Database = {
           created_by?: string | null
           due_date: string
           id?: string
-          project_id?: string | null
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
@@ -427,7 +425,6 @@ export type Database = {
           created_by?: string | null
           due_date?: string
           id?: string
-          project_id?: string | null
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]

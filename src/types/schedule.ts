@@ -48,5 +48,8 @@ export interface FullCalendarEvent {
     taskId: string;
     taskCategory: TaskCategory;
     taskStatus: TaskStatus;
+    taskClientName?: string | null;
+    taskCreatedAt?: string;
+    taskDueDate?: string | null;
   };
 }

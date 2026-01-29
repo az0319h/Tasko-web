@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router";
 import { TaskCalendar } from "@/components/schedule/task-calendar";
 import { useIsAdmin, useUsers, useCurrentProfile } from "@/hooks";
@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/select";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import DefaultSpinner from "@/components/common/default-spinner";
+import type { Tables } from "@/database.type";
 
 type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay";
+type Profile = Tables<"profiles">;
 
 function getViewFromUrl(viewParam: string | null): CalendarView {
   if (viewParam === "week") return "timeGridWeek";
@@ -21,19 +23,32 @@ function getViewFromUrl(viewParam: string | null): CalendarView {
 }
 
 export default function SchedulePage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const viewParam = searchParams.get("view");
+  const viewModeParam = searchParams.get("viewMode");
   const initialView = getViewFromUrl(viewParam);
   
   const { data: isAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { data: users, isLoading: usersLoading } = useUsers();
   const { data: currentProfile } = useCurrentProfile();
-  const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined);
 
-  // 관리자가 다른 사용자를 선택한 경우 읽기 모드
-  const isReadOnly = selectedUserId !== undefined && selectedUserId !== currentProfile?.id;
+  // viewMode를 searchParams로 관리 (기본값: "me")
+  const viewMode = viewModeParam || "me";
+  const isAllUsersMode = viewMode === "all";
 
-  if (isAdminLoading) {
+  // 필터링된 사용자 목록: 일반 멤버만 표시 (관리자 및 현재 사용자 제외)
+  const filteredUsers = useMemo(() => {
+    if (!users || !currentProfile) return [];
+    return users.filter((user: Profile) => {
+      // 관리자 제외
+      if (user.role === "admin") return false;
+      // 현재 사용자 제외
+      if (user.id === currentProfile.id) return false;
+      return true;
+    });
+  }, [users, currentProfile]);
+
+  if (isAdminLoading || usersLoading) {
     return (
       <div className="md:p-4">
         <DefaultSpinner />
@@ -48,29 +63,33 @@ export default function SchedulePage() {
           <div>
             <h1 className="text-2xl font-bold">일정 관리</h1>
             <p className="text-muted-foreground mt-2">
-              {isReadOnly 
-                ? "선택한 사용자의 일정을 확인할 수 있습니다. (읽기 전용)"
+              {isAllUsersMode
+                ? "일반 멤버들의 일정을 확인할 수 있습니다."
                 : "Task 기반 일정을 캘린더에서 확인하고 관리할 수 있습니다."}
             </p>
           </div>
           
-          {/* 관리자용 사용자 선택 드롭다운 */}
+          {/* 관리자용 일정 조회 옵션 선택 */}
           {isAdmin && (
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                사용자 선택:
+                일정 조회:
               </label>
               <Select
-                value={selectedUserId || "me"}
+                value={viewMode}
                 onValueChange={(value) => {
-                  setSelectedUserId(value === "me" ? undefined : value);
+                  const newParams = new URLSearchParams(searchParams);
+                  if (value === "me") {
+                    newParams.delete("viewMode");
+                  } else {
+                    newParams.set("viewMode", value);
+                  }
+                  setSearchParams(newParams, { replace: true });
                 }}
               >
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="사용자 선택">
-                    {selectedUserId 
-                      ? users?.find(u => u.id === selectedUserId)?.full_name || users?.find(u => u.id === selectedUserId)?.email || "사용자"
-                      : "내 일정"}
+                  <SelectValue placeholder="일정 조회 선택">
+                    {isAllUsersMode ? "전체 사용자 일정" : "내 일정"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -84,35 +103,57 @@ export default function SchedulePage() {
                       <span>내 일정</span>
                     </div>
                   </SelectItem>
-                  {usersLoading ? (
-                    <SelectItem value="loading" disabled>로딩 중...</SelectItem>
-                  ) : (
-                    users?.filter(user => user.id !== currentProfile?.id).map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        <div className="flex items-center gap-2">
-                          <ProfileAvatar 
-                            avatarUrl={user.avatar_url} 
-                            size={20}
-                            alt={user.full_name || user.email || "사용자"}
-                          />
-                          <span>{user.full_name || user.email}</span>
-                        </div>
-                      </SelectItem>
-                    ))
-                  )}
+                  <SelectItem value="all">
+                    <span>전체 사용자 일정</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
         </div>
       </div>
-      <div className="bg-card rounded-lg border p-4 md:p-6">
-        <TaskCalendar 
-          initialView={initialView} 
-          selectedUserId={selectedUserId}
-          readOnly={isReadOnly}
-        />
-      </div>
+
+      {/* 전체 사용자 일정 모드: 필터링된 일반 멤버들의 일정만 표시 */}
+      {isAllUsersMode && isAdmin ? (
+        <div className="space-y-8">
+          {filteredUsers.length > 0 ? (
+            filteredUsers.map((user: Profile) => (
+              <div key={user.id} className="bg-card rounded-lg border p-4 md:p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <ProfileAvatar 
+                    avatarUrl={user.avatar_url} 
+                    size={24}
+                    alt={user.full_name || user.email || "사용자"}
+                  />
+                  <h2 className="text-lg font-semibold">
+                    {user.full_name || user.email || "사용자"}
+                  </h2>
+                </div>
+                <TaskCalendar 
+                  initialView={initialView} 
+                  selectedUserId={user.id}
+                  readOnly={true}
+                />
+              </div>
+            ))
+          ) : (
+            <div className="bg-card rounded-lg border p-4 md:p-6">
+              <p className="text-muted-foreground text-center">
+                표시할 일반 멤버 일정이 없습니다.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* 내 일정 모드: 단일 캘린더 표시 */
+        <div className="bg-card rounded-lg border p-4 md:p-6">
+          <TaskCalendar 
+            initialView={initialView} 
+            selectedUserId={undefined}
+            readOnly={false}
+          />
+        </div>
+      )}
     </div>
   );
 }

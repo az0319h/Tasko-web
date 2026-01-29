@@ -35,6 +35,7 @@ import { TablePagination } from "@/components/common/table-pagination";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import { cn } from "@/lib/utils";
 import type { TaskWithProfiles } from "@/api/task";
+import { checkDueDateExceeded } from "@/api/task";
 import type { TaskStatus } from "@/lib/task-status";
 import { toast } from "sonner";
 
@@ -47,6 +48,17 @@ function formatDate(dateString: string): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * 날짜를 한국어 형식으로 포맷 (예: "1월 29일")
+ */
+function formatDateKorean(date: Date | string): string {
+  const dateObj = typeof date === "string" ? new Date(date) : date;
+  return dateObj.toLocaleDateString("ko-KR", {
+    month: "long",
+    day: "numeric",
+  });
 }
 
 /**
@@ -628,6 +640,41 @@ export default function AdminDashboardPage() {
       await createMessagesForTask(task1.id, currentProfile.id);
       await createMessagesForTask(task2.id, currentProfile.id);
 
+      // 마감일 초과 여부 확인 및 알림 표시 (각 Task별로 확인)
+      try {
+        const result1 = await checkDueDateExceeded(task1.id, dueDate1Str);
+        if (result1.exceeded && result1.scheduleDate) {
+          const dueDateFormatted = formatDateKorean(result1.dueDate);
+          const scheduleDateFormatted = formatDateKorean(result1.scheduleDate);
+          toast.warning(
+            `담당자의 일정이 가득 차 있어, "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
+            {
+              position: "bottom-right",
+              duration: 8000,
+            }
+          );
+        }
+      } catch (error: any) {
+        console.error("마감일 체크 실패 (Task 1):", error);
+      }
+
+      try {
+        const result2 = await checkDueDateExceeded(task2.id, dueDate2Str);
+        if (result2.exceeded && result2.scheduleDate) {
+          const dueDateFormatted = formatDateKorean(result2.dueDate);
+          const scheduleDateFormatted = formatDateKorean(result2.scheduleDate);
+          toast.warning(
+            `담당자의 일정이 가득 차 있어, "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
+            {
+              position: "bottom-right",
+              duration: 8000,
+            }
+          );
+        }
+      } catch (error: any) {
+        console.error("마감일 체크 실패 (Task 2):", error);
+      }
+
       setCreateTaskDialogOpen(false);
       setIsSpecificationMode(false);
       setPreSelectedCategory(undefined);
@@ -721,14 +768,49 @@ export default function AdminDashboardPage() {
         });
       }
 
-      // 4. 다이얼로그 닫기 및 상태 초기화
+      // 4. 마감일 초과 여부 확인 및 알림 표시 (Edge Function 사용)
+      try {
+        console.log("[Task 생성] 마감일 체크 시작:", {
+          taskId: newTask.id,
+          dueDate: createData.due_date,
+        });
+        
+        const result = await checkDueDateExceeded(newTask.id, createData.due_date);
+        
+        console.log("[Task 생성] 마감일 체크 결과:", result);
+        
+        if (result.exceeded && result.scheduleDate) {
+          const dueDateFormatted = formatDateKorean(result.dueDate);
+          const scheduleDateFormatted = formatDateKorean(result.scheduleDate);
+          
+          console.log("[Task 생성] 마감일 초과 알림 표시:", {
+            dueDateFormatted,
+            scheduleDateFormatted,
+          });
+          
+          toast.warning(
+            `담당자의 일정이 가득 차 있어, 해당 Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
+            {
+              position: "bottom-right",
+              duration: 8000, // 8초간 표시
+            }
+          );
+        } else {
+          console.log("[Task 생성] 마감일 이내 배정 또는 일정 없음:", result);
+        }
+      } catch (error: any) {
+        // 에러는 무시 (Task 생성 성공에 영향 없음)
+        console.error("[Task 생성] 마감일 체크 실패:", error);
+      }
+
+      // 5. 다이얼로그 닫기 및 상태 초기화
       setCreateTaskDialogOpen(false);
       setPreSelectedCategory(undefined);
       setAutoFillMode(undefined);
       setPreFilledTitle(undefined);
       setIsSpecificationMode(false);
 
-      // 5. 생성한 Task 상세 페이지로 이동 (동일 탭)
+      // 6. 생성한 Task 상세 페이지로 이동 (동일 탭)
       navigate(`/tasks/${newTask.id}`);
     } catch (error: any) {
       toast.error(error.message || "태스크 생성에 실패했습니다.");
