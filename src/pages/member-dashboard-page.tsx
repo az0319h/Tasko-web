@@ -1337,7 +1337,7 @@ export default function MemberDashboardPage() {
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    읽지 않은 메시지
+                    새 메시지
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     지시자/담당자
@@ -1659,7 +1659,7 @@ export default function MemberDashboardPage() {
                     />
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                    읽지 않은 메시지
+                    새 메시지
                   </th>
                   <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
                     지시자/담당자
