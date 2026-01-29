@@ -19,9 +19,6 @@ import {
   ChevronDown,
   LogOut,
   FileText,
-  Building2,
-  Bot,
-  Megaphone,
   Shield,
   Calendar,
 } from "lucide-react";
@@ -91,22 +88,16 @@ const getMenuItems = (isAdmin: boolean) => {
   const items = [
     { id: "home", key: "layout.sidebar.menu.home", url: "/", icon: Home },
     {
+      id: "notifications",
+      key: "layout.sidebar.menu.notifications",
+      url: "/notifications",
+      icon: Bell,
+    },
+    {
       id: "schedule",
       key: "layout.sidebar.menu.schedule",
       url: "/schedule",
       icon: Calendar,
-    },
-    {
-      id: "community",
-      key: "layout.sidebar.menu.community",
-      url: "/community",
-      icon: Building2,
-    },
-    {
-      id: "agents",
-      key: "layout.sidebar.menu.agents",
-      url: "/agents",
-      icon: Bot,
     },
     { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
     { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },

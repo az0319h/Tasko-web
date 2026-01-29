@@ -14,8 +14,6 @@ import ForgotPasswordPage from "./pages/forgot-password-page";
 import SignupPage from "./pages/signup-page";
 import AdminUsersPage from "./pages/admin-users-page";
 import TaskDetailPage from "./pages/task-detail-page";
-import CommunityPage from "./pages/community-page";
-import AgentsPage from "./pages/agents-page";
 import NotificationsPage from "./pages/notifications-page";
 import AdminAnnouncementListPage from "./pages/admin-announcement-list-page";
 import AdminAnnouncementCreatePage from "./pages/admin-announcement-create-page";
@@ -40,10 +38,8 @@ export default function RootRoute() {
             <Route path="/" element={<IndexPage />} />
             <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/community" element={<CommunityPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
 
             <Route element={<AdminOnlyLayout />}>
               <Route path="/admin/users" element={<AdminUsersPage />} />
