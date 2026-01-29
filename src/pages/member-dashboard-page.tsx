@@ -216,6 +216,8 @@ export default function MemberDashboardPage() {
   >(undefined);
   const [preFilledTitle, setPreFilledTitle] = useState<string | undefined>(undefined);
   const [isSpecificationMode, setIsSpecificationMode] = useState(false);
+  // Task 생성 중 상태 (중복 클릭 방지)
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
 
   // 페이지네이션 상태 (전체 태스크 탭용)
   const allTasksPageParam = searchParams.get("allTasksPage");
@@ -599,6 +601,11 @@ export default function MemberDashboardPage() {
     files?: File[],
     notes?: string,
   ) => {
+    // 이미 생성 중이면 중복 실행 방지
+    if (isCreatingTask) {
+      return;
+    }
+
     // 명세서 모드인 경우 별도 처리
     if (isSpecificationMode) {
       const specificationData = data as any;
@@ -606,15 +613,21 @@ export default function MemberDashboardPage() {
         toast.error("고객명을 입력해주세요.");
         return;
       }
-      await handleCreateSpecificationTasks(
-        specificationData.assignee_id,
-        specificationData.client_name,
-        files,
-        notes,
-      );
+      setIsCreatingTask(true);
+      try {
+        await handleCreateSpecificationTasks(
+          specificationData.assignee_id,
+          specificationData.client_name,
+          files,
+          notes,
+        );
+      } finally {
+        setIsCreatingTask(false);
+      }
       return;
     }
 
+    setIsCreatingTask(true);
     try {
       // 1. 태스크 생성
       const createData = data as TaskCreateFormData;
@@ -692,6 +705,8 @@ export default function MemberDashboardPage() {
       navigate(`/tasks/${newTask.id}`);
     } catch (error: any) {
       toast.error(error.message || "태스크 생성에 실패했습니다.");
+    } finally {
+      setIsCreatingTask(false);
     }
   };
 
@@ -1733,7 +1748,7 @@ export default function MemberDashboardPage() {
           }
         }}
         onSubmit={handleCreateTask}
-        isLoading={createTask.isPending || createMessageWithFiles.isPending}
+        isLoading={isCreatingTask || createTask.isPending || createMessageWithFiles.isPending}
         preSelectedCategory={preSelectedCategory}
         autoFillMode={autoFillMode}
         preFilledTitle={preFilledTitle}
