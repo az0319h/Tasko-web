@@ -95,7 +95,6 @@ export default function AdminAnnouncementListPage() {
 
   return (
     <>
-      <SEO title="공지사항 관리" />
       <div className="w-full p-4">
         {/* 헤더 */}
         <div className="mb-6 sm:mb-8">

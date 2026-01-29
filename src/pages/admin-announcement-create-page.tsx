@@ -49,7 +49,6 @@ export default function AdminAnnouncementCreatePage() {
 
   return (
     <>
-      <SEO title="공지사항 작성" />
       <div className="w-full p-4">
         <div className="mb-6 sm:mb-8">
           <h1 className="mb-2 text-2xl font-bold sm:text-3xl">공지사항 작성</h1>
