@@ -580,6 +580,9 @@ export type Database = {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
       notification_type:
+        | "TASK_CREATED"
+        | "TASK_STATUS_CHANGED"
+        | "TASK_DELETED"
         | "TASK_DUE_DATE_EXCEEDED"
         | "TASK_DUE_DATE_APPROACHING"
       task_category:
@@ -724,6 +727,9 @@ export const Constants = {
       chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
       notification_type: [
+        "TASK_CREATED",
+        "TASK_STATUS_CHANGED",
+        "TASK_DELETED",
         "TASK_DUE_DATE_EXCEEDED",
         "TASK_DUE_DATE_APPROACHING",
       ],
