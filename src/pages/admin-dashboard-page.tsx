@@ -1654,8 +1654,8 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
                           {task.unread_message_count && task.unread_message_count > 0 ? (
                             <div className="relative inline-flex">
-                              <Bell className="h-6 w-6 fill-primary text-primary" />
-                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white dark:text-black">
+                              <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
                                 {task.unread_message_count}
                               </span>
                             </div>
@@ -1981,8 +1981,8 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
                           {task.unread_message_count && task.unread_message_count > 0 ? (
                             <div className="relative inline-flex">
-                              <Bell className="h-6 w-6 fill-primary text-primary" />
-                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white dark:text-black">
+                              <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
                                 {task.unread_message_count}
                               </span>
                             </div>
@@ -2321,8 +2321,8 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
                           {task.unread_message_count && task.unread_message_count > 0 ? (
                             <div className="relative inline-flex">
-                              <Bell className="h-6 w-6 fill-primary text-primary" />
-                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white dark:text-black">
+                              <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
+                              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
                                 {task.unread_message_count}
                               </span>
                             </div>

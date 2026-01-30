@@ -45,6 +45,9 @@ import { Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import logo_dark from "@/assets/logo_dark.png";
 import logo_light from "@/assets/logo_light.png";
+import { useUnreadNotificationCount } from "@/hooks/queries/use-notifications";
+import { useRealtimeNotifications } from "@/hooks/queries/use-realtime-notifications";
+import { SidebarMenuBadge } from "@/components/ui/sidebar";
 
 // 로그아웃 메뉴 아이템 컴포넌트
 function LogoutMenuItem() {
@@ -136,6 +139,10 @@ export function AppSidebar() {
   const { data: isAdmin, refetch: refetchAdmin, isLoading: isAdminLoading } = useIsAdmin();
   const { isMobile, setOpenMobile, setOpen } = useSidebar();
   const navigate = useNavigate();
+
+  // 알림 관련 훅
+  const { data: unreadNotificationCount } = useUnreadNotificationCount();
+  useRealtimeNotifications(true); // Realtime 구독 활성화
 
   // [핵심] 세션/유저 변경에 따라 admin 권한 refetch
   useEffect(() => {
@@ -335,6 +342,12 @@ export function AppSidebar() {
                         >
                           {item.icon && <item.icon className="size-4! md:size-5!" />}
                           <span className="text-14-regular md:text-16-regular">{t(item.key)}</span>
+                          {/* 알림 메뉴에 읽지 않은 알림 수 배지 표시 */}
+                          {item.id === "notifications" && unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                            <SidebarMenuBadge className="bg-red-500 text-white">
+                              {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                            </SidebarMenuBadge>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     ) : (
