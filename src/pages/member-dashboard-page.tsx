@@ -58,6 +58,33 @@ function formatDateKorean(date: Date | string): string {
 }
 
 /**
+ * 두 날짜 사이에 주말(토요일, 일요일)이 있는지 확인
+ * @param startDate 시작 날짜
+ * @param endDate 종료 날짜
+ * @returns 주말이 있으면 true, 없으면 false
+ */
+function hasWeekendBetween(startDate: Date | string, endDate: Date | string): boolean {
+  const start = typeof startDate === "string" ? new Date(startDate) : startDate;
+  const end = typeof endDate === "string" ? new Date(endDate) : endDate;
+  
+  // 시작일과 종료일을 날짜만 비교 (시간 제거)
+  const startDateOnly = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  
+  // 시작일부터 종료일 전날까지 확인 (종료일은 제외)
+  const current = new Date(startDateOnly);
+  while (current < endDateOnly) {
+    const dayOfWeek = current.getDay(); // 0 = 일요일, 6 = 토요일
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return true;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  
+  return false;
+}
+
+/**
  * 마감일 포맷팅 (TaskCard 로직 재사용)
  */
 function formatDueDate(dateString: string | null | undefined): string | null {
@@ -564,13 +591,43 @@ export default function MemberDashboardPage() {
         if (result1.exceeded && result1.scheduleDate) {
           const dueDateFormatted = formatDateKorean(result1.dueDate);
           const scheduleDateFormatted = formatDateKorean(result1.scheduleDate);
-          toast.warning(
-            `담당자의 일정이 가득 차 있어, "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
-            {
-              position: "bottom-right",
-              duration: 8000,
-            }
-          );
+          
+          // 주말 때문에 늦게 배정되었는지 확인
+          const hasWeekend = hasWeekendBetween(task1.created_at, result1.scheduleDate);
+          
+          if (hasWeekend) {
+            // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
+            toast.warning(
+              `주말 제외 및 일정 사정으로 "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          } else {
+            // 일정이 가득 차서 다른 날짜에 배정된 경우
+            toast.warning(
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          }
+        } else if (result1.scheduleDate) {
+          // 마감일 이내지만 주말 때문에 늦게 배정된 경우
+          const hasWeekend = hasWeekendBetween(task1.created_at, result1.scheduleDate);
+          
+          if (hasWeekend) {
+            const scheduleDateFormatted = formatDateKorean(result1.scheduleDate);
+            toast.info(
+              `주말을 제외하여 "청구안 및 도면" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 6000,
+              }
+            );
+          }
         }
       } catch (error: any) {
         console.error("마감일 체크 실패 (Task 1):", error);
@@ -581,13 +638,43 @@ export default function MemberDashboardPage() {
         if (result2.exceeded && result2.scheduleDate) {
           const dueDateFormatted = formatDateKorean(result2.dueDate);
           const scheduleDateFormatted = formatDateKorean(result2.scheduleDate);
-          toast.warning(
-            `담당자의 일정이 가득 차 있어, "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
-            {
-              position: "bottom-right",
-              duration: 8000,
-            }
-          );
+          
+          // 주말 때문에 늦게 배정되었는지 확인
+          const hasWeekend = hasWeekendBetween(task2.created_at, result2.scheduleDate);
+          
+          if (hasWeekend) {
+            // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
+            toast.warning(
+              `주말 제외 및 일정 사정으로 "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          } else {
+            // 일정이 가득 차서 다른 날짜에 배정된 경우
+            toast.warning(
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          }
+        } else if (result2.scheduleDate) {
+          // 마감일 이내지만 주말 때문에 늦게 배정된 경우
+          const hasWeekend = hasWeekendBetween(task2.created_at, result2.scheduleDate);
+          
+          if (hasWeekend) {
+            const scheduleDateFormatted = formatDateKorean(result2.scheduleDate);
+            toast.info(
+              `주말을 제외하여 "초안 작성" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 6000,
+              }
+            );
+          }
         }
       } catch (error: any) {
         console.error("마감일 체크 실패 (Task 2):", error);
@@ -705,13 +792,42 @@ export default function MemberDashboardPage() {
           const dueDateFormatted = formatDateKorean(result.dueDate);
           const scheduleDateFormatted = formatDateKorean(result.scheduleDate);
           
-          toast.warning(
-            `담당자의 일정이 가득 차 있어, 해당 Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted} 일정으로 배정되었습니다.`,
-            {
-              position: "bottom-right",
-              duration: 8000, // 8초간 표시
-            }
-          );
+          // 주말 때문에 늦게 배정되었는지 확인
+          const hasWeekend = hasWeekendBetween(newTask.created_at, result.scheduleDate);
+          
+          if (hasWeekend) {
+            // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
+            toast.warning(
+              `주말 제외 및 일정 사정으로 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          } else {
+            // 일정이 가득 차서 다른 날짜에 배정된 경우
+            toast.warning(
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 8000,
+              }
+            );
+          }
+        } else if (result.scheduleDate) {
+          // 마감일 이내지만 주말 때문에 늦게 배정된 경우
+          const hasWeekend = hasWeekendBetween(newTask.created_at, result.scheduleDate);
+          
+          if (hasWeekend) {
+            const scheduleDateFormatted = formatDateKorean(result.scheduleDate);
+            toast.info(
+              `주말을 제외하여 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              {
+                position: "bottom-right",
+                duration: 6000,
+              }
+            );
+          }
         }
       } catch (error: any) {
         // 에러는 무시 (Task 생성 성공에 영향 없음)
