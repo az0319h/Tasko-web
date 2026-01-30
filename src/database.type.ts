@@ -230,6 +230,60 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          notification_type: Database["public"]["Enums"]["notification_type"]
+          read_at: string | null
+          task_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          notification_type: Database["public"]["Enums"]["notification_type"]
+          read_at?: string | null
+          task_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          notification_type?: Database["public"]["Enums"]["notification_type"]
+          read_at?: string | null
+          task_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -454,6 +508,17 @@ export type Database = {
     }
     Functions: {
       can_access_profile: { Args: { target_user_id: string }; Returns: boolean }
+      create_notification: {
+        Args: {
+          p_message: string
+          p_metadata?: Json
+          p_notification_type: Database["public"]["Enums"]["notification_type"]
+          p_task_id?: string
+          p_title: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       get_active_profiles: {
         Args: never
         Returns: {
@@ -476,6 +541,21 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_unread_message_count: {
+        Args: { p_task_id: string; p_user_id: string }
+        Returns: number
+      }
+      get_unread_message_counts: {
+        Args: { p_task_ids: string[]; p_user_id: string }
+        Returns: {
+          result_task_id: string
+          unread_count: number
+        }[]
+      }
+      get_unread_notification_count: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
       is_admin: { Args: { user_id: string }; Returns: boolean }
       mark_message_as_read: {
         Args: { message_id_param: string; reader_id_param: string }
@@ -495,21 +575,13 @@ export type Database = {
           role: string
         }[]
       }
-      get_unread_message_count: {
-        Args: { p_task_id: string; p_user_id: string }
-        Returns: number
-      }
-      get_unread_message_counts: {
-        Args: { p_task_ids: string[]; p_user_id: string }
-        Returns: {
-          result_task_id: string
-          unread_count: number
-        }[]
-      }
     }
     Enums: {
       chat_log_type: "START" | "REQUEST_CONFIRM" | "APPROVE" | "REJECT"
       message_type: "USER" | "SYSTEM" | "FILE"
+      notification_type:
+        | "TASK_DUE_DATE_EXCEEDED"
+        | "TASK_DUE_DATE_APPROACHING"
       task_category:
         | "REVIEW"
         | "REVISION"
@@ -651,6 +723,10 @@ export const Constants = {
     Enums: {
       chat_log_type: ["START", "REQUEST_CONFIRM", "APPROVE", "REJECT"],
       message_type: ["USER", "SYSTEM", "FILE"],
+      notification_type: [
+        "TASK_DUE_DATE_EXCEEDED",
+        "TASK_DUE_DATE_APPROACHING",
+      ],
       task_category: [
         "REVIEW",
         "REVISION",
