@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft,
@@ -15,6 +15,9 @@ import {
   Plus,
   Info,
   AlertTriangle,
+  MoreVertical,
+  Copy,
+  RotateCcw,
 } from "lucide-react";
 import {
   useTask,
@@ -96,6 +99,7 @@ export default function TaskDetailPage() {
   const [dragActive, setDragActive] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -257,6 +261,32 @@ export default function TaskDetailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, taskId, currentUserId, isPresent, task]); // messages와 task가 변경될 때마다 실행
+
+  // 외부 클릭 및 ESC 키 핸들러 (useCallback으로 메모이제이션)
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    if (openMenuMessageId && !(event.target as Element).closest(`[data-message-menu="${openMenuMessageId}"]`)) {
+      setOpenMenuMessageId(null);
+    }
+  }, [openMenuMessageId]);
+
+  const handleEscape = useCallback((event: KeyboardEvent) => {
+    if (event.key === "Escape" && openMenuMessageId) {
+      setOpenMenuMessageId(null);
+    }
+  }, [openMenuMessageId]);
+
+  // 외부 클릭 및 ESC 키로 메뉴 닫기 (이벤트 리스너 등록)
+  useEffect(() => {
+    if (!openMenuMessageId) return;
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openMenuMessageId, handleClickOutside, handleEscape]);
 
   // 권한 체크: assigner, assignee, Admin만 접근 가능
   useEffect(() => {
@@ -443,6 +473,62 @@ export default function TaskDetailPage() {
   const handleDeleteMessageClick = (message: MessageWithProfile) => {
     setPendingDeleteMessage(message);
     setMessageDeleteDialogOpen(true);
+    setOpenMenuMessageId(null); // 메뉴 닫기
+  };
+
+  // 메뉴용 시간 포맷팅 함수: "(토) 오후 2:38" 형식
+  const formatMessageTimeForMenu = (dateString: string) => {
+    const date = new Date(dateString);
+
+    // KST 시간대로 변환하여 24시간 형식으로 먼저 가져오기
+    const formatter24 = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    const formatterWeekday = new Intl.DateTimeFormat("ko-KR", {
+      timeZone: "Asia/Seoul",
+      weekday: "short",
+    });
+
+    const parts24 = formatter24.formatToParts(date);
+    const hour24 = parseInt(parts24.find((p) => p.type === "hour")?.value || "0", 10);
+    const minute = parts24.find((p) => p.type === "minute")?.value || "00";
+    const weekday = formatterWeekday.format(date);
+
+    // 오전/오후 판단 및 12시간제 변환
+    const ampm = hour24 < 12 ? "오전" : "오후";
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const hour12Str = String(hour12).padStart(2, "0");
+
+    return `(${weekday}) ${ampm} ${hour12Str}:${minute}`;
+  };
+
+  // 메시지 복사 핸들러
+  const handleCopyMessage = async (message: MessageWithProfile) => {
+    try {
+      let textToCopy = "";
+
+      if (message.message_type === "FILE") {
+        // 파일 메시지인 경우 파일명 또는 다운로드 링크 복사
+        textToCopy = message.file_name || message.content || "";
+        if (message.file_url) {
+          textToCopy += `\n${getTaskFileDownloadUrl(message.file_url)}`;
+        }
+      } else {
+        // 텍스트 메시지인 경우 내용 복사
+        textToCopy = message.content || "";
+      }
+
+      await navigator.clipboard.writeText(textToCopy);
+      toast.success("메시지가 복사되었습니다.");
+      setOpenMenuMessageId(null); // 메뉴 닫기
+    } catch (error) {
+      console.error("복사 실패:", error);
+      toast.error("메시지 복사에 실패했습니다.");
+    }
   };
 
   const handleDeleteMessageConfirm = async () => {
@@ -906,87 +992,140 @@ export default function TaskDetailPage() {
                   {message.sender?.full_name || message.sender?.email || "사용자"}
                 </span>
               )}
-              <div
-                className={cn(
-                  "max-w-full min-w-0 rounded-lg border-2 px-3 py-2 sm:px-4 sm:py-3",
-                  isMine
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-foreground border-muted",
-                )}
-              >
-                <div className="flex max-w-full min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-base sm:text-xl">
-                    {getFileIcon(message.file_type || "")}
-                  </span>
-                  <div className="min-w-0 flex-1 overflow-hidden">
-                    <a
-                      href={getTaskFileDownloadUrl(message.file_url || "")}
-                      {...(canOpenInBrowser(message.file_type, message.file_name)
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
-                      className="block text-xs font-medium break-all hover:underline sm:text-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // 브라우저에서 열 수 없는 파일만 프로그래밍 방식 다운로드
-                        if (!canOpenInBrowser(message.file_type, message.file_name)) {
+              <div className="group relative max-w-full min-w-0" data-message-menu={message.id}>
+                <div
+                  className={cn(
+                    "max-w-full min-w-0 rounded-lg border-2 px-3 py-2 sm:px-4 sm:py-3",
+                    isMine
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-foreground border-muted",
+                  )}
+                >
+                  <div className="flex max-w-full min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-base sm:text-xl">
+                      {getFileIcon(message.file_type || "")}
+                    </span>
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <a
+                        href={getTaskFileDownloadUrl(message.file_url || "")}
+                        {...(canOpenInBrowser(message.file_type, message.file_name)
+                          ? { target: "_blank", rel: "noopener noreferrer" }
+                          : {})}
+                        className="block text-xs font-medium break-all hover:underline sm:text-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // 브라우저에서 열 수 없는 파일만 프로그래밍 방식 다운로드
+                          if (!canOpenInBrowser(message.file_type, message.file_name)) {
+                            handleFileDownload(
+                              e,
+                              getTaskFileDownloadUrl(message.file_url || ""),
+                              message.file_name,
+                            );
+                          }
+                          // 브라우저에서 열 수 있는 파일은 기본 동작(새 탭 열기) 사용
+                        }}
+                        title={message.file_name || message.content || undefined}
+                        style={{ wordBreak: "break-all", overflowWrap: "break-word" }}
+                      >
+                        {message.file_name || message.content}
+                      </a>
+                      <p className="mt-0.5 text-[10px] break-all opacity-70 sm:mt-1 sm:text-xs">
+                        {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {/* 새 탭 열기 버튼: 브라우저에서 열 수 있는 파일에만 표시 */}
+                      {canOpenInBrowser(message.file_type, message.file_name) && (
+                        <a
+                          href={getTaskFileDownloadUrl(message.file_url || "")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 hover:opacity-70"
+                          onClick={(e) => e.stopPropagation()}
+                          title="새 탭에서 열기"
+                        >
+                          <File className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        </a>
+                      )}
+                      {/* 다운로드 버튼: 모든 파일에 대해 표시 */}
+                      <a
+                        href={getTaskFileDownloadUrl(message.file_url || "")}
+                        className="p-1 hover:opacity-70"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleFileDownload(
                             e,
                             getTaskFileDownloadUrl(message.file_url || ""),
                             message.file_name,
                           );
-                        }
-                        // 브라우저에서 열 수 있는 파일은 기본 동작(새 탭 열기) 사용
-                      }}
-                      title={message.file_name || message.content || undefined}
-                      style={{ wordBreak: "break-all", overflowWrap: "break-word" }}
-                    >
-                      {message.file_name || message.content}
-                    </a>
-                    <p className="mt-0.5 text-[10px] break-all opacity-70 sm:mt-1 sm:text-xs">
-                      {message.file_size ? `${(message.file_size / 1024).toFixed(1)} KB` : ""}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {/* 새 탭 열기 버튼: 브라우저에서 열 수 있는 파일에만 표시 */}
-                    {canOpenInBrowser(message.file_type, message.file_name) && (
-                      <a
-                        href={getTaskFileDownloadUrl(message.file_url || "")}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 hover:opacity-70"
-                        onClick={(e) => e.stopPropagation()}
-                        title="새 탭에서 열기"
+                        }}
+                        title="다운로드"
                       >
-                        <File className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       </a>
-                    )}
-                    {/* 다운로드 버튼: 모든 파일에 대해 표시 */}
-                    <a
-                      href={getTaskFileDownloadUrl(message.file_url || "")}
-                      className="p-1 hover:opacity-70"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFileDownload(
-                          e,
-                          getTaskFileDownloadUrl(message.file_url || ""),
-                          message.file_name,
-                        );
-                      }}
-                      title="다운로드"
-                    >
-                      <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </a>
-                    {isMine && !isLoggedMessage && (
-                      <button
-                        onClick={() => handleDeleteMessageClick(message)}
-                        className="hover:bg-primary/20 rounded p-1"
-                        aria-label="메시지 삭제"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                      </button>
-                    )}
+                    </div>
                   </div>
                 </div>
+                {/* 더보기 버튼 (본인 메시지만, hover 시 표시) */}
+                {isMine && (
+                  <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
+                      }}
+                      className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                      aria-label="더보기"
+                    >
+                      <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                    </button>
+                    {/* 더보기 텍스트 툴팁 */}
+                    {openMenuMessageId !== message.id && (
+                      <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        더 보기
+                        <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* 팝오버 메뉴 */}
+                {isMine && openMenuMessageId === message.id && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                    {/* 시간 표시 */}
+                    <div className="px-4 py-2 border-b border-border">
+                      <p className="text-xs text-muted-foreground">
+                        {formatMessageTimeForMenu(message.created_at)}
+                      </p>
+                    </div>
+                    {/* 메뉴 항목 */}
+                    <div className="py-1">
+                      {/* 복사 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyMessage(message);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                      >
+                        <Copy className="h-4 w-4 text-muted-foreground" />
+                        <span>복사</span>
+                      </button>
+                      {/* 전송 취소 (로그되지 않은 메시지만) */}
+                      {!isLoggedMessage && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMessageClick(message);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
+                        >
+                          <RotateCcw className="h-4 w-4 text-destructive" />
+                          <span>전송 취소</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               {isLastInGroup && (
                 <div className="mt-0.5 flex items-center gap-1 px-1 sm:mt-1">
@@ -1036,7 +1175,7 @@ export default function TaskDetailPage() {
                 {message.sender?.full_name || message.sender?.email || "사용자"}
               </span>
             )}
-            <div className="group relative max-w-full min-w-0">
+            <div className="group relative max-w-full min-w-0" data-message-menu={message.id}>
               <div
                 className={cn(
                   "max-w-full min-w-0 rounded-lg px-3 py-1.5 sm:px-4 sm:py-2",
@@ -1050,14 +1189,65 @@ export default function TaskDetailPage() {
                   {renderTextWithLinks(message.content || "")}
                 </p>
               </div>
-              {isMine && !isLoggedMessage && (
-                <button
-                  onClick={() => handleDeleteMessageClick(message)}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 absolute -top-1.5 -right-1.5 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2 sm:p-1"
-                  aria-label="메시지 삭제"
-                >
-                  <Trash2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                </button>
+              {/* 더보기 버튼 (본인 메시지만, hover 시 표시) */}
+              {isMine && (
+                <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
+                    }}
+                    className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                    aria-label="더보기"
+                  >
+                    <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                  </button>
+                  {/* 더보기 텍스트 툴팁 */}
+                  {openMenuMessageId !== message.id && (
+                    <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      더 보기
+                      <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* 팝오버 메뉴 */}
+              {isMine && openMenuMessageId === message.id && (
+                <div className="absolute top-full right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                  {/* 시간 표시 */}
+                  <div className="px-4 py-2 border-b border-border">
+                    <p className="text-xs text-muted-foreground">
+                      {formatMessageTimeForMenu(message.created_at)}
+                    </p>
+                  </div>
+                  {/* 메뉴 항목 */}
+                  <div className="py-1">
+                    {/* 복사 */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyMessage(message);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                    >
+                      <Copy className="h-4 w-4 text-muted-foreground" />
+                      <span>복사</span>
+                    </button>
+                    {/* 전송 취소 (로그되지 않은 메시지만) */}
+                    {!isLoggedMessage && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteMessageClick(message);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
+                      >
+                        <RotateCcw className="h-4 w-4 text-destructive" />
+                        <span>전송 취소</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
             {isLastInGroup && (
