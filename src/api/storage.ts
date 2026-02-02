@@ -2,6 +2,7 @@ import supabase from "@/lib/supabase";
 
 const AVATARS_BUCKET = "avatars";
 const TASK_FILES_BUCKET = "task-files";
+const AGENTS_BUCKET = "agents";
 
 /**
  * 프로필 이미지 업로드
@@ -283,6 +284,102 @@ export async function deleteTaskFile(fileUrl: string): Promise<void> {
 
     if (storageError) {
       throw new Error(`파일 삭제 실패: ${storageError.message}`);
+    }
+  }
+}
+
+/**
+ * 에이전트 대표 미디어 업로드 (이미지 또는 비디오)
+ * @param file 업로드할 미디어 파일 (이미지 또는 비디오)
+ * @param agentId 에이전트 ID
+ * @param userId 사용자 ID
+ * @param mediaType 미디어 타입 ('image' 또는 'video')
+ * @returns 업로드된 미디어의 Storage 경로 (site_media_url에 저장할 값)
+ */
+export async function uploadAgentSiteMedia(
+  file: File,
+  agentId: string,
+  userId: string,
+  mediaType: 'image' | 'video'
+): Promise<string> {
+  // 파일 확장자 추출
+  const fileExt = file.name.split(".").pop();
+  const timestamp = Date.now();
+  // 파일 경로 구조: {userId}/{agentId}/{timestamp}.{ext}
+  const fileName = `${timestamp}.${fileExt}`;
+  const filePath = `${userId}/${agentId}/${fileName}`;
+
+  // 파일 업로드
+  const { data, error } = await supabase.storage
+    .from(AGENTS_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type,
+    });
+
+  if (error) {
+    throw new Error(`미디어 업로드 실패: ${error.message}`);
+  }
+
+  // Storage 경로 반환 (site_media_url에 저장할 값)
+  return data.path;
+}
+
+/**
+ * 에이전트 대표 미디어 삭제
+ * @param filePath 삭제할 미디어의 Storage 경로 (site_media_url 값)
+ */
+export async function deleteAgentSiteMedia(filePath: string): Promise<void> {
+  try {
+    // filePath가 이미 URL인 경우 경로 추출
+    if (filePath.startsWith("http")) {
+      const urlObj = new URL(filePath);
+      const pathParts = urlObj.pathname.split("/");
+      const bucketIndex = pathParts.findIndex((part) => part === AGENTS_BUCKET);
+      
+      if (bucketIndex === -1) {
+        throw new Error("Invalid media URL");
+      }
+      
+      filePath = pathParts.slice(bucketIndex + 1).join("/");
+    }
+
+    const { error } = await supabase.storage
+      .from(AGENTS_BUCKET)
+      .remove([filePath]);
+
+    if (error) {
+      throw new Error(`미디어 삭제 실패: ${error.message}`);
+    }
+  } catch (err: any) {
+    // URL 파싱 실패 시 기존 방식으로 시도
+    if (!filePath.startsWith("http")) {
+      // 이미 경로인 경우
+      const { error: storageError } = await supabase.storage
+        .from(AGENTS_BUCKET)
+        .remove([filePath]);
+
+      if (storageError) {
+        throw new Error(`미디어 삭제 실패: ${storageError.message}`);
+      }
+    } else {
+      // URL인 경우 경로 추출 재시도
+      const urlParts = filePath.split("/");
+      const pathIndex = urlParts.findIndex((part) => part === AGENTS_BUCKET);
+      
+      if (pathIndex === -1) {
+        throw new Error(`미디어 삭제 실패: Invalid file URL`);
+      }
+      
+      const path = urlParts.slice(pathIndex + 1).join("/");
+      const { error: storageError } = await supabase.storage
+        .from(AGENTS_BUCKET)
+        .remove([path]);
+
+      if (storageError) {
+        throw new Error(`미디어 삭제 실패: ${storageError.message}`);
+      }
     }
   }
 }
