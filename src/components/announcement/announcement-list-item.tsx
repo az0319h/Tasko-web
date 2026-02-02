@@ -20,13 +20,13 @@ import {
 import { useDeleteAnnouncement, useToggleAnnouncementActive, useDeleteAnnouncementAttachment } from "@/hooks/mutations/use-announcement";
 import type { AnnouncementWithDetails } from "@/api/announcement";
 import { MoreVertical, Edit, Trash2, FileText, Download } from "lucide-react";
-import { Link } from "react-router";
 
 type AnnouncementListItemProps = {
   announcement: AnnouncementWithDetails;
+  onEdit?: (id: string) => void;
 };
 
-export function AnnouncementListItem({ announcement }: AnnouncementListItemProps) {
+export function AnnouncementListItem({ announcement, onEdit }: AnnouncementListItemProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { mutate: deleteAnnouncement } = useDeleteAnnouncement();
   const { mutate: toggleActive } = useToggleAnnouncementActive();
@@ -112,11 +112,11 @@ export function AnnouncementListItem({ announcement }: AnnouncementListItemProps
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link to={`/admin/announcements/${announcement.id}/edit`}>
-                  <Edit className="mr-2 size-4" />
-                  수정
-                </Link>
+              <DropdownMenuItem
+                onClick={() => onEdit?.(announcement.id)}
+              >
+                <Edit className="mr-2 size-4" />
+                수정
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setDeleteDialogOpen(true)}

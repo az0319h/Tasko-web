@@ -5,7 +5,10 @@ import { AnnouncementSearchFilter } from "@/components/announcement/announcement
 import { useAdminAnnouncements } from "@/hooks/queries/use-admin-announcements";
 import { TablePagination } from "@/components/common/table-pagination";
 import DefaultSpinner from "@/components/common/default-spinner";
-import { FileText } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AnnouncementCreateDialog } from "@/components/dialog/announcement-create-dialog";
+import { AnnouncementEditDialog } from "@/components/dialog/announcement-edit-dialog";
 import type { AnnouncementWithDetails } from "@/api/announcement";
 
 export default function AdminAnnouncementListPage() {
@@ -18,6 +21,9 @@ export default function AdminAnnouncementListPage() {
     const saved = sessionStorage.getItem("announcementPageSize");
     return saved ? parseInt(saved, 10) : 20;
   });
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // 모든 데이터 가져오기 (한 번만 서버 호출)
   const { data: allAnnouncements, isLoading, isError } = useAdminAnnouncements();
@@ -81,6 +87,20 @@ export default function AdminAnnouncementListPage() {
     sessionStorage.setItem("announcementPageSize", newPageSize.toString());
   };
 
+  // 수정 버튼 클릭 핸들러
+  const handleEdit = (id: string) => {
+    setEditingId(id);
+    setEditDialogOpen(true);
+  };
+
+  // 수정 모달 닫기 핸들러
+  const handleEditDialogClose = (open: boolean) => {
+    setEditDialogOpen(open);
+    if (!open) {
+      setEditingId(null);
+    }
+  };
+
   if (isLoading) {
     return <DefaultSpinner />;
   }
@@ -97,11 +117,17 @@ export default function AdminAnnouncementListPage() {
     <>
       <div className="w-full p-4">
         {/* 헤더 */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="mb-2 text-2xl font-bold sm:text-3xl">공지사항 관리</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">
-            공지사항을 관리하세요
-          </p>
+        <div className="mb-6 sm:mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="mb-2 text-2xl font-bold sm:text-3xl">공지사항 관리</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
+              공지사항을 관리하세요
+            </p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)} className="shrink-0">
+            <Plus className="mr-2 size-4" />
+            공지사항 작성
+          </Button>
         </div>
 
         {/* 검색 및 필터 */}
@@ -123,7 +149,11 @@ export default function AdminAnnouncementListPage() {
           <>
             <div className="space-y-4">
               {paginatedAnnouncements.map((announcement) => (
-                <AnnouncementListItem key={announcement.id} announcement={announcement} />
+                <AnnouncementListItem 
+                  key={announcement.id} 
+                  announcement={announcement}
+                  onEdit={handleEdit}
+                />
               ))}
             </div>
             {/* 페이지네이션 */}
@@ -148,6 +178,19 @@ export default function AdminAnnouncementListPage() {
           </div>
         )}
       </div>
+
+      {/* 생성 모달 */}
+      <AnnouncementCreateDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
+
+      {/* 수정 모달 */}
+      <AnnouncementEditDialog
+        open={editDialogOpen}
+        onOpenChange={handleEditDialogClose}
+        announcementId={editingId}
+      />
     </>
   );
 }

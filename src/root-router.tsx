@@ -16,8 +16,6 @@ import AdminUsersPage from "./pages/admin-users-page";
 import TaskDetailPage from "./pages/task-detail-page";
 import NotificationsPage from "./pages/notifications-page";
 import AdminAnnouncementListPage from "./pages/admin-announcement-list-page";
-import AdminAnnouncementCreatePage from "./pages/admin-announcement-create-page";
-import AdminAnnouncementEditPage from "./pages/admin-announcement-edit-page";
 import SchedulePage from "./pages/schedule-page";
 
 export default function RootRoute() {
@@ -44,8 +42,6 @@ export default function RootRoute() {
             <Route element={<AdminOnlyLayout />}>
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/announcements" element={<AdminAnnouncementListPage />} />
-              <Route path="/admin/announcements/create" element={<AdminAnnouncementCreatePage />} />
-              <Route path="/admin/announcements/:id/edit" element={<AdminAnnouncementEditPage />} />
             </Route>
           </Route>
         </Route>
