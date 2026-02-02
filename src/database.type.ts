@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      agents: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          description: string
+          detailed_description: string | null
+          features: Json | null
+          id: string
+          name: string
+          site_media_type: string | null
+          site_media_url: string | null
+          site_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          description: string
+          detailed_description?: string | null
+          features?: Json | null
+          id?: string
+          name: string
+          site_media_type?: string | null
+          site_media_url?: string | null
+          site_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          description?: string
+          detailed_description?: string | null
+          features?: Json | null
+          id?: string
+          name?: string
+          site_media_type?: string | null
+          site_media_url?: string | null
+          site_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       announcement_attachments: {
         Row: {
           announcement_id: string

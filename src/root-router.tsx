@@ -16,6 +16,8 @@ import AdminUsersPage from "./pages/admin-users-page";
 import TaskDetailPage from "./pages/task-detail-page";
 import NotificationsPage from "./pages/notifications-page";
 import AdminAnnouncementListPage from "./pages/admin-announcement-list-page";
+import AgentsPage from "./pages/agents-page";
+import AgentDetailPage from "./pages/agent-detail-page";
 import SchedulePage from "./pages/schedule-page";
 
 export default function RootRoute() {
@@ -38,6 +40,8 @@ export default function RootRoute() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/agents/:agentId" element={<AgentDetailPage />} />
 
             <Route element={<AdminOnlyLayout />}>
               <Route path="/admin/users" element={<AdminUsersPage />} />

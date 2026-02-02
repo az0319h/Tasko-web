@@ -21,6 +21,7 @@ import {
   FileText,
   Shield,
   Calendar,
+  Bot,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -101,6 +102,12 @@ const getMenuItems = (isAdmin: boolean) => {
       key: "layout.sidebar.menu.schedule",
       url: "/schedule",
       icon: Calendar,
+    },
+    {
+      id: "agents",
+      key: "AI 에이전트",
+      url: "/agents",
+      icon: Bot,
     },
     { id: "settings", key: "layout.sidebar.menu.settings", icon: Settings2Icon },
     { id: "profile", key: "layout.sidebar.menu.profile", url: "/profile", icon: User },
@@ -341,7 +348,9 @@ export function AppSidebar() {
                           }}
                         >
                           {item.icon && <item.icon className="size-4! md:size-5!" />}
-                          <span className="text-14-regular md:text-16-regular">{t(item.key)}</span>
+                          <span className="text-14-regular md:text-16-regular">
+                            {item.id === "agents" ? item.key : t(item.key)}
+                          </span>
                           {/* 알림 메뉴에 읽지 않은 알림 수 배지 표시 */}
                           {item.id === "notifications" && unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
                             <SidebarMenuBadge className="bg-red-500 text-white">
