@@ -50,7 +50,7 @@ export function AnnouncementModal({ announcement, open, onOpenChange }: Announce
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="!max-w-200 w-9/10 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">{announcement.title}</DialogTitle>
           <DialogDescription className="flex items-center gap-2 text-sm text-muted-foreground">

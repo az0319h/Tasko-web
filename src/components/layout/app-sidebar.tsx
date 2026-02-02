@@ -355,7 +355,7 @@ export function AppSidebar() {
                         type="button"
                         className="xs:text-14-semibold md:text-16-semibold text-background bg-foreground my-2 w-full cursor-pointer rounded-full py-2 md:my-3 md:py-3"
                         onClick={() => {
-                          navigate("/admin/announcements/create");
+                          navigate("/admin/announcements");
                           // 모바일에서만 사이드바 닫기
                           if (isMobile) {
                             setOpenMobile(false);

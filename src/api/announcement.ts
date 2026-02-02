@@ -442,7 +442,10 @@ export async function uploadAnnouncementFile(
   // 파일 확장자 추출
   const fileExt = file.name.split(".").pop();
   const timestamp = Date.now();
-  const fileName = `${announcementId}/${timestamp}-${file.name}`;
+  
+  // task 파일 업로드와 동일한 방식: 원본 파일명을 경로에 포함시키지 않고 타임스탬프 기반 파일명만 사용
+  // 이렇게 하면 한국어 파일명 문제가 완전히 해결됨
+  const fileName = `${announcementId}/${timestamp}.${fileExt}`;
   const filePath = fileName;
 
   // 파일 업로드
