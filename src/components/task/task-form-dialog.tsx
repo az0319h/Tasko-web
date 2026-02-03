@@ -101,6 +101,14 @@ export function TaskFormDialog({
   const taskCategory = !isEditMode ? (watch("task_category" as keyof TaskCreateFormData) as string | undefined) : undefined;
   const dueDate = watch("due_date" as keyof TaskCreateFormData) as string | undefined;
   
+  // 명세서 모드에서 두 개의 마감일 watch
+  const dueDateClaimDrawing = isSpecificationMode && !isEditMode 
+    ? (watch("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData) as string | undefined) 
+    : undefined;
+  const dueDateDraft = isSpecificationMode && !isEditMode 
+    ? (watch("due_date_draft" as keyof TaskCreateSpecificationFormData) as string | undefined) 
+    : undefined;
+  
   // 카테고리별 기본 마감일 계산 함수
   // 로컬 날짜 기준으로 계산하여 타임존 문제 방지
   const getDefaultDueDate = (category: string | undefined): string | null => {
@@ -140,6 +148,33 @@ export function TaskFormDialog({
     const dd = String(defaultDate.getDate()).padStart(2, "0");
     
     return `${yyyy}-${mm}-${dd}`;
+  };
+  
+  // 명세서 모드용 기본 마감일 계산 함수
+  // 청구항 및 도면: 오늘 + 3일
+  // 초안 작성: 오늘 + 10일
+  const getDefaultSpecificationDueDates = (): { claimDrawing: string; draft: string } => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    
+    // 청구항 및 도면: 오늘 + 3일
+    const claimDrawingDate = new Date(year, month, date + 3);
+    const claimDrawingYYYY = claimDrawingDate.getFullYear();
+    const claimDrawingMM = String(claimDrawingDate.getMonth() + 1).padStart(2, "0");
+    const claimDrawingDD = String(claimDrawingDate.getDate()).padStart(2, "0");
+    
+    // 초안 작성: 오늘 + 10일
+    const draftDate = new Date(year, month, date + 10);
+    const draftYYYY = draftDate.getFullYear();
+    const draftMM = String(draftDate.getMonth() + 1).padStart(2, "0");
+    const draftDD = String(draftDate.getDate()).padStart(2, "0");
+    
+    return {
+      claimDrawing: `${claimDrawingYYYY}-${claimDrawingMM}-${claimDrawingDD}`,
+      draft: `${draftYYYY}-${draftMM}-${draftDD}`,
+    };
   };
   
   // 카테고리 변경 시 기본 마감일 자동 설정 (생성 모드에서만, 사용자가 수정하지 않은 경우)
@@ -183,25 +218,42 @@ export function TaskFormDialog({
     } else if (!task && open && !isEditMode) {
       // 생성 모드일 때 폼 초기화
       const initialCategory = preSelectedCategory || undefined;
-      const defaultDueDate = getDefaultDueDate(initialCategory);
       
-      reset({
-        title: preFilledTitle || "",
-        assignee_id: "",
-        task_category: initialCategory,
-        client_name: "",
-        due_date: defaultDueDate || "",
-      });
-      // preSelectedCategory가 있으면 자동으로 설정
-      if (preSelectedCategory) {
-        setValue("task_category", preSelectedCategory);
-        if (defaultDueDate) {
-          setValue("due_date", defaultDueDate);
+      if (isSpecificationMode) {
+        // 명세서 모드: 두 개의 마감일 설정
+        const defaultDueDates = getDefaultSpecificationDueDates();
+        reset({
+          title: "",
+          assignee_id: "",
+          task_category: "SPECIFICATION",
+          client_name: "",
+          due_date_claim_drawing: defaultDueDates.claimDrawing,
+          due_date_draft: defaultDueDates.draft,
+        } as any);
+        setValue("task_category", "SPECIFICATION");
+        setValue("due_date_claim_drawing" as any, defaultDueDates.claimDrawing);
+        setValue("due_date_draft" as any, defaultDueDates.draft);
+      } else {
+        // 일반 모드
+        const defaultDueDate = getDefaultDueDate(initialCategory);
+        reset({
+          title: preFilledTitle || "",
+          assignee_id: "",
+          task_category: initialCategory,
+          client_name: "",
+          due_date: defaultDueDate || "",
+        });
+        // preSelectedCategory가 있으면 자동으로 설정
+        if (preSelectedCategory) {
+          setValue("task_category", preSelectedCategory);
+          if (defaultDueDate) {
+            setValue("due_date", defaultDueDate);
+          }
         }
-      }
-      // preFilledTitle이 있으면 자동으로 설정
-      if (preFilledTitle) {
-        setValue("title", preFilledTitle);
+        // preFilledTitle이 있으면 자동으로 설정
+        if (preFilledTitle) {
+          setValue("title", preFilledTitle);
+        }
       }
       // 파일 목록 초기화
       setAttachedFiles([]);
@@ -468,7 +520,49 @@ export function TaskFormDialog({
             </>
           )}
 
-          {/* 명세서 모드에서는 마감일 필드 숨김 */}
+          {/* 명세서 모드: 두 개의 마감일 필드 */}
+          {isSpecificationMode && !isEditMode && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="due_date_claim_drawing">
+                  마감일 (청구항 및 도면) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="due_date_claim_drawing"
+                  type="date"
+                  min={minDate}
+                  {...register("due_date_claim_drawing" as any)}
+                  aria-invalid={"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing ? "true" : "false"}
+                />
+                {"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing && (
+                  <p className="text-sm text-destructive">{(errors as any).due_date_claim_drawing.message}</p>
+                )}
+                {dueDateClaimDrawing && dueDateClaimDrawing < minDate && (
+                  <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="due_date_draft">
+                  마감일 (초안 작성) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="due_date_draft"
+                  type="date"
+                  min={minDate}
+                  {...register("due_date_draft" as any)}
+                  aria-invalid={"due_date_draft" in errors && (errors as any).due_date_draft ? "true" : "false"}
+                />
+                {"due_date_draft" in errors && (errors as any).due_date_draft && (
+                  <p className="text-sm text-destructive">{(errors as any).due_date_draft.message}</p>
+                )}
+                {dueDateDraft && dueDateDraft < minDate && (
+                  <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
+                )}
+              </div>
+            </>
+          )}
+          
+          {/* 일반 모드: 단일 마감일 필드 */}
           {!isSpecificationMode && (
             <div className="space-y-2">
               <Label htmlFor="due_date">
@@ -593,7 +687,11 @@ export function TaskFormDialog({
               type="submit"
               disabled={
                 isLoading ||
-                (!isEditMode && (!assigneeId || !taskCategory || (!isSpecificationMode && !dueDate)))
+                (!isEditMode && (
+                  !assigneeId || 
+                  !taskCategory || 
+                  (isSpecificationMode ? (!dueDateClaimDrawing || !dueDateDraft) : !dueDate)
+                ))
               }
             >
               {isLoading ? (isEditMode ? "수정 중..." : "생성 중...") : isEditMode ? "수정" : "생성"}
