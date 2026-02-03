@@ -101,6 +101,7 @@ export default function TaskDetailPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -525,7 +526,7 @@ export default function TaskDetailPage() {
   };
 
   // 메시지 복사 핸들러
-  const handleCopyMessage = async (message: MessageWithProfile) => {
+  const handleCopyMessage = async (message: MessageWithProfile, showFeedback = false) => {
     try {
       let textToCopy = "";
 
@@ -541,8 +542,18 @@ export default function TaskDetailPage() {
       }
 
       await navigator.clipboard.writeText(textToCopy);
-      toast.success("메시지가 복사되었습니다.");
-      setOpenMenuMessageId(null); // 메뉴 닫기
+      
+      if (showFeedback) {
+        // 상대방 메시지 복사 시 피드백 표시
+        setCopiedMessageId(message.id);
+        setTimeout(() => {
+          setCopiedMessageId(null);
+        }, 2000); // 2초 후 피드백 제거
+      } else {
+        // 본인 메시지 복사 시 토스트 표시
+        toast.success("메시지가 복사되었습니다.");
+        setOpenMenuMessageId(null); // 메뉴 닫기
+      }
     } catch (error) {
       console.error("복사 실패:", error);
       toast.error("메시지 복사에 실패했습니다.");
@@ -687,6 +698,137 @@ export default function TaskDetailPage() {
     // input 초기화
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  // 클립보드에서 이미지 붙여넣기 핸들러
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) {
+      console.log("[Paste] clipboardData가 없습니다.");
+      return;
+    }
+
+    const items = clipboardData.items;
+    if (!items || items.length === 0) {
+      console.log("[Paste] 클립보드 항목이 없습니다.");
+      return;
+    }
+
+    console.log("[Paste] 클립보드 항목 개수:", items.length);
+    
+    const imageFiles: File[] = [];
+    let hasImage = false;
+
+    // 클립보드 항목 순회하여 이미지 찾기
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      console.log(`[Paste] 항목 ${i}:`, {
+        kind: item.kind,
+        type: item.type,
+      });
+
+      // 이미지 타입인지 확인 (kind가 'file'이고 type에 'image'가 포함된 경우)
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        hasImage = true;
+        console.log("[Paste] 이미지 발견:", item.type);
+
+        try {
+          const file = item.getAsFile();
+          if (!file) {
+            console.warn("[Paste] 파일을 가져올 수 없습니다.");
+            continue;
+          }
+
+          console.log("[Paste] 파일 정보:", {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+          });
+
+          // 파일명 생성 (타임스탬프 기반)
+          const timestamp = Date.now();
+          const mimeType = item.type;
+          let extension = "png"; // 기본값
+
+          // MIME 타입에서 확장자 추출
+          if (mimeType.includes("jpeg") || mimeType.includes("jpg")) {
+            extension = "jpg";
+          } else if (mimeType.includes("png")) {
+            extension = "png";
+          } else if (mimeType.includes("gif")) {
+            extension = "gif";
+          } else if (mimeType.includes("webp")) {
+            extension = "webp";
+          } else if (mimeType.includes("bmp")) {
+            extension = "bmp";
+          } else {
+            // MIME 타입에서 확장자 추출 시도
+            const mimeParts = mimeType.split("/");
+            if (mimeParts.length > 1) {
+              extension = mimeParts[1].split(";")[0]; // 'image/png;charset=utf-8' 같은 경우 처리
+            }
+          }
+
+          // File 객체 생성 (파일명 포함)
+          // Blob을 기반으로 File 객체 생성
+          const blob = new Blob([file], { type: mimeType });
+          const fileName = `image-${timestamp}.${extension}`;
+          
+          // File 생성자 사용 시도 (브라우저 호환성)
+          let imageFile: File;
+          if (typeof File !== "undefined") {
+            // File 생성자 사용
+            try {
+              // @ts-ignore - File 생성자는 런타임에 존재하지만 타입 정의 문제로 인해 무시
+              imageFile = new File([blob], fileName, {
+                type: mimeType,
+                lastModified: Date.now(),
+              });
+            } catch (error) {
+              console.warn("[Paste] File 생성자 실패, Blob 기반 객체 사용:", error);
+              // File 생성자가 실패하면 Blob을 File처럼 사용
+              imageFile = Object.assign(blob, {
+                name: fileName,
+                lastModified: Date.now(),
+              }) as File;
+            }
+          } else {
+            // File 생성자가 없는 경우 Blob을 File처럼 사용
+            imageFile = Object.assign(blob, {
+              name: fileName,
+              lastModified: Date.now(),
+            }) as File;
+          }
+
+          console.log("[Paste] 생성된 파일:", {
+            name: imageFile.name,
+            type: imageFile.type,
+            size: imageFile.size,
+          });
+          
+          imageFiles.push(imageFile);
+        } catch (error) {
+          console.error("[Paste] 이미지 처리 중 오류:", error);
+          toast.error("이미지 붙여넣기에 실패했습니다.");
+        }
+      }
+    }
+
+    // 이미지 파일이 있으면 기본 동작 방지하고 첨부 파일 목록에 추가
+    if (hasImage && imageFiles.length > 0) {
+      e.preventDefault(); // 기본 텍스트 붙여넣기 방지
+      e.stopPropagation();
+      
+      console.log("[Paste] 이미지 파일 첨부 성공:", imageFiles.length);
+      handleFileAdd(imageFiles);
+      toast.success(`${imageFiles.length}개의 이미지가 첨부되었습니다.`);
+    } else if (hasImage) {
+      // 이미지가 감지되었지만 파일로 변환 실패
+      console.warn("[Paste] 이미지가 감지되었지만 파일로 변환할 수 없습니다.");
+      toast.error("이미지를 파일로 변환할 수 없습니다.");
+    } else {
+      console.log("[Paste] 이미지가 없어 텍스트 붙여넣기 허용");
     }
   };
 
@@ -1091,75 +1233,98 @@ export default function TaskDetailPage() {
                     </div>
                   </div>
                 </div>
-                {/* 더보기 버튼 (본인 메시지만, hover 시 표시) */}
-                {isMine && (
+                {/* 상대방 메시지: 복사 아이콘만 표시 */}
+                {!isMine && (
                   <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
-                      }}
-                      className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
-                      aria-label="더보기"
-                    >
-                      <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
-                    </button>
-                    {/* 더보기 텍스트 툴팁 */}
-                    {openMenuMessageId !== message.id && (
-                      <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        더 보기
-                        <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* 팝오버 메뉴 */}
-                {isMine && openMenuMessageId === message.id && (
-                  <div className="absolute top-0 left-0 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
-                    {/* 시간 표시 */}
-                    <div className="px-4 py-2 border-b border-border">
-                      <p className="text-xs text-muted-foreground">
-                        {formatMessageTimeForMenu(message.created_at)}
-                      </p>
-                    </div>
-                    {/* 메뉴 항목 */}
-                    <div className="py-1">
-                      {/* 복사 */}
+                    <div className="relative">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleCopyMessage(message);
+                          handleCopyMessage(message, true);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                        className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                        aria-label="복사"
                       >
-                        <Copy className="h-4 w-4 text-muted-foreground" />
-                        <span>복사</span>
+                        {copiedMessageId === message.id ? (
+                          <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-600" />
+                        ) : (
+                          <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                        )}
                       </button>
-                      {/* 전송 취소 (로그되지 않은 메시지만) */}
-                      {!isLoggedMessage && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteMessageClick(message);
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
-                        >
-                          <RotateCcw className="h-4 w-4 text-destructive" />
-                          <span>전송 취소</span>
-                        </button>
+                      {/* Copied! 툴팁 */}
+                      {copiedMessageId === message.id && (
+                        <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap z-50">
+                          Copied!
+                          <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
+                {/* 본인 메시지: 더보기 버튼 */}
+                {isMine && (
+                  <>
+                    <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
+                        }}
+                        className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                        aria-label="더보기"
+                      >
+                        <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                      </button>
+                    </div>
+                    {/* 팝오버 메뉴 */}
+                    {openMenuMessageId === message.id && (
+                      <div className="absolute top-0 left-0 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                        {/* 시간 표시 */}
+                        <div className="px-4 py-2 border-b border-border">
+                          <p className="text-xs text-muted-foreground">
+                            {formatMessageTimeForMenu(message.created_at)}
+                          </p>
+                        </div>
+                        {/* 메뉴 항목 */}
+                        <div className="py-1">
+                          {/* 복사 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyMessage(message);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                          >
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                            <span>복사</span>
+                          </button>
+                          {/* 전송 취소 (로그되지 않은 메시지만) */}
+                          {!isLoggedMessage && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMessageClick(message);
+                              }}
+                              className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
+                            >
+                              <RotateCcw className="h-4 w-4 text-destructive" />
+                              <span>전송 취소</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               {isLastInGroup && (
                 <div className="mt-0.5 flex items-center gap-1 px-1 sm:mt-1">
-                  <span className="text-muted-foreground text-[10px] sm:text-xs">
+                  <span className="text-muted-foreground text-10-regular sm:text-xs">
                     {formatMessageTime(message.created_at)}
                   </span>
                   {/* 읽음 표시 (본인이 보낸 메시지만) */}
                   {isMine && isMessageRead(message) && (
-                    <span className="text-muted-foreground text-[10px] sm:text-xs">읽음</span>
+                    <span className="text-muted-foreground text-10-regular sm:text-xs">읽음</span>
                   )}
                 </div>
               )}
@@ -1222,65 +1387,88 @@ export default function TaskDetailPage() {
                   <LinkPreviewCard url={firstUrl} isMine={isMine} />
                 ) : null;
               })()}
-              {/* 더보기 버튼 (본인 메시지만, hover 시 표시) */}
-              {isMine && (
+              {/* 상대방 메시지: 복사 아이콘만 표시 */}
+              {!isMine && (
                 <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
-                    }}
-                    className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
-                    aria-label="더보기"
-                  >
-                    <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
-                  </button>
-                  {/* 더보기 텍스트 툴팁 */}
-                  {openMenuMessageId !== message.id && (
-                    <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      더 보기
-                      <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
-                    </div>
-                  )}
-                </div>
-              )}
-              {/* 팝오버 메뉴 */}
-              {isMine && openMenuMessageId === message.id && (
-                <div className="absolute top-0 right-6 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
-                  {/* 시간 표시 */}
-                  <div className="px-4 py-2 border-b border-border">
-                    <p className="text-xs text-muted-foreground">
-                      {formatMessageTimeForMenu(message.created_at)}
-                    </p>
-                  </div>
-                  {/* 메뉴 항목 */}
-                  <div className="py-1">
-                    {/* 복사 */}
+                  <div className="relative">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleCopyMessage(message);
+                        handleCopyMessage(message, true);
                       }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                      className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                      aria-label="복사"
                     >
-                      <Copy className="h-4 w-4 text-muted-foreground" />
-                      <span>복사</span>
+                      {copiedMessageId === message.id ? (
+                        <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                      )}
                     </button>
-                    {/* 전송 취소 (로그되지 않은 메시지만) */}
-                    {!isLoggedMessage && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteMessageClick(message);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
-                      >
-                        <RotateCcw className="h-4 w-4 text-destructive" />
-                        <span>전송 취소</span>
-                      </button>
+                    {/* Copied! 툴팁 */}
+                    {copiedMessageId === message.id && (
+                      <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-foreground/90 text-background text-[10px] rounded whitespace-nowrap z-50">
+                        Copied!
+                        <div className="absolute -top-1 right-2 w-2 h-2 bg-foreground/90 rotate-45"></div>
+                      </div>
                     )}
                   </div>
                 </div>
+              )}
+              {/* 본인 메시지: 더보기 버튼 */}
+              {isMine && (
+                <>
+                  <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuMessageId(openMenuMessageId === message.id ? null : message.id);
+                      }}
+                      className="bg-background/90 backdrop-blur-sm border border-border rounded-full p-1 shadow-sm hover:bg-background transition-colors"
+                      aria-label="더보기"
+                    >
+                      <MoreVertical className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                  {/* 팝오버 메뉴 */}
+                  {openMenuMessageId === message.id && (
+                    <div className="absolute top-0 right-6 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                      {/* 시간 표시 */}
+                      <div className="px-4 py-2 border-b border-border">
+                        <p className="text-xs text-muted-foreground">
+                          {formatMessageTimeForMenu(message.created_at)}
+                        </p>
+                      </div>
+                      {/* 메뉴 항목 */}
+                      <div className="py-1">
+                        {/* 복사 */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyMessage(message);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-muted/50 transition-colors flex items-center gap-3"
+                        >
+                          <Copy className="h-4 w-4 text-muted-foreground" />
+                          <span>복사</span>
+                        </button>
+                        {/* 전송 취소 (로그되지 않은 메시지만) */}
+                        {!isLoggedMessage && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMessageClick(message);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-3"
+                          >
+                            <RotateCcw className="h-4 w-4 text-destructive" />
+                            <span>전송 취소</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             {isLastInGroup && (
@@ -1714,6 +1902,7 @@ export default function TaskDetailPage() {
                   rows={2}
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
+                  onPaste={handlePaste}
                   placeholder="메시지 입력..."
                   className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
                   style={{
