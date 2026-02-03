@@ -1090,7 +1090,7 @@ export default function TaskDetailPage() {
                 )}
                 {/* 팝오버 메뉴 */}
                 {isMine && openMenuMessageId === message.id && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-0 left-0 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
                     {/* 시간 표시 */}
                     <div className="px-4 py-2 border-b border-border">
                       <p className="text-xs text-muted-foreground">
@@ -1213,7 +1213,7 @@ export default function TaskDetailPage() {
               )}
               {/* 팝오버 메뉴 */}
               {isMine && openMenuMessageId === message.id && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="absolute top-0 right-6 w-48 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
                   {/* 시간 표시 */}
                   <div className="px-4 py-2 border-b border-border">
                     <p className="text-xs text-muted-foreground">

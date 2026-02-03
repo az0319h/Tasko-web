@@ -501,10 +501,10 @@ export function TaskFormDialog({
                 placeholder="특이사항을 입력하세요"
                 rows={2}
                 className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-16-regular ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                maxLength={1000}
+                maxLength={10000}
               />
               <p className="text-xs text-muted-foreground">
-                {notes.length}/1000자
+                {notes.length}/10000자
               </p>
             </div>
           )}
