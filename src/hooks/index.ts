@@ -11,6 +11,7 @@ export * from "./queries/use-messages";
 export * from "./queries/use-realtime-messages";
 export * from "./queries/use-realtime-dashboard-messages";
 export * from "./queries/use-chat-presence";
+export * from "./queries/use-link-preview";
 export * from "./queries/use-profiles";
 export * from "./queries/use-project-participants";
 // Deprecated: message_logs 테이블이 제거되어 더 이상 사용되지 않음
