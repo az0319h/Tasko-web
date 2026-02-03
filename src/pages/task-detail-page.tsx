@@ -55,6 +55,7 @@ import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-d
 import { TaskForceApproveDialog } from "@/components/dialog/task-force-approve-dialog";
 import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
+import { LinkPreviewCard } from "@/components/message/link-preview-card";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
@@ -106,6 +107,7 @@ export default function TaskDetailPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevIsPresentRef = useRef<boolean>(false); // 이전 Presence 상태 추적
   const lastMarkAsReadTimeRef = useRef<number>(0); // 마지막 읽음 처리 시간 (중복 호출 방지용)
+  const prevMessagesLengthRef = useRef<number>(0); // 이전 메시지 개수 추적 (스크롤 제어용)
 
   const currentUserId = currentProfile?.id;
   const queryClient = useQueryClient();
@@ -181,10 +183,26 @@ export default function TaskDetailPage() {
     lastMarkAsReadTimeRef.current = 0;
   }, [taskId]);
 
-  // 새 메시지 수신 시 스크롤 하단으로 이동
+  // 새 메시지 수신 시 스크롤 하단으로 이동 (본인이 보낸 메시지일 때만)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!currentUserId || messages.length === 0) {
+      prevMessagesLengthRef.current = messages.length;
+      return;
+    }
+
+    // 메시지가 새로 추가된 경우만 확인
+    if (messages.length > prevMessagesLengthRef.current) {
+      // 마지막 메시지가 본인이 보낸 메시지인지 확인
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.user_id === currentUserId) {
+        // 본인이 보낸 메시지일 때만 스크롤
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    // 이전 메시지 개수 업데이트
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages, currentUserId]);
 
   // 마지막 로그만 기본 펼침 상태로 설정 (UX 개선: 최신 로그는 자동으로 열어서 확인 가능)
   useEffect(() => {
@@ -803,6 +821,13 @@ export default function TaskDetailPage() {
     });
   });
 
+  // URL 추출 함수 (링크 미리보기용)
+  const extractUrls = (text: string): string[] => {
+    if (!text) return [];
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.match(urlRegex) || [];
+  };
+
   // URL을 링크로 변환하는 함수
   const renderTextWithLinks = (text: string) => {
     if (!text) return null;
@@ -1178,8 +1203,8 @@ export default function TaskDetailPage() {
             <div className="group relative max-w-full min-w-0" data-message-menu={message.id}>
               <div
                 className={cn(
-                  "max-w-full min-w-0 rounded-lg px-3 py-1.5 sm:px-4 sm:py-2",
-                  isMine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+                  "min-w-0 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5",
+                  isMine ? "bg-primary text-primary-foreground w-fit ml-auto" : "bg-muted text-foreground w-fit",
                 )}
               >
                 <p
@@ -1189,6 +1214,14 @@ export default function TaskDetailPage() {
                   {renderTextWithLinks(message.content || "")}
                 </p>
               </div>
+              {/* 링크 미리보기 (첫 번째 URL만 표시) */}
+              {(() => {
+                const urls = extractUrls(message.content || "");
+                const firstUrl = urls[0];
+                return firstUrl ? (
+                  <LinkPreviewCard url={firstUrl} isMine={isMine} />
+                ) : null;
+              })()}
               {/* 더보기 버튼 (본인 메시지만, hover 시 표시) */}
               {isMine && (
                 <div className="absolute -top-1.5 -right-1.5 opacity-0 transition-opacity group-hover:opacity-100 sm:-top-2 sm:-right-2">
