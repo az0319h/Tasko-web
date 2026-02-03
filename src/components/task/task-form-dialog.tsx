@@ -72,6 +72,60 @@ export function TaskFormDialog({
       ? taskCreateSpecificationSchema 
       : taskCreateSchema;
   
+  // 명세서 모드용 기본 마감일 계산 (useForm 전에 선언)
+  const getDefaultSpecificationDueDates = (): { claimDrawing: string; draft: string } => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const date = today.getDate();
+    
+    // 청구항 및 도면: 오늘 + 3일
+    const claimDrawingDate = new Date(year, month, date + 3);
+    const claimDrawingYYYY = claimDrawingDate.getFullYear();
+    const claimDrawingMM = String(claimDrawingDate.getMonth() + 1).padStart(2, "0");
+    const claimDrawingDD = String(claimDrawingDate.getDate()).padStart(2, "0");
+    
+    // 초안 작성: 오늘 + 10일
+    const draftDate = new Date(year, month, date + 10);
+    const draftYYYY = draftDate.getFullYear();
+    const draftMM = String(draftDate.getMonth() + 1).padStart(2, "0");
+    const draftDD = String(draftDate.getDate()).padStart(2, "0");
+    
+    return {
+      claimDrawing: `${claimDrawingYYYY}-${claimDrawingMM}-${claimDrawingDD}`,
+      draft: `${draftYYYY}-${draftMM}-${draftDD}`,
+    };
+  };
+
+  // defaultValues를 함수로 만들어서 타입 안전성 확보
+  const getDefaultValues = () => {
+    if (isEditMode) {
+      return {
+        title: "",
+        client_name: "",
+        due_date: "",
+      };
+    }
+    if (isSpecificationMode) {
+      const defaultDueDates = getDefaultSpecificationDueDates();
+      return {
+        title: "",
+        assignee_id: "",
+        task_category: "SPECIFICATION" as const,
+        client_name: "",
+        due_date_claim_drawing: defaultDueDates.claimDrawing,
+        due_date_draft: defaultDueDates.draft,
+      };
+    }
+    return {
+      title: "",
+      assignee_id: "",
+      task_category: preSelectedCategory || undefined,
+      client_name: "",
+      due_date: "",
+    };
+  };
+
   const {
     register,
     handleSubmit,
@@ -81,19 +135,7 @@ export function TaskFormDialog({
     watch,
   } = useForm<TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>({
     resolver: zodResolver(formSchema) as any,
-    defaultValues: isEditMode
-      ? {
-          title: "",
-          client_name: "",
-          due_date: "",
-        }
-      : {
-          title: "",
-          assignee_id: "",
-          task_category: preSelectedCategory || undefined,
-          client_name: "",
-          due_date: "",
-        },
+    defaultValues: getDefaultValues() as any,
   });
 
   // 생성 모드에서만 assignee_id, task_category watch
@@ -150,56 +192,30 @@ export function TaskFormDialog({
     return `${yyyy}-${mm}-${dd}`;
   };
   
-  // 명세서 모드용 기본 마감일 계산 함수
-  // 청구항 및 도면: 오늘 + 3일
-  // 초안 작성: 오늘 + 10일
-  const getDefaultSpecificationDueDates = (): { claimDrawing: string; draft: string } => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const date = today.getDate();
-    
-    // 청구항 및 도면: 오늘 + 3일
-    const claimDrawingDate = new Date(year, month, date + 3);
-    const claimDrawingYYYY = claimDrawingDate.getFullYear();
-    const claimDrawingMM = String(claimDrawingDate.getMonth() + 1).padStart(2, "0");
-    const claimDrawingDD = String(claimDrawingDate.getDate()).padStart(2, "0");
-    
-    // 초안 작성: 오늘 + 10일
-    const draftDate = new Date(year, month, date + 10);
-    const draftYYYY = draftDate.getFullYear();
-    const draftMM = String(draftDate.getMonth() + 1).padStart(2, "0");
-    const draftDD = String(draftDate.getDate()).padStart(2, "0");
-    
-    return {
-      claimDrawing: `${claimDrawingYYYY}-${claimDrawingMM}-${claimDrawingDD}`,
-      draft: `${draftYYYY}-${draftMM}-${draftDD}`,
-    };
-  };
   
-  // 카테고리 변경 시 기본 마감일 자동 설정 (생성 모드에서만, 사용자가 수정하지 않은 경우)
+  // 카테고리 변경 시 기본 마감일 자동 설정 (생성 모드에서만, 사용자가 수정하지 않은 경우, 일반 모드에서만)
   const [userModifiedDueDate, setUserModifiedDueDate] = useState(false);
   
   useEffect(() => {
-    if (!isEditMode && open && taskCategory && !userModifiedDueDate) {
+    if (!isEditMode && open && taskCategory && !userModifiedDueDate && !isSpecificationMode) {
       const defaultDueDate = getDefaultDueDate(taskCategory);
       if (defaultDueDate) {
-        setValue("due_date", defaultDueDate);
+        setValue("due_date" as any, defaultDueDate);
       }
     }
-  }, [taskCategory, isEditMode, open, setValue, userModifiedDueDate]);
+  }, [taskCategory, isEditMode, open, isSpecificationMode, setValue, userModifiedDueDate]);
   
-  // 사용자가 마감일을 직접 수정했는지 추적
+  // 사용자가 마감일을 직접 수정했는지 추적 (일반 모드에서만)
   useEffect(() => {
-    if (!isEditMode && open) {
+    if (!isEditMode && open && !isSpecificationMode) {
       const subscription = watch((value, { name }) => {
-        if (name === "due_date" && value.due_date) {
+        if (name === "due_date" && (value as any).due_date) {
           setUserModifiedDueDate(true);
         }
       });
       return () => subscription.unsubscribe();
     }
-  }, [isEditMode, open, watch]);
+  }, [isEditMode, open, isSpecificationMode, watch]);
   
   // 다이얼로그가 열릴 때 사용자 수정 플래그 리셋
   useEffect(() => {
@@ -231,8 +247,8 @@ export function TaskFormDialog({
           due_date_draft: defaultDueDates.draft,
         } as any);
         setValue("task_category", "SPECIFICATION");
-        setValue("due_date_claim_drawing" as any, defaultDueDates.claimDrawing);
-        setValue("due_date_draft" as any, defaultDueDates.draft);
+        setValue("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData, defaultDueDates.claimDrawing as any);
+        setValue("due_date_draft" as keyof TaskCreateSpecificationFormData, defaultDueDates.draft as any);
       } else {
         // 일반 모드
         const defaultDueDate = getDefaultDueDate(initialCategory);
@@ -531,7 +547,7 @@ export function TaskFormDialog({
                   id="due_date_claim_drawing"
                   type="date"
                   min={minDate}
-                  {...register("due_date_claim_drawing" as any)}
+                  {...(register("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData) as any)}
                   aria-invalid={"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing ? "true" : "false"}
                 />
                 {"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing && (
@@ -549,7 +565,7 @@ export function TaskFormDialog({
                   id="due_date_draft"
                   type="date"
                   min={minDate}
-                  {...register("due_date_draft" as any)}
+                  {...(register("due_date_draft" as keyof TaskCreateSpecificationFormData) as any)}
                   aria-invalid={"due_date_draft" in errors && (errors as any).due_date_draft ? "true" : "false"}
                 />
                 {"due_date_draft" in errors && (errors as any).due_date_draft && (
@@ -573,10 +589,10 @@ export function TaskFormDialog({
                 type="date"
                 min={minDate}
                 {...register("due_date")}
-                aria-invalid={errors.due_date ? "true" : "false"}
+                aria-invalid={"due_date" in errors && (errors as any).due_date ? "true" : "false"}
               />
-              {errors.due_date && (
-                <p className="text-sm text-destructive">{errors.due_date.message}</p>
+              {"due_date" in errors && (errors as any).due_date && (
+                <p className="text-sm text-destructive">{(errors as any).due_date.message}</p>
               )}
               {dueDate && dueDate < minDate && (
                 <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>

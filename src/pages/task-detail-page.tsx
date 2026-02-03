@@ -1373,7 +1373,7 @@ export default function TaskDetailPage() {
                 )}
               >
                 <p
-                  className="text-xs break-words whitespace-pre-wrap sm:text-sm"
+                  className="text-xs break-words whitespace-pre-wrap text-14-regular md:text-16-regular"
                   style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
                 >
                   {renderTextWithLinks(message.content || "")}
