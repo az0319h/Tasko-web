@@ -509,28 +509,21 @@ export default function MemberDashboardPage() {
   const handleCreateSpecificationTasks = async (
     assigneeId: string,
     clientName: string,
+    dueDateClaimDrawing: string,
+    dueDateDraft: string,
     files?: File[],
     notes?: string,
   ) => {
     if (!currentProfile?.id) return;
 
     try {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = today.getMonth();
-      const date = today.getDate();
-
-      // Task 1: 청구안 및 도면 (오늘 + 3일)
-      const dueDate1 = new Date(year, month, date + 3);
-      const dueDate1Str = `${dueDate1.getFullYear()}-${String(dueDate1.getMonth() + 1).padStart(2, "0")}-${String(dueDate1.getDate()).padStart(2, "0")}`;
-
-      // Task 2: 초안 작성 (오늘 + 10일)
-      const dueDate2 = new Date(year, month, date + 10);
-      const dueDate2Str = `${dueDate2.getFullYear()}-${String(dueDate2.getMonth() + 1).padStart(2, "0")}-${String(dueDate2.getDate()).padStart(2, "0")}`;
+      // 폼에서 받은 마감일 사용
+      const dueDate1Str = dueDateClaimDrawing;
+      const dueDate2Str = dueDateDraft;
 
       // Task 1 생성
       const task1 = await createTask.mutateAsync({
-        title: "청구안 및 도면",
+        title: "청구항 및 도면",
         assignee_id: assigneeId,
         due_date: dueDate1Str,
         task_category: "SPECIFICATION",
@@ -598,7 +591,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
             toast.warning(
-              `주말 제외 및 일정 사정으로 "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말 제외 및 일정 사정으로 "청구항 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -607,7 +600,7 @@ export default function MemberDashboardPage() {
           } else {
             // 일정이 가득 차서 다른 날짜에 배정된 경우
             toast.warning(
-              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "청구안 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "청구항 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -621,7 +614,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             const scheduleDateFormatted = formatDateKorean(result1.scheduleDate);
             toast.info(
-              `주말을 제외하여 "청구안 및 도면" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말을 제외하여 "청구항 및 도면" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 6000,
@@ -724,11 +717,17 @@ export default function MemberDashboardPage() {
         toast.error("고객명을 입력해주세요.");
         return;
       }
+      if (!specificationData.due_date_claim_drawing || !specificationData.due_date_draft) {
+        toast.error("마감일을 모두 입력해주세요.");
+        return;
+      }
       setIsCreatingTask(true);
       try {
         await handleCreateSpecificationTasks(
           specificationData.assignee_id,
           specificationData.client_name,
+          specificationData.due_date_claim_drawing,
+          specificationData.due_date_draft,
           files,
           notes,
         );

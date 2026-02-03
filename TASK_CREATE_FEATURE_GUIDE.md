@@ -379,7 +379,7 @@ const handleCreateTask = async (
 
 명세서 모드는 **2개의 Task를 자동으로 생성**합니다:
 
-1. **청구안 및 도면** (오늘 + 3일 마감)
+1. **청구항 및 도면** (오늘 + 3일 마감)
 2. **초안 작성** (오늘 + 10일 마감)
 
 ### 명세서 모드 핸들러 구현
@@ -398,7 +398,7 @@ const handleCreateSpecificationTasks = async (
     const month = today.getMonth();
     const date = today.getDate();
     
-    // Task 1: 청구안 및 도면 (오늘 + 3일)
+    // Task 1: 청구항 및 도면 (오늘 + 3일)
     const dueDate1 = new Date(year, month, date + 3);
     const dueDate1Str = `${dueDate1.getFullYear()}-${String(dueDate1.getMonth() + 1).padStart(2, "0")}-${String(dueDate1.getDate()).padStart(2, "0")}`;
     
@@ -409,7 +409,7 @@ const handleCreateSpecificationTasks = async (
     // Task 1 생성
     const task1 = await createTask.mutateAsync({
       project_id: projectId,
-      title: "청구안 및 도면",
+      title: "청구항 및 도면",
       assignee_id: assigneeId,
       due_date: dueDate1Str,
       task_category: "SPECIFICATION",

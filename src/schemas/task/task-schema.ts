@@ -32,7 +32,8 @@ export const taskCreateSchema = z.object({
 
 /**
  * 명세서 모드용 Task 생성 스키마
- * 명세서 모드에서는 title과 due_date가 자동 생성되므로 optional
+ * 명세서 모드에서는 title이 자동 생성되므로 optional
+ * 두 개의 마감일 필드: 청구항 및 도면, 초안 작성
  */
 export const taskCreateSpecificationSchema = z.object({
   title: z.string().optional(), // 명세서 모드에서는 title 불필요 (자동 생성)
@@ -42,7 +43,26 @@ export const taskCreateSpecificationSchema = z.object({
     message: "카테고리를 선택해주세요.",
   }),
   client_name: z.string().min(1, "고객명을 입력해주세요.").max(100, "고객명은 100자 이하여야 합니다."),
-  due_date: z.string().optional(), // 명세서 모드에서는 자동 설정되므로 optional
+  due_date_claim_drawing: z.string().min(1, "청구항 및 도면 마감일을 입력해주세요.").refine(
+    (val) => {
+      const selectedDate = new Date(val);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      return selectedDate >= today;
+    },
+    { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
+  ),
+  due_date_draft: z.string().min(1, "초안 작성 마감일을 입력해주세요.").refine(
+    (val) => {
+      const selectedDate = new Date(val);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+      return selectedDate >= today;
+    },
+    { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
+  ),
 });
 
 /**
