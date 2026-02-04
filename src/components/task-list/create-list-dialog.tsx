@@ -55,13 +55,13 @@ export function CreateListDialog({
       <DialogContent className="sm:max-w-100">
         <DialogHeader>
           <DialogTitle>새 목록 만들기</DialogTitle>
-          <DialogDescription>목록 기회를 입력하세요</DialogDescription>
+          <DialogDescription>목록 기회명을 입력하세요</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 ">
             <div className="space-y-2">
-              <Label htmlFor="title">기회</Label>
+              <Label htmlFor="title">기회명</Label>
               <Input
                 id="title"
                 value={title}
