@@ -449,18 +449,21 @@ export type Database = {
       task_list_items: {
         Row: {
           created_at: string
+          display_order: number
           id: string
           task_id: string
           task_list_id: string
         }
         Insert: {
           created_at?: string
+          display_order?: number
           id?: string
           task_id: string
           task_list_id: string
         }
         Update: {
           created_at?: string
+          display_order?: number
           id?: string
           task_id?: string
           task_list_id?: string

@@ -5,6 +5,7 @@ import {
   deleteTaskList,
   addTaskToList,
   removeTaskFromList,
+  updateTaskListItemsOrder,
   type TaskList,
   type TaskListItem,
 } from "@/api/task-list";
@@ -112,6 +113,31 @@ export function useRemoveTaskFromList() {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Task 제거에 실패했습니다.");
+    },
+  });
+}
+
+/**
+ * Task 목록 항목 순서 업데이트 뮤테이션 훅
+ */
+export function useUpdateTaskListItemsOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      listId,
+      itemOrders,
+    }: {
+      listId: string;
+      itemOrders: Array<{ itemId: string; displayOrder: number }>;
+    }) => updateTaskListItemsOrder(listId, itemOrders),
+    onSuccess: (_, variables) => {
+      // 관련 쿼리 무효화하여 최신 순서 반영
+      queryClient.invalidateQueries({ queryKey: ["task-lists", "detail", variables.listId] });
+      queryClient.invalidateQueries({ queryKey: ["task-lists", "items", variables.listId] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "순서 업데이트에 실패했습니다.");
     },
   });
 }
