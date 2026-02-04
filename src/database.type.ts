@@ -446,6 +446,66 @@ export type Database = {
           },
         ]
       }
+      task_list_items: {
+        Row: {
+          created_at: string
+          id: string
+          task_id: string
+          task_list_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          task_id: string
+          task_list_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          task_id?: string
+          task_list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_list_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_list_items_task_list_id_fkey"
+            columns: ["task_list_id"]
+            isOneToOne: false
+            referencedRelation: "task_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_lists: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       task_schedules: {
         Row: {
           created_at: string

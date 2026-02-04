@@ -22,6 +22,7 @@ import {
   Shield,
   Calendar,
   Bot,
+  List,
 } from "lucide-react";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
@@ -102,6 +103,12 @@ const getMenuItems = (isAdmin: boolean) => {
       key: "layout.sidebar.menu.schedule",
       url: "/schedule",
       icon: Calendar,
+    },
+    {
+      id: "task-lists",
+      key: "Task 목록 관리",
+      url: "/task-lists",
+      icon: List,
     },
     {
       id: "agents",

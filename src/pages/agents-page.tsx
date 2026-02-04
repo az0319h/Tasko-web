@@ -136,7 +136,7 @@ export default function AgentsPage() {
         {/* 헤더 */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="mb-2 text-2xl font-bold sm:text-3xl">AI 에이전트</h1>
+            <h1 className="mb-2  text-20-semibold  md:text-24-semibold">AI 에이전트</h1>
             <p className="text-muted-foreground text-sm sm:text-base">
               에이전트를 공유하고 다른 사람이 만든 에이전트를 확인하세요
             </p>

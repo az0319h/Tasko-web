@@ -18,6 +18,7 @@ import {
   MoreVertical,
   Copy,
   RotateCcw,
+  ListPlus,
 } from "lucide-react";
 import {
   useTask,
@@ -54,6 +55,7 @@ import { TaskDeleteDialog } from "@/components/task/task-delete-dialog";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import { TaskForceApproveDialog } from "@/components/dialog/task-force-approve-dialog";
 import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
+import { AddToListDialog } from "@/components/task-list/add-to-list-dialog";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { LinkPreviewCard } from "@/components/message/link-preview-card";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
@@ -102,6 +104,7 @@ export default function TaskDetailPage() {
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -460,6 +463,8 @@ export default function TaskDetailPage() {
       // React Query 캐시 무효화하여 Task 정보 갱신
       await queryClient.invalidateQueries({ queryKey: ["tasks", "detail", task.id] });
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
+      await queryClient.invalidateQueries({ queryKey: ["task-lists"] });
     } catch (error) {
       console.error("강제 승인 중 오류:", error);
       toast.error("강제 승인 중 오류가 발생했습니다.");
@@ -1373,7 +1378,7 @@ export default function TaskDetailPage() {
                 )}
               >
                 <p
-                  className="text-xs break-words whitespace-pre-wrap text-14-regular md:text-16-regular"
+                  className="break-words whitespace-pre-wrap text-14-regular md:text-16-regular"
                   style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
                 >
                   {renderTextWithLinks(message.content || "")}
@@ -1679,6 +1684,16 @@ export default function TaskDetailPage() {
                 <AlertTriangle className="h-4 w-4" />
               </Button>
             )}
+            {/* 목록에 추가 버튼 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setAddToListDialogOpen(true)}
+              className="h-9 w-9 shrink-0"
+              title="목록에 추가"
+            >
+              <ListPlus className="h-5 w-5" />
+            </Button>
             {/* 정보 버튼 */}
             <Button
               variant="ghost"
@@ -2031,6 +2046,15 @@ export default function TaskDetailPage() {
         onDelete={() => setDeleteDialogOpen(true)}
         onSendEmailToClientChange={handleSendEmailToClientChange}
       />
+
+      {/* 목록에 추가 Dialog */}
+      {taskId && (
+        <AddToListDialog
+          open={addToListDialogOpen}
+          onOpenChange={setAddToListDialogOpen}
+          taskId={taskId}
+        />
+      )}
     </div>
   );
 }
