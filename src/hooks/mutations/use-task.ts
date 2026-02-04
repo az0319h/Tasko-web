@@ -42,6 +42,8 @@ export function useUpdateTask() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
+      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
+      queryClient.invalidateQueries({ queryKey: ["task-lists"] });
       toast.success("Task가 수정되었습니다.");
     },
     onError: (error: Error) => {
@@ -60,6 +62,8 @@ export function useDeleteTask() {
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영 (삭제된 task는 자동으로 제거됨)
+      queryClient.invalidateQueries({ queryKey: ["task-lists"] });
       toast.success("Task가 삭제되었습니다.");
     },
     onError: (error: Error) => {
@@ -126,6 +130,8 @@ export function useUpdateTaskStatus() {
       // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
+      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
+      queryClient.invalidateQueries({ queryKey: ["task-lists"] });
       toast.success("상태가 변경되었습니다.");
     },
   });
