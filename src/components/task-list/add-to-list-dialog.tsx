@@ -151,7 +151,7 @@ export function AddToListDialog({ open, onOpenChange, taskId }: AddToListDialogP
           <DialogHeader>
             <DialogTitle>목록에 추가</DialogTitle>
             <DialogDescription>
-              이 Task를 추가할 목록을 선택하세요. 여러 개 선택 가능합니다.
+              이 Task를 추가할 목록을 선택하세요.
             </DialogDescription>
           </DialogHeader>
 

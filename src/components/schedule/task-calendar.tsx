@@ -377,7 +377,7 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
             </div>
           </div>
         </TooltipTrigger>
-        <TooltipContent side="left" className="max-w-xs whitespace-pre-line text-left">
+        <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-left">
           {tooltipContent}
         </TooltipContent>
       </Tooltip>
