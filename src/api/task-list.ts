@@ -17,6 +17,7 @@ export type TaskListWithItems = TaskList & {
     id: string;
     task_id: string;
     created_at: string;
+    display_order: number;
     task: TaskWithProfiles;
   }>;
   item_count: number;
@@ -104,13 +105,14 @@ export async function getTaskList(listId: string): Promise<TaskListWithItems | n
     return null;
   }
 
-  // 목록에 포함된 Task 항목 조회
+  // 목록에 포함된 Task 항목 조회 (display_order 기준으로 정렬)
   const { data: items, error: itemsError } = await supabase
     .from("task_list_items")
     .select(`
       id,
       task_id,
       created_at,
+      display_order,
       task:tasks!task_list_items_task_id_fkey(
         *,
         assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
@@ -118,7 +120,7 @@ export async function getTaskList(listId: string): Promise<TaskListWithItems | n
       )
     `)
     .eq("task_list_id", listId)
-    .order("created_at", { ascending: false });
+    .order("display_order", { ascending: true });
 
   if (itemsError) {
     throw new Error(`Task 목록 항목 조회 실패: ${itemsError.message}`);
@@ -225,7 +227,7 @@ export async function deleteTaskList(listId: string): Promise<void> {
 }
 
 /**
- * 목록에 Task 추가
+ * 목록에 Task 추가 (마지막 순서로 추가)
  */
 export async function addTaskToList(listId: string, taskId: string): Promise<TaskListItem> {
   const { data: session } = await supabase.auth.getSession();
@@ -233,11 +235,24 @@ export async function addTaskToList(listId: string, taskId: string): Promise<Tas
     throw new Error("인증이 필요합니다.");
   }
 
+  // 현재 목록의 마지막 display_order 조회
+  const { data: lastItem, error: lastItemError } = await supabase
+    .from("task_list_items")
+    .select("display_order")
+    .eq("task_list_id", listId)
+    .order("display_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // 마지막 순서 + 1 (없으면 0)
+  const nextOrder = lastItem ? lastItem.display_order + 1 : 0;
+
   const { data, error } = await supabase
     .from("task_list_items")
     .insert({
       task_list_id: listId,
       task_id: taskId,
+      display_order: nextOrder,
     })
     .select()
     .single();
@@ -251,6 +266,74 @@ export async function addTaskToList(listId: string, taskId: string): Promise<Tas
   }
 
   return data;
+}
+
+/**
+ * Task 목록 항목들의 순서 업데이트 (배치 업데이트)
+ * UNIQUE 제약조건 충돌을 피하기 위해 2단계 업데이트 사용:
+ * 1. 모든 항목을 임시 음수 값으로 변경
+ * 2. 실제 순서 값으로 변경
+ */
+export async function updateTaskListItemsOrder(
+  listId: string,
+  itemOrders: Array<{ itemId: string; displayOrder: number }>
+): Promise<void> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  // 1단계: 모든 항목을 임시 음수 값으로 변경 (UNIQUE 제약조건 충돌 방지)
+  const tempUpdatePromises = itemOrders.map(({ itemId }, index) =>
+    supabase
+      .from("task_list_items")
+      .update({ display_order: -(index + 1) }) // 음수 값 사용 (임시)
+      .eq("id", itemId)
+      .eq("task_list_id", listId)
+      .select() // 결과 확인을 위해 select 추가
+  );
+
+  const tempResults = await Promise.all(tempUpdatePromises);
+  
+  // 에러 확인 및 결과 검증
+  for (let i = 0; i < tempResults.length; i++) {
+    const result = tempResults[i];
+    if (result.error) {
+      console.error(`임시 단계 업데이트 실패 [${i}]:`, result.error);
+      throw new Error(`순서 업데이트 실패 (임시 단계): ${result.error.message}`);
+    }
+    // 업데이트된 행이 없는 경우도 확인
+    if (!result.data || result.data.length === 0) {
+      console.error(`임시 단계 업데이트 결과 없음 [${i}]:`, itemOrders[i]);
+      throw new Error(`순서 업데이트 실패 (임시 단계): 항목을 찾을 수 없거나 권한이 없습니다.`);
+    }
+  }
+
+  // 2단계: 실제 순서 값으로 변경
+  const finalUpdatePromises = itemOrders.map(({ itemId, displayOrder }) =>
+    supabase
+      .from("task_list_items")
+      .update({ display_order: displayOrder })
+      .eq("id", itemId)
+      .eq("task_list_id", listId)
+      .select() // 결과 확인을 위해 select 추가
+  );
+
+  const finalResults = await Promise.all(finalUpdatePromises);
+  
+  // 에러 확인 및 결과 검증
+  for (let i = 0; i < finalResults.length; i++) {
+    const result = finalResults[i];
+    if (result.error) {
+      console.error(`최종 단계 업데이트 실패 [${i}]:`, result.error);
+      throw new Error(`순서 업데이트 실패 (최종 단계): ${result.error.message}`);
+    }
+    // 업데이트된 행이 없는 경우도 확인
+    if (!result.data || result.data.length === 0) {
+      console.error(`최종 단계 업데이트 결과 없음 [${i}]:`, itemOrders[i]);
+      throw new Error(`순서 업데이트 실패 (최종 단계): 항목을 찾을 수 없거나 권한이 없습니다.`);
+    }
+  }
 }
 
 /**

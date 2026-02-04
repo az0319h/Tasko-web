@@ -132,6 +132,25 @@ WITH CHECK (
   )
 );
 
+-- task_list_items UPDATE 정책: 자신이 만든 목록의 항목만 수정 가능 (display_order 업데이트용)
+CREATE POLICY "task_list_items_update_own_list"
+ON public.task_list_items
+FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM public.task_lists
+    WHERE task_lists.id = task_list_items.task_list_id
+    AND task_lists.user_id = auth.uid()
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM public.task_lists
+    WHERE task_lists.id = task_list_items.task_list_id
+    AND task_lists.user_id = auth.uid()
+  )
+);
+
 -- task_list_items DELETE 정책: 자신이 만든 목록의 항목만 삭제 가능
 CREATE POLICY "task_list_items_delete_own_list"
 ON public.task_list_items
@@ -159,5 +178,8 @@ COMMENT ON COLUMN public.task_list_items.task_id IS 'Task ID (tasks 참조, CASC
 COMMENT ON COLUMN public.task_list_items.created_at IS '목록에 추가된 일시';
 
 COMMENT ON CONSTRAINT task_list_items_unique ON public.task_list_items IS '같은 목록에 같은 Task 중복 방지 (같은 Task는 여러 목록에 포함 가능)';
+
+COMMENT ON POLICY "task_list_items_update_own_list" ON public.task_list_items IS 
+'Task 목록 항목 UPDATE 정책: 자신이 만든 목록의 항목만 수정 가능 (display_order 업데이트용)';
 
 COMMIT;

@@ -7,13 +7,31 @@ import {
   useUpdateTaskList,
   useDeleteTaskList,
   useCurrentProfile,
+  useUpdateTaskListItemsOrder,
 } from "@/hooks";
 import { TaskListFormDialog } from "@/components/task-list/task-list-form-dialog";
 import { Button } from "@/components/ui/button";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TablePagination } from "@/components/common/table-pagination";
-import { ArrowLeft, Pencil, Trash2, Bell } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Bell, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,6 +123,149 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
 }
 
 /**
+ * Sortable 테이블 행 컴포넌트
+ */
+interface SortableRowProps {
+  item: {
+    id: string;
+    task_id: string;
+    created_at: string;
+    display_order: number;
+    task: any;
+  };
+  unreadCount: number;
+  onRemove: (taskId: string, e: React.MouseEvent) => void;
+  isRemoving: boolean;
+  navigate: (path: string) => void;
+}
+
+function SortableRow({ item, unreadCount, onRemove, isRemoving, navigate }: SortableRowProps) {
+  const task = item.task;
+  const dueDate = formatDueDate(task.due_date);
+  const daysDiff = calculateDaysDifference(task.due_date);
+  const dDayText = getDDayText(daysDiff);
+  const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+
+  const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
+  const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
+  const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "hover:bg-muted/50 border-b transition-colors cursor-pointer",
+        isDragging && "bg-muted"
+      )}
+      onClick={() => {
+        navigate(`/tasks/${task.id}`);
+      }}
+    >
+      {/* 드래그 핸들 컬럼 */}
+      <td className="px-2 py-3 sm:px-4 sm:py-4 w-[8%]">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing flex items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        </div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs sm:text-sm">
+          {task.id ? (
+            <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs sm:text-sm">
+          {task.client_name || (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs sm:text-sm">
+          <Link
+            to={`/tasks/${task.id}`}
+            className="line-clamp-2 hover:underline cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            {task.title}
+          </Link>
+        </div>
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        {dueDate ? (
+          <span
+            className={cn(
+              "text-xs whitespace-nowrap sm:text-sm",
+              dueDateColorClass,
+            )}
+          >
+            {dueDate} {dDayText}
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+        )}
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <TaskStatusBadge status={task.task_status} />
+      </td>
+      <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+        {unreadCount > 0 ? (
+          <div className="relative inline-flex">
+            <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
+              {unreadCount}
+            </span>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+        )}
+      </td>
+      <td className="px-2 py-3 sm:px-4 sm:py-4">
+        <div className="line-clamp-2 text-xs sm:text-sm">{assignerAssigneeDisplay}</div>
+      </td>
+      <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={(e) => onRemove(task.id, e)}
+          disabled={isRemoving}
+          title="목록에서 제거"
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+/**
  * Task 목록 상세 페이지
  */
 export default function TaskListDetailPage() {
@@ -116,11 +277,20 @@ export default function TaskListDetailPage() {
   const updateTaskList = useUpdateTaskList();
   const deleteTaskList = useDeleteTaskList();
   const removeTaskFromList = useRemoveTaskFromList();
+  const updateTaskListItemsOrder = useUpdateTaskListItemsOrder();
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const channelsRef = useRef<Map<string, any>>(new Map());
+  
+  // 드래그 앤 드롭 센서 설정
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // 페이지네이션 상태 - URL 파라미터에서 읽기
   const pageParam = searchParams.get("page");
@@ -276,23 +446,98 @@ export default function TaskListDetailPage() {
     await removeTaskFromList.mutateAsync({ listId, taskId });
   };
 
-  // 페이지네이션된 Task 목록 계산
+  // 드래그 앤 드롭을 위한 로컬 상태 (낙관적 업데이트)
+  const [localItems, setLocalItems] = useState<Array<{
+    id: string;
+    task_id: string;
+    created_at: string;
+    display_order: number;
+    task: any;
+  }> | null>(null);
+  
+  // taskList가 변경되면 로컬 상태 동기화
+  useEffect(() => {
+    if (taskList) {
+      setLocalItems(taskList.items);
+    }
+  }, [taskList]);
+
+  // 드래그 종료 핸들러
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || !taskList || !listId) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (activeId === overId) return;
+
+    // 전체 항목 목록 (페이지네이션되지 않은 전체 목록)
+    const allItems = localItems || taskList.items;
+    const oldIndex = allItems.findIndex((item) => item.id === activeId);
+    const newIndex = allItems.findIndex((item) => item.id === overId);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      console.error("항목을 찾을 수 없습니다:", { activeId, overId, oldIndex, newIndex });
+      return;
+    }
+
+    // 전체 목록에서 순서 변경
+    const newAllItems = arrayMove(allItems, oldIndex, newIndex);
+    
+    // 로컬 상태 즉시 업데이트 (낙관적 업데이트)
+    setLocalItems(newAllItems);
+
+    // 새로운 순서 계산 (전체 목록 기준)
+    const itemOrders = newAllItems.map((item, index) => ({
+      itemId: item.id,
+      displayOrder: index,
+    }));
+
+    console.log("순서 업데이트 시작:", { listId, itemOrders });
+
+    // API 호출로 DB 업데이트
+    try {
+      await updateTaskListItemsOrder.mutateAsync({
+        listId,
+        itemOrders,
+      });
+      console.log("순서 업데이트 성공");
+    } catch (error) {
+      // 실패 시 원래 상태로 복구
+      console.error("순서 업데이트 실패:", error);
+      if (taskList) {
+        setLocalItems(taskList.items);
+      }
+      // 사용자에게 에러 알림
+      if (error instanceof Error) {
+        alert(`순서 업데이트 실패: ${error.message}`);
+      } else {
+        alert(`순서 업데이트 실패: 알 수 없는 오류가 발생했습니다.`);
+      }
+    }
+  }, [taskList, localItems, listId, updateTaskListItemsOrder]);
+
+  // 페이지네이션된 Task 목록 계산 (로컬 상태 사용)
   const paginatedItems = useMemo(() => {
-    if (!taskList || taskList.items.length === 0) {
+    const items = localItems || taskList?.items || [];
+    if (items.length === 0) {
       return [];
     }
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return taskList.items.slice(startIndex, endIndex);
-  }, [taskList, currentPage, itemsPerPage]);
+    return items.slice(startIndex, endIndex);
+  }, [localItems, taskList, currentPage, itemsPerPage]);
 
-  // 총 페이지 수 계산
+  // 총 페이지 수 계산 (로컬 상태 사용)
   const totalPages = useMemo(() => {
-    if (!taskList || taskList.items.length === 0) {
+    const items = localItems || taskList?.items || [];
+    if (items.length === 0) {
       return 1;
     }
-    return Math.ceil(taskList.items.length / itemsPerPage) || 1;
-  }, [taskList, itemsPerPage]);
+    return Math.ceil(items.length / itemsPerPage) || 1;
+  }, [localItems, taskList, itemsPerPage]);
 
   // 페이지 변경 핸들러
   const handlePageChange = (page: number) => {
@@ -379,145 +624,74 @@ export default function TaskListDetailPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-scroll">
-              <table className="w-full min-w-[1000px] table-fixed">
-                <thead>
-                  <tr className="border-b">
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      고유 ID
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      고객명
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      지시사항
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      마감일
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      상태
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">
-                      새 메시지
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
-                      지시자/담당자
-                    </th>
-                    <th className="w-[12.5%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">
-                      삭제
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedItems.map((item) => {
-                    const task = item.task;
-                    const dueDate = formatDueDate(task.due_date);
-                    const daysDiff = calculateDaysDifference(task.due_date);
-                    const dDayText = getDDayText(daysDiff);
-                    const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
-
-                    const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
-                    const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
-                    const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
-
-                    return (
-                      <tr
-                        key={item.id}
-                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
-                        onClick={() => {
-                          navigate(`/tasks/${task.id}`);
-                        }}
-                      >
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">
-                            {task.id ? (
-                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">
-                            {task.client_name || (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">
-                            <Link
-                              to={`/tasks/${task.id}`}
-                              className="line-clamp-2 hover:underline cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
-                              }}
-                            >
-                              {task.title}
-                            </Link>
-                          </div>
-                        </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          {dueDate ? (
-                            <span
-                              className={cn(
-                                "text-xs whitespace-nowrap sm:text-sm",
-                                dueDateColorClass,
-                              )}
-                            >
-                              {dueDate} {dDayText}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <TaskStatusBadge status={task.task_status} />
-                        </td>
-                        <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
-                          {(() => {
-                            const unreadCount = unreadCounts.get(task.id) || 0;
-                            return unreadCount > 0 ? (
-                              <div className="relative inline-flex">
-                                <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
-                                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
-                                  {unreadCount}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs sm:text-sm">-</span>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <div className="line-clamp-2 text-xs sm:text-sm">{assignerAssigneeDisplay}</div>
-                        </td>
-                        <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => handleRemoveTask(task.id, e)}
-                            disabled={removeTaskFromList.isPending}
-                            title="목록에서 제거"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="overflow-x-scroll">
+                <table className="w-full min-w-[1000px] table-fixed">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="w-[8%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">
+                        순서
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        고유 ID
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        고객명
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        지시사항
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        마감일
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        상태
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">
+                        새 메시지
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        지시자/담당자
+                      </th>
+                      <th className="w-[11.5%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">
+                        삭제
+                      </th>
+                    </tr>
+                  </thead>
+                  <SortableContext
+                    items={paginatedItems.map((item) => item.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <tbody>
+                      {paginatedItems.map((item) => {
+                        const unreadCount = unreadCounts.get(item.task.id) || 0;
+                        return (
+                          <SortableRow
+                            key={item.id}
+                            item={item}
+                            unreadCount={unreadCount}
+                            onRemove={handleRemoveTask}
+                            isRemoving={removeTaskFromList.isPending}
+                            navigate={navigate}
+                          />
+                        );
+                      })}
+                    </tbody>
+                  </SortableContext>
+                </table>
+              </div>
+            </DndContext>
 
             {/* 페이지네이션 */}
             <TablePagination
               currentPage={currentPage}
               totalPages={totalPages}
               pageSize={itemsPerPage}
-              totalItems={taskList.items.length}
+              totalItems={(localItems || taskList?.items || []).length}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
