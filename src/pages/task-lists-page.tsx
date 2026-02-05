@@ -78,7 +78,7 @@ export default function TaskListsPage() {
       <div className="md:p-4">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="mb-2 text-20-semibold  md:text-24-semibold">Task 목록 관리</h1>
+            <h1 className="mb-2 text-20-semibold  md:text-24-semibold">작업 목록</h1>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
