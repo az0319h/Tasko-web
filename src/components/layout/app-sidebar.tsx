@@ -106,7 +106,7 @@ const getMenuItems = (isAdmin: boolean) => {
     },
     {
       id: "task-lists",
-      key: "Task 목록 관리",
+      key: "작업 목록",
       url: "/task-lists",
       icon: List,
     },

@@ -61,7 +61,7 @@ export default function SchedulePage() {
       <div className="mb-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">일정 관리</h1>
+            <h1 className="text-2xl font-bold">캘린더</h1>
             <p className="text-muted-foreground mt-2">
               {isAllUsersMode
                 ? "일반 멤버들의 일정을 확인할 수 있습니다."
