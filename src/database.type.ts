@@ -556,6 +556,7 @@ export type Database = {
           created_by: string | null
           due_date: string
           id: string
+          is_self_task: boolean
           send_email_to_client: boolean
           task_category: Database["public"]["Enums"]["task_category"]
           task_status: Database["public"]["Enums"]["task_status"]
@@ -570,6 +571,7 @@ export type Database = {
           created_by?: string | null
           due_date: string
           id?: string
+          is_self_task?: boolean
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]
@@ -584,6 +586,7 @@ export type Database = {
           created_by?: string | null
           due_date?: string
           id?: string
+          is_self_task?: boolean
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
           task_status?: Database["public"]["Enums"]["task_status"]

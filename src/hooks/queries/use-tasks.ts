@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTaskById, getTasksForMember, getTasksForAdmin } from "@/api/task";
+import { getTaskById, getTasksForMember, getTasksForAdmin, getSelfTasks } from "@/api/task";
 import type { Task, TaskWithProfiles } from "@/api/task";
 
 /**
@@ -53,6 +53,20 @@ export function useTasksForAdmin(excludeApproved: boolean = true) {
   return useQuery<TaskWithProfiles[]>({
     queryKey: ["tasks", "admin", excludeApproved],
     queryFn: () => getTasksForAdmin(excludeApproved),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * 자기 할당 Task 목록 조회 훅
+ * 자기 자신에게 할당한 Task만 조회
+ * 
+ * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: false)
+ */
+export function useSelfTasks(excludeApproved: boolean = false) {
+  return useQuery<TaskWithProfiles[]>({
+    queryKey: ["tasks", "self", excludeApproved],
+    queryFn: () => getSelfTasks(excludeApproved),
     staleTime: 30 * 1000,
   });
 }

@@ -5,6 +5,7 @@ import {
   useIsAdmin,
   useTasksForMember,
   useTasksForAdmin,
+  useSelfTasks,
   useCurrentProfile,
   useRealtimeDashboardMessages,
 } from "@/hooks";
@@ -14,7 +15,7 @@ import { useUpdateTaskStatus, useCreateTask, useUpdateTask } from "@/hooks/mutat
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { useCreateMessageWithFiles } from "@/hooks/mutations/use-message";
 import { uploadTaskFile } from "@/api/storage";
-import type { TaskCreateFormData, TaskCreateSpecificationFormData } from "@/schemas/task/task-schema";
+import type { TaskCreateFormData, TaskCreateSelfTaskFormData, TaskCreateSpecificationFormData } from "@/schemas/task/task-schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -164,7 +165,7 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
   }
 }
 
-type DashboardTab = "my-tasks" | "all-tasks" | "approved-tasks";
+type DashboardTab = "my-tasks" | "all-tasks" | "approved-tasks" | "self-tasks";
 type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rejected" | "approved";
 type SortDueParam = "asc" | "desc";
 type SortEmailSentParam = "asc" | "desc";
@@ -185,13 +186,16 @@ export default function AdminDashboardPage() {
     allTasksRaw.filter((task) => task.task_status !== "APPROVED"), 
     [allTasksRaw]
   );
-  // 승인된 태스크 탭: 모든 사용자의 승인된 태스크만
+  // 승인된 태스크 탭: 모든 사용자의 승인된 태스크만 (자기 할당 Task 제외)
   const approvedTasks = useMemo(() => 
-    allTasksRaw.filter((task) => task.task_status === "APPROVED"), 
+    allTasksRaw.filter((task) => task.task_status === "APPROVED" && task.is_self_task === false), 
     [allTasksRaw]
   );
   // 담당 업무 탭: 지시자/담당자인 태스크 중 승인됨이 아닌 것만
   const { data: myTasks = [], isLoading: myTasksLoading } = useTasksForMember(true);
+  // 개인 태스크 탭: 자기 할당 Task만 조회
+  const { data: selfTasksRaw = [], isLoading: selfTasksLoading } = useSelfTasks(false);
+  const selfTasks = useMemo(() => selfTasksRaw, [selfTasksRaw]);
   const updateTaskStatus = useUpdateTaskStatus();
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
@@ -201,7 +205,7 @@ export default function AdminDashboardPage() {
   // 탭 상태 - URL 쿼리 파라미터에서 읽기
   const tabParam = searchParams.get("tab") as DashboardTab | null;
   const [activeTab, setActiveTab] = useState<DashboardTab>(
-    tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" ? tabParam : "my-tasks",
+    tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" || tabParam === "self-tasks" ? tabParam : "my-tasks",
   );
 
   // URL params 읽기 (전체 태스크 탭 및 담당 업무 탭용)
@@ -298,6 +302,14 @@ export default function AdminDashboardPage() {
     return saved ? parseInt(saved, 10) : 10;
   });
 
+  // 페이지네이션 상태 (개인 태스크 탭용)
+  const selfTasksPageParam = searchParams.get("selfTasksPage");
+  const selfTasksCurrentPage = selfTasksPageParam ? Math.max(1, parseInt(selfTasksPageParam, 10)) : 1;
+  const [selfTasksItemsPerPage, setSelfTasksItemsPerPage] = useState(() => {
+    const saved = sessionStorage.getItem("tablePageSize");
+    return saved ? parseInt(saved, 10) : 10;
+  });
+
   // 검색어 debounce
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -306,6 +318,7 @@ export default function AdminDashboardPage() {
   const prevAllTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
   const prevMyTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
   const prevApprovedTasksFiltersRef = useRef<{ search: string; category: CategoryParam; sortDue: SortDueParam; sortEmailSent: SortEmailSentParam; emailSent: EmailSentParam }>({ search: "", category: "all", sortDue: "asc", sortEmailSent: "asc", emailSent: "all" });
+  const prevSelfTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam; emailSent: EmailSentParam }>({ search: "", category: "all", status: "all", sortDue: "asc", emailSent: "all" });
 
   // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
   useEffect(() => {
@@ -416,6 +429,58 @@ export default function AdminDashboardPage() {
     setSearchParams(newParams, { replace: true });
   };
 
+  // URL params 업데이트 헬퍼 함수 (개인 태스크 탭용)
+  const updateSelfTasksUrlParams = (
+    updates?: Partial<{
+      sortDue: SortDueParam;
+      category: CategoryParam;
+      status: StatusParam;
+      emailSent: EmailSentParam;
+      keyword?: string;
+      selfTasksPage?: number;
+    }>,
+  ) => {
+    const newParams = new URLSearchParams();
+
+    // tab 파라미터 설정 (항상 설정)
+    newParams.set("tab", "self-tasks");
+
+    // 업데이트가 제공되면 해당 값 사용, 없으면 현재 URL에서 읽은 값 사용
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const categoryToSet = updates?.category !== undefined ? updates.category : category;
+    const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const emailSentToSet = updates?.emailSent !== undefined ? updates.emailSent : emailSent;
+    const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
+    const selfTasksPageToSet = updates?.selfTasksPage !== undefined ? updates.selfTasksPage : selfTasksCurrentPage;
+
+    // sortDue 설정
+    if (sortDueToSet !== "asc") {
+      newParams.set("sortDue", sortDueToSet);
+    }
+
+    // category 설정
+    if (categoryToSet !== "all") {
+      newParams.set("category", categoryToSet);
+    }
+
+    // status 설정
+    if (statusToSet !== "all") {
+      newParams.set("status", statusToSet);
+    }
+
+    // keyword 설정
+    if (keywordToSet && keywordToSet.trim()) {
+      newParams.set("keyword", keywordToSet);
+    }
+
+    // selfTasksPage 설정
+    if (selfTasksPageToSet !== undefined && selfTasksPageToSet !== 1) {
+      newParams.set("selfTasksPage", selfTasksPageToSet.toString());
+    }
+
+    setSearchParams(newParams, { replace: true });
+  };
+
   // URL params 업데이트 헬퍼 함수 (승인된 태스크 탭용)
   const updateApprovedTasksUrlParams = (
     updates?: Partial<{
@@ -481,6 +546,8 @@ export default function AdminDashboardPage() {
       updateAllTasksUrlParams({ keyword: value });
     } else if (activeTab === "approved-tasks") {
       updateApprovedTasksUrlParams({ keyword: value });
+    } else if (activeTab === "self-tasks") {
+      updateSelfTasksUrlParams({ keyword: value });
     } else {
       updateMyTasksUrlParams({ keyword: value });
     }
@@ -504,6 +571,12 @@ export default function AdminDashboardPage() {
     updateApprovedTasksUrlParams({ sortDue: newSortDue });
   };
 
+  // 정렬 변경 핸들러 (개인 태스크 탭용)
+  const handleSelfTasksSortDueChange = () => {
+    const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
+    updateSelfTasksUrlParams({ sortDue: newSortDue });
+  };
+
   // 카테고리 필터 변경 핸들러 (전체 태스크 탭용)
   const handleAllTasksCategoryChange = (newCategory: CategoryParam) => {
     updateAllTasksUrlParams({ category: newCategory });
@@ -517,6 +590,21 @@ export default function AdminDashboardPage() {
   // 카테고리 필터 변경 핸들러 (승인된 태스크 탭용)
   const handleApprovedTasksCategoryChange = (newCategory: CategoryParam) => {
     updateApprovedTasksUrlParams({ category: newCategory });
+  };
+
+  // 카테고리 필터 변경 핸들러 (개인 태스크 탭용)
+  const handleSelfTasksCategoryChange = (newCategory: CategoryParam) => {
+    updateSelfTasksUrlParams({ category: newCategory });
+  };
+
+  // 상태 필터 변경 핸들러 (개인 태스크 탭용)
+  const handleSelfTasksStatusChange = (newStatus: StatusParam) => {
+    updateSelfTasksUrlParams({ status: newStatus });
+  };
+
+  // 이메일 발송 필터 변경 핸들러 (개인 태스크 탭용)
+  const handleSelfTasksEmailSentChange = (newEmailSent: EmailSentParam) => {
+    updateSelfTasksUrlParams({ emailSent: newEmailSent });
   };
 
   // 이메일 발송 필터 변경 핸들러 (승인된 태스크 탭용)
@@ -541,6 +629,8 @@ export default function AdminDashboardPage() {
       task = allTasks.find((t) => t.id === taskId);
     } else if (activeTab === "approved-tasks") {
       task = approvedTasks.find((t) => t.id === taskId);
+    } else if (activeTab === "self-tasks") {
+      task = selfTasks.find((t) => t.id === taskId);
     } else {
       task = myTasks.find((t) => t.id === taskId);
     }
@@ -810,7 +900,7 @@ export default function AdminDashboardPage() {
 
   // 태스크 생성 핸들러
   const handleCreateTask = async (
-    data: TaskCreateFormData | TaskCreateSpecificationFormData | any,
+    data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | any,
     files?: File[],
     notes?: string,
   ) => {
@@ -849,13 +939,15 @@ export default function AdminDashboardPage() {
     setIsCreatingTask(true);
     try {
       // 1. 태스크 생성
-      const createData = data as TaskCreateFormData;
+      const isSelfTask = activeTab === "self-tasks";
+      const createData = data as TaskCreateFormData | TaskCreateSelfTaskFormData;
       const newTask = await createTask.mutateAsync({
         title: createData.title,
-        assignee_id: createData.assignee_id,
+        assignee_id: isSelfTask ? undefined : (createData as TaskCreateFormData).assignee_id, // 자기 할당 Task는 assignee_id 불필요
         task_category: createData.task_category,
         client_name: createData.client_name || null,
         due_date: createData.due_date,
+        is_self_task: isSelfTask, // 자기 할당 Task 플래그
       });
 
       // 2. 파일이 있으면 업로드 후 메시지로 전송
@@ -1188,6 +1280,98 @@ export default function AdminDashboardPage() {
     return sortedApprovedTasks.slice(startIndex, endIndex);
   }, [sortedApprovedTasks, approvedTasksCurrentPage, approvedTasksItemsPerPage]);
 
+  // 개인 태스크 탭: 검색 필터링
+  const searchedSelfTasks = useMemo(() => {
+    if (!debouncedSearch.trim()) return selfTasks;
+
+    const query = debouncedSearch.toLowerCase();
+    return selfTasks.filter((task) => {
+      const titleMatch = task.title.toLowerCase().includes(query);
+      const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase();
+      const assigneeMatch = assigneeName.includes(query);
+      const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
+      const assignerMatch = assignerName.includes(query);
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
+
+      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
+    });
+  }, [selfTasks, debouncedSearch]);
+
+  // 개인 태스크 탭: 카테고리 필터링
+  const categoryFilteredSelfTasks = useMemo(() => {
+    if (category === "all") {
+      return searchedSelfTasks;
+    }
+    return searchedSelfTasks.filter((task) => task.task_category === category);
+  }, [searchedSelfTasks, category]);
+
+  // 개인 태스크 탭: 상태 필터링 (전체, 진행중, 승인됨만)
+  const statusFilteredSelfTasks = useMemo(() => {
+    if (status === "all") {
+      return categoryFilteredSelfTasks;
+    }
+    const statusMap: Record<StatusParam, TaskStatus | null> = {
+      all: null,
+      assigned: "ASSIGNED",
+      in_progress: "IN_PROGRESS",
+      waiting_confirm: "WAITING_CONFIRM",
+      rejected: "REJECTED",
+      approved: "APPROVED",
+    };
+    const dbStatus = statusMap[status];
+    if (dbStatus === null) {
+      return categoryFilteredSelfTasks;
+    }
+    return categoryFilteredSelfTasks.filter((task) => task.task_status === dbStatus);
+  }, [categoryFilteredSelfTasks, status]);
+
+  // 개인 태스크 탭: 이메일 발송 필터링
+  const emailSentFilteredSelfTasks = useMemo(() => {
+    if (emailSent === "all") {
+      return statusFilteredSelfTasks;
+    } else if (emailSent === "sent") {
+      return statusFilteredSelfTasks.filter((task) => task.send_email_to_client === true);
+    } else {
+      // not_sent
+      return statusFilteredSelfTasks.filter((task) => task.send_email_to_client === false);
+    }
+  }, [statusFilteredSelfTasks, emailSent]);
+
+  // 개인 태스크 탭: 정렬
+  const sortedSelfTasks = useMemo(() => {
+    const sorted = [...emailSentFilteredSelfTasks];
+
+    sorted.sort((a, b) => {
+      // 마감일로 정렬
+      if (sortDue === "asc") {
+        // 마감일 빠른 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else {
+        // 마감일 느린 순: 마감일이 없는 Task는 뒤로
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      }
+    });
+
+    return sorted;
+  }, [emailSentFilteredSelfTasks, sortDue]);
+
+  // 개인 태스크 탭: 페이지네이션
+  const paginatedSelfTasks = useMemo(() => {
+    const startIndex = (selfTasksCurrentPage - 1) * selfTasksItemsPerPage;
+    const endIndex = startIndex + selfTasksItemsPerPage;
+    return sortedSelfTasks.slice(startIndex, endIndex);
+  }, [sortedSelfTasks, selfTasksCurrentPage, selfTasksItemsPerPage]);
+
+  // 개인 태스크 탭: 총 페이지 수
+  const selfTasksTotalPages = Math.ceil(sortedSelfTasks.length / selfTasksItemsPerPage) || 1;
+
   // 현재 표시 중인 Task ID 목록 추출 (실시간 구독용)
   // sortedMyTasks/sortedAllTasks/sortedApprovedTasks를 사용하여 필터링/정렬이 완료된 Task ID를 추출
   // 페이지네이션된 Task만 구독하여 성능 최적화
@@ -1215,6 +1399,12 @@ export default function AdminDashboardPage() {
       sortedApprovedTasks.slice(startIndex, endIndex).forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
+    } else if (activeTab === "self-tasks") {
+      const startIndex = (selfTasksCurrentPage - 1) * selfTasksItemsPerPage;
+      const endIndex = startIndex + selfTasksItemsPerPage;
+      sortedSelfTasks.slice(startIndex, endIndex).forEach((task) => {
+        if (task.id) taskIds.add(task.id);
+      });
     }
     
     const result = Array.from(taskIds);
@@ -1226,16 +1416,19 @@ export default function AdminDashboardPage() {
       sortedMyTasksCount: sortedMyTasks.length,
       sortedAllTasksCount: sortedAllTasks.length,
       sortedApprovedTasksCount: sortedApprovedTasks.length,
+      sortedSelfTasksCount: sortedSelfTasks.length,
       paginatedMyTasksCount: paginatedMyTasks.length,
       paginatedAllTasksCount: paginatedAllTasks.length,
       paginatedApprovedTasksCount: paginatedApprovedTasks.length,
+      paginatedSelfTasksCount: paginatedSelfTasks.length,
       myTasksCurrentPage,
       allTasksCurrentPage,
       approvedTasksCurrentPage,
+      selfTasksCurrentPage,
     });
     
     return result;
-  }, [activeTab, category, sortedMyTasks, sortedAllTasks, sortedApprovedTasks, myTasksCurrentPage, allTasksCurrentPage, approvedTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage, approvedTasksItemsPerPage]);
+  }, [activeTab, category, sortedMyTasks, sortedAllTasks, sortedApprovedTasks, sortedSelfTasks, myTasksCurrentPage, allTasksCurrentPage, approvedTasksCurrentPage, selfTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage, approvedTasksItemsPerPage, selfTasksItemsPerPage]);
 
   // 실시간 구독 활성화
   console.log(`[Admin Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
@@ -1266,7 +1459,7 @@ export default function AdminDashboardPage() {
   // URL 쿼리 파라미터 변경 시 탭 상태 및 검색어 동기화
   useEffect(() => {
     const tabParam = searchParams.get("tab") as DashboardTab | null;
-    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" ? tabParam : "my-tasks";
+    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "approved-tasks" || tabParam === "self-tasks" ? tabParam : "my-tasks";
     const keywordFromUrl = searchParams.get("keyword") || "";
     
     if (newTab !== activeTab) {
@@ -1285,6 +1478,7 @@ export default function AdminDashboardPage() {
       isFirstRenderRef.current = false;
       prevAllTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
       prevMyTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+      prevSelfTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue, emailSent };
       return;
     }
 
@@ -1340,6 +1534,28 @@ export default function AdminDashboardPage() {
     prevApprovedTasksFiltersRef.current = { search: debouncedSearch, category, sortDue, sortEmailSent, emailSent };
   }, [debouncedSearch, category, sortDue, sortEmailSent, emailSent, activeTab, approvedTasksCurrentPage]);
 
+  // 검색어/필터 변경 시 1페이지로 리셋 (개인 태스크 탭)
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      prevSelfTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue, emailSent };
+      return;
+    }
+
+    const prev = prevSelfTasksFiltersRef.current;
+    const selfTasksFiltersChanged =
+      prev.search !== debouncedSearch ||
+      prev.category !== category ||
+      prev.status !== status ||
+      prev.sortDue !== sortDue ||
+      prev.emailSent !== emailSent;
+
+    if (selfTasksFiltersChanged && activeTab === "self-tasks" && selfTasksCurrentPage !== 1) {
+      updateSelfTasksUrlParams({ selfTasksPage: 1 });
+    }
+
+    prevSelfTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue, emailSent };
+  }, [debouncedSearch, category, status, sortDue, emailSent, activeTab, selfTasksCurrentPage]);
+
   // 잘못된 페이지 번호 체크 및 리셋
   useEffect(() => {
     if (activeTab === "all-tasks" && allTasksTotalPages > 0 && allTasksCurrentPage > allTasksTotalPages) {
@@ -1351,7 +1567,10 @@ export default function AdminDashboardPage() {
     if (activeTab === "approved-tasks" && approvedTasksTotalPages > 0 && approvedTasksCurrentPage > approvedTasksTotalPages) {
       updateApprovedTasksUrlParams({ approvedTasksPage: 1 });
     }
-  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, approvedTasksCurrentPage, approvedTasksTotalPages, activeTab]);
+    if (activeTab === "self-tasks" && selfTasksTotalPages > 0 && selfTasksCurrentPage > selfTasksTotalPages) {
+      updateSelfTasksUrlParams({ selfTasksPage: 1 });
+    }
+  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, approvedTasksCurrentPage, approvedTasksTotalPages, selfTasksCurrentPage, selfTasksTotalPages, activeTab]);
 
   const isLoading = allTasksLoading || myTasksLoading;
 
@@ -1371,95 +1590,114 @@ export default function AdminDashboardPage() {
           <h1 className="mb-2 text-2xl font-bold sm:text-3xl">관리자 대시보드</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* 모바일: 빠른 생성 드롭다운 */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 md:hidden">
+          {activeTab === "self-tasks" ? (
+            /* 개인 태스크 탭: 나에게 Task 생성 버튼 */
+            <Button
+              onClick={() => {
+                setPreSelectedCategory(undefined);
+                setAutoFillMode(undefined);
+                setPreFilledTitle(undefined);
+                setIsSpecificationMode(false);
+                setCreateTaskDialogOpen(true);
+              }}
+              className="h-9"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              개인 Task 생성
+            </Button>
+          ) : (
+            <>
+              {/* 모바일: 빠른 생성 드롭다운 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 md:hidden">
+                    <Plus className="mr-2 h-4 w-4" />
+                    빠른 생성
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
+                    검토
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
+                    계약
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
+                    명세서
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickCreate("REVISION", "수정")}>
+                    수정
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
+                    출원
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {/* PC: 빠른 생성 버튼들 */}
+              <div className="hidden md:flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => handleQuickCreate("REVIEW", "검토")}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  검토
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => handleQuickCreate("CONTRACT", "계약")}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  계약
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => handleQuickCreate("SPECIFICATION")}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  명세서
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => handleQuickCreate("REVISION", "수정")}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  수정
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => handleQuickCreate("APPLICATION", "출원")}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  출원
+                </Button>
+              </div>
+              {/* Task 생성 버튼 (공통) */}
+              <Button
+                onClick={() => {
+                  setPreSelectedCategory(undefined);
+                  setAutoFillMode(undefined);
+                  setPreFilledTitle(undefined);
+                  setIsSpecificationMode(false);
+                  setCreateTaskDialogOpen(true);
+                }}
+                className="h-9"
+              >
                 <Plus className="mr-2 h-4 w-4" />
-                빠른 생성
-                <ChevronDown className="ml-2 h-4 w-4" />
+                Task 생성
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={() => handleQuickCreate("REVIEW", "검토")}>
-                검토
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("CONTRACT", "계약")}>
-                계약
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("SPECIFICATION")}>
-                명세서
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("REVISION", "수정")}>
-                수정
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleQuickCreate("APPLICATION", "출원")}>
-                출원
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {/* PC: 빠른 생성 버튼들 */}
-          <div className="hidden md:flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => handleQuickCreate("REVIEW", "검토")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              검토
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => handleQuickCreate("CONTRACT", "계약")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              계약
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => handleQuickCreate("SPECIFICATION")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              명세서
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => handleQuickCreate("REVISION", "수정")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              수정
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => handleQuickCreate("APPLICATION", "출원")}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              출원
-            </Button>
-          </div>
-          {/* Task 생성 버튼 (공통) */}
-          <Button
-            onClick={() => {
-              setPreSelectedCategory(undefined);
-              setAutoFillMode(undefined);
-              setPreFilledTitle(undefined);
-              setIsSpecificationMode(false);
-              setCreateTaskDialogOpen(true);
-            }}
-            className="h-9"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Task 생성
-          </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1476,11 +1714,12 @@ export default function AdminDashboardPage() {
           setSearchQuery(""); // 검색어도 초기화
         }}
       >
-        {/* 담당 업무 / 전체 태스크 / 승인된 태스크 탭 */}
+        {/* 담당 업무 / 전체 태스크 / 승인된 태스크 / 개인 태스크 탭 */}
         <TabsList className="mt-4">
           <TabsTrigger value="my-tasks">담당 업무</TabsTrigger>
           <TabsTrigger value="all-tasks">전체 태스크</TabsTrigger>
           <TabsTrigger value="approved-tasks">승인된 태스크</TabsTrigger>
+          <TabsTrigger value="self-tasks">개인 태스크</TabsTrigger>
         </TabsList>
 
         {/* 담당 업무 탭 */}
@@ -1720,7 +1959,7 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             {task.id ? (
-                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+                              <span className="font-mono text-xs text-primary">{task.id.slice(0, 8).toUpperCase()}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -1737,7 +1976,7 @@ export default function AdminDashboardPage() {
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             <Link
                               to={`/tasks/${task.id}`}
-                              className="line-clamp-2 hover:underline cursor-pointer"
+                              className="line-clamp-2 hover:underline cursor-pointer text-primary"
                               onClick={(e) => {
                                 e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
                                 const currentUrl =
@@ -2047,7 +2286,7 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             {task.id ? (
-                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+                              <span className="font-mono text-xs text-primary">{task.id.slice(0, 8).toUpperCase()}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -2064,7 +2303,7 @@ export default function AdminDashboardPage() {
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             <Link
                               to={`/tasks/${task.id}`}
-                              className="line-clamp-2 hover:underline cursor-pointer"
+                              className="line-clamp-2 hover:underline cursor-pointer text-primary"
                               onClick={(e) => {
                                 e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
                                 const currentUrl =
@@ -2367,7 +2606,7 @@ export default function AdminDashboardPage() {
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             {task.id ? (
-                              <span className="font-mono text-xs">{task.id.slice(0, 8).toUpperCase()}</span>
+                              <span className="font-mono text-xs text-primary">{task.id.slice(0, 8).toUpperCase()}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -2384,7 +2623,7 @@ export default function AdminDashboardPage() {
                           <div className="line-clamp-2 text-xs sm:text-sm">
                             <Link
                               to={`/tasks/${task.id}`}
-                              className="line-clamp-2 hover:underline cursor-pointer"
+                              className="line-clamp-2 hover:underline cursor-pointer text-primary"
                               onClick={(e) => {
                                 e.stopPropagation(); // 행 클릭 이벤트와 중복 방지
                                 const currentUrl =
@@ -2475,6 +2714,472 @@ export default function AdminDashboardPage() {
             />
           )}
         </TabsContent>
+
+        {/* 개인 태스크 탭 */}
+        <TabsContent value="self-tasks" className="space-y-4">
+          {/* 필터 영역 */}
+          <div className="space-y-3">
+            {/* 모바일: Select 드롭다운 */}
+            <div className="flex gap-2 sm:hidden">
+              <Select value={category} onValueChange={(value) => handleSelfTasksCategoryChange(value as CategoryParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {category === "all" 
+                      ? "전체 카테고리" 
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVIEW" ? "검토"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "REVISION" ? "수정"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "CONTRACT" ? "계약"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "SPECIFICATION" ? "명세서"
+                      : (["REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).find(c => c === category) === "APPLICATION" ? "출원"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                    const categoryLabels: Record<CategoryParam, string> = {
+                      all: "전체",
+                      REVIEW: "검토",
+                      REVISION: "수정",
+                      CONTRACT: "계약",
+                      SPECIFICATION: "명세서",
+                      APPLICATION: "출원",
+                    };
+                    const filteredByStatus = status === "all"
+                      ? searchedSelfTasks
+                      : (() => {
+                          const statusMap: Record<StatusParam, TaskStatus | null> = {
+                            all: null,
+                            assigned: "ASSIGNED",
+                            in_progress: "IN_PROGRESS",
+                            waiting_confirm: "WAITING_CONFIRM",
+                            rejected: "REJECTED",
+                            approved: "APPROVED",
+                          };
+                          const dbStatus = statusMap[status];
+                          return dbStatus === null
+                            ? searchedSelfTasks
+                            : searchedSelfTasks.filter((task) => task.task_status === dbStatus);
+                        })();
+                    const count = categoryValue === "all"
+                      ? filteredByStatus.length
+                      : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                    return (
+                      <SelectItem key={categoryValue} value={categoryValue}>
+                        {categoryLabels[categoryValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Select value={status} onValueChange={(value) => handleSelfTasksStatusChange(value as StatusParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {status === "all" 
+                      ? "전체 상태" 
+                      : status === "in_progress" ? "진행중"
+                      : status === "approved" ? "승인됨"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "in_progress", "approved"] as StatusParam[]).map((statusValue) => {
+                    const statusLabels: Record<StatusParam, string> = {
+                      all: "전체",
+                      assigned: "할당됨",
+                      in_progress: "진행중",
+                      waiting_confirm: "확인대기",
+                      rejected: "거부됨",
+                      approved: "승인됨",
+                    };
+                    const filteredByCategory = category === "all"
+                      ? searchedSelfTasks
+                      : searchedSelfTasks.filter((task) => task.task_category === category);
+                    const statusMap: Record<StatusParam, TaskStatus | null> = {
+                      all: null,
+                      assigned: "ASSIGNED",
+                      in_progress: "IN_PROGRESS",
+                      waiting_confirm: "WAITING_CONFIRM",
+                      rejected: "REJECTED",
+                      approved: "APPROVED",
+                    };
+                    const dbStatus = statusMap[statusValue];
+                    const count = dbStatus === null 
+                      ? filteredByCategory.length
+                      : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+                    return (
+                      <SelectItem key={statusValue} value={statusValue}>
+                        {statusLabels[statusValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <Select value={emailSent} onValueChange={(value) => handleSelfTasksEmailSentChange(value as EmailSentParam)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {emailSent === "all" 
+                      ? "전체 이메일" 
+                      : emailSent === "sent" ? "전송완료"
+                      : emailSent === "not_sent" ? "미전송"
+                      : "전체"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                    const emailSentLabels: Record<EmailSentParam, string> = {
+                      all: "전체",
+                      sent: "전송완료",
+                      not_sent: "미전송",
+                    };
+                    const filteredByCategory = category === "all"
+                      ? searchedSelfTasks
+                      : searchedSelfTasks.filter((task) => task.task_category === category);
+                    const filteredByStatus = status === "all"
+                      ? filteredByCategory
+                      : (() => {
+                          const statusMap: Record<StatusParam, TaskStatus | null> = {
+                            all: null,
+                            assigned: "ASSIGNED",
+                            in_progress: "IN_PROGRESS",
+                            waiting_confirm: "WAITING_CONFIRM",
+                            rejected: "REJECTED",
+                            approved: "APPROVED",
+                          };
+                          const dbStatus = statusMap[status];
+                          return dbStatus === null
+                            ? filteredByCategory
+                            : filteredByCategory.filter((task) => task.task_status === dbStatus);
+                        })();
+                    const count = emailSentValue === "all"
+                      ? filteredByStatus.length
+                      : emailSentValue === "sent"
+                      ? filteredByStatus.filter((task) => task.send_email_to_client === true).length
+                      : filteredByStatus.filter((task) => task.send_email_to_client === false).length;
+                    return (
+                      <SelectItem key={emailSentValue} value={emailSentValue}>
+                        {emailSentLabels[emailSentValue]} ({count}개)
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 데스크톱: 필터 버튼 */}
+            <div className="hidden flex-col gap-2 sm:flex">
+              <div className="flex flex-wrap gap-2">
+                {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                  const categoryLabels: Record<CategoryParam, string> = {
+                    all: "전체",
+                    REVIEW: "검토",
+                    REVISION: "수정",
+                    CONTRACT: "계약",
+                    SPECIFICATION: "명세서",
+                    APPLICATION: "출원",
+                  };
+                  const filteredByStatus = status === "all"
+                    ? searchedSelfTasks
+                    : (() => {
+                        const statusMap: Record<StatusParam, TaskStatus | null> = {
+                          all: null,
+                          assigned: "ASSIGNED",
+                          in_progress: "IN_PROGRESS",
+                          waiting_confirm: "WAITING_CONFIRM",
+                          rejected: "REJECTED",
+                          approved: "APPROVED",
+                        };
+                        const dbStatus = statusMap[status];
+                        return dbStatus === null
+                          ? searchedSelfTasks
+                          : searchedSelfTasks.filter((task) => task.task_status === dbStatus);
+                      })();
+                  const count = categoryValue === "all"
+                    ? filteredByStatus.length
+                    : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                  return (
+                    <Button
+                      key={categoryValue}
+                      variant={category === categoryValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleSelfTasksCategoryChange(categoryValue)}
+                      className="p-1 sm:p-1.5"
+                    >
+                      {categoryLabels[categoryValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* 상태 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "in_progress", "approved"] as StatusParam[]).map((statusValue) => {
+                  const statusLabels: Record<StatusParam, string> = {
+                    all: "전체",
+                    assigned: "할당됨",
+                    in_progress: "진행중",
+                    waiting_confirm: "확인대기",
+                    rejected: "거부됨",
+                    approved: "승인됨",
+                  };
+                  const filteredByCategory = category === "all"
+                    ? searchedSelfTasks
+                    : searchedSelfTasks.filter((task) => task.task_category === category);
+                  const filteredByEmailSent = emailSent === "all"
+                    ? filteredByCategory
+                    : emailSent === "sent"
+                    ? filteredByCategory.filter((task) => task.send_email_to_client === true)
+                    : filteredByCategory.filter((task) => task.send_email_to_client === false);
+                  const statusMap: Record<StatusParam, TaskStatus | null> = {
+                    all: null,
+                    assigned: "ASSIGNED",
+                    in_progress: "IN_PROGRESS",
+                    waiting_confirm: "WAITING_CONFIRM",
+                    rejected: "REJECTED",
+                    approved: "APPROVED",
+                  };
+                  const dbStatus = statusMap[statusValue];
+                  const count = dbStatus === null 
+                    ? filteredByEmailSent.length
+                    : filteredByEmailSent.filter((task) => task.task_status === dbStatus).length;
+                  
+                  return (
+                    <Button
+                      key={statusValue}
+                      variant={status === statusValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleSelfTasksStatusChange(statusValue)}
+                      className="p-1 sm:p-1.5"
+                    >
+                      {statusLabels[statusValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* 이메일 발송 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {(["all", "sent", "not_sent"] as EmailSentParam[]).map((emailSentValue) => {
+                  const emailSentLabels: Record<EmailSentParam, string> = {
+                    all: "전체",
+                    sent: "전송완료",
+                    not_sent: "미전송",
+                  };
+                  const filteredByCategory = category === "all"
+                    ? searchedSelfTasks
+                    : searchedSelfTasks.filter((task) => task.task_category === category);
+                  const filteredByStatus = status === "all"
+                    ? filteredByCategory
+                    : (() => {
+                        const statusMap: Record<StatusParam, TaskStatus | null> = {
+                          all: null,
+                          assigned: "ASSIGNED",
+                          in_progress: "IN_PROGRESS",
+                          waiting_confirm: "WAITING_CONFIRM",
+                          rejected: "REJECTED",
+                          approved: "APPROVED",
+                        };
+                        const dbStatus = statusMap[status];
+                        return dbStatus === null
+                          ? filteredByCategory
+                          : filteredByCategory.filter((task) => task.task_status === dbStatus);
+                      })();
+                  const count = emailSentValue === "all"
+                    ? filteredByStatus.length
+                    : emailSentValue === "sent"
+                    ? filteredByStatus.filter((task) => task.send_email_to_client === true).length
+                    : filteredByStatus.filter((task) => task.send_email_to_client === false).length;
+                  
+                  return (
+                    <Button
+                      key={emailSentValue}
+                      variant={emailSent === emailSentValue ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleSelfTasksEmailSentChange(emailSentValue)}
+                      className="p-1 sm:p-1.5"
+                    >
+                      {emailSentLabels[emailSentValue]} ({count}개)
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {/* 검색창 */}
+          <div className="w-full">
+            <div className="relative">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="고유 ID, 고객명, 지시사항으로 검색하세요..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          {/* Task 테이블 */}
+          <div className="overflow-x-scroll">
+            <table className="w-full min-w-[800px] table-fixed">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고유 ID
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    고객명
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    지시사항
+                  </th>
+                  <th
+                    className="hover:bg-muted/50 w-[16.666%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                    onClick={handleSelfTasksSortDueChange}
+                  >
+                    <div className="flex items-center gap-2">
+                      마감일
+                      <ArrowUpDown className="size-3 sm:size-4" />
+                    </div>
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    상태
+                  </th>
+                  <th className="w-[16.666%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                    이메일 전송 상태
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {selfTasksLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-8 text-center sm:px-4">
+                      <DefaultSpinner />
+                    </td>
+                  </tr>
+                ) : paginatedSelfTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-8 text-center text-muted-foreground sm:px-4">
+                      {searchedSelfTasks.length === 0
+                        ? "개인 태스크가 없습니다."
+                        : "검색 결과가 없습니다."}
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedSelfTasks.map((task) => {
+                    const dueDate = task.due_date ? formatDateKorean(task.due_date) : null;
+                    const daysDiff = calculateDaysDifference(task.due_date);
+                    const dDayText = getDDayText(daysDiff);
+                    const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+                    const uniqueId = task.id.slice(0, 8).toUpperCase();
+
+                    return (
+                      <tr
+                        key={task.id}
+                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                        onClick={() => {
+                          const currentUrl =
+                            window.location.pathname + window.location.search;
+                          sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                          navigate(`/tasks/${task.id}`);
+                        }}
+                      >
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <Link
+                            to={`/tasks/${task.id}`}
+                            className="text-primary hover:underline text-xs sm:text-sm font-mono"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            {uniqueId}
+                          </Link>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2 text-xs sm:text-sm">{task.client_name || "-"}</div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <div className="line-clamp-2">
+                            <Link
+                              to={`/tasks/${task.id}`}
+                              className="text-primary hover:underline text-xs sm:text-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              {task.title}
+                            </Link>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          {dueDate ? (
+                            <span
+                              className={cn(
+                                "text-xs whitespace-nowrap sm:text-sm",
+                                dueDateColorClass,
+                              )}
+                            >
+                              {dueDate} {dDayText}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          <TaskStatusBadge status={task.task_status} />
+                        </td>
+                        <td className="px-2 py-3 sm:px-4 sm:py-4">
+                          {task.task_status === "IN_PROGRESS" ? (
+                            <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEmailSentToggle(task, e);
+                              }}
+                              disabled={task.assignee_id !== currentProfile?.id || updateTask.isPending}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
+                                "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
+                                task.assignee_id === currentProfile?.id && "cursor-pointer"
+                              )}
+                            >
+                              {task.send_email_to_client ? (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
+                                  <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-xs sm:text-sm">미전송</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 페이지네이션 */}
+          {sortedSelfTasks.length > 0 && (
+            <TablePagination
+              currentPage={selfTasksCurrentPage}
+              totalPages={selfTasksTotalPages}
+              pageSize={selfTasksItemsPerPage}
+              totalItems={sortedSelfTasks.length}
+              selectedCount={0}
+              onPageChange={(page) => {
+                updateSelfTasksUrlParams({ selfTasksPage: page });
+              }}
+              onPageSizeChange={(newPageSize) => {
+                setSelfTasksItemsPerPage(newPageSize);
+                sessionStorage.setItem("tablePageSize", newPageSize.toString());
+                updateSelfTasksUrlParams({ selfTasksPage: 1 });
+              }}
+            />
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* 상태 변경 확인 다이얼로그 */}
@@ -2508,6 +3213,7 @@ export default function AdminDashboardPage() {
         autoFillMode={autoFillMode}
         preFilledTitle={preFilledTitle}
         isSpecificationMode={isSpecificationMode}
+        defaultSelfTask={activeTab === "self-tasks"}
       />
     </div>
   );
