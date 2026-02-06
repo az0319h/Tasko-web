@@ -1280,21 +1280,17 @@ export default function AdminDashboardPage() {
     return sortedApprovedTasks.slice(startIndex, endIndex);
   }, [sortedApprovedTasks, approvedTasksCurrentPage, approvedTasksItemsPerPage]);
 
-  // 개인 태스크 탭: 검색 필터링
+  // 개인 태스크 탭: 검색 필터링 (고유 ID, 고객명, 지시사항만 검색)
   const searchedSelfTasks = useMemo(() => {
     if (!debouncedSearch.trim()) return selfTasks;
 
     const query = debouncedSearch.toLowerCase();
     return selfTasks.filter((task) => {
-      const titleMatch = task.title.toLowerCase().includes(query);
-      const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase();
-      const assigneeMatch = assigneeName.includes(query);
-      const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase();
-      const assignerMatch = assignerName.includes(query);
-      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
-      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
+      const titleMatch = task.title.toLowerCase().includes(query); // 지시사항
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query); // 고객명
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query); // 고유 ID
 
-      return titleMatch || assigneeMatch || assignerMatch || clientNameMatch || uniqueIdMatch;
+      return titleMatch || clientNameMatch || uniqueIdMatch;
     });
   }, [selfTasks, debouncedSearch]);
 
