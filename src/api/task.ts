@@ -107,16 +107,18 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
 /**
  * Task 생성 (프로젝트 참여자 또는 Admin 가능)
  * - assigner_id는 자동으로 현재 로그인한 사용자로 설정됨
- * - assignee_id는 필수 입력값
+ * - assignee_id는 필수 입력값 (단, is_self_task = true일 때는 자동 설정)
  * - assigner와 assignee는 모두 해당 프로젝트에 속한 사용자여야 함
+ * - is_self_task = true일 때: assignee_id 자동 설정, task_status = IN_PROGRESS 자동 설정
  */
-export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise<Task> {
+export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_self_task?: boolean }): Promise<Task> {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) {
     throw new Error("인증이 필요합니다.");
   }
 
   const currentUserId = session.session.user.id;
+  const isSelfTask = task.is_self_task === true;
 
   // Admin 권한 확인
   const { data: profile } = await supabase
@@ -130,12 +132,48 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise
   // 프로젝트 구조가 제거되어 프로젝트 참여자 확인 로직 제거
   // 모든 인증된 사용자가 Task를 생성할 수 있습니다.
 
+  // 자기 할당 Task 처리
+  if (isSelfTask) {
+    // 자기 할당 Task: assignee_id 자동 설정, task_status 자동 설정
+    const taskWithAssigner: any = {
+      ...task,
+      assigner_id: currentUserId,
+      assignee_id: currentUserId, // 자기 자신으로 자동 설정
+      task_status: "IN_PROGRESS", // 자동으로 진행중 상태 설정
+      is_self_task: true,
+      created_by: currentUserId,
+    };
+    
+    // project_id 제거 (프로젝트 구조 제거)
+    if (taskWithAssigner.project_id !== undefined) {
+      delete taskWithAssigner.project_id;
+    }
+    
+    // description이 null이거나 undefined이면 객체에서 제거
+    if (taskWithAssigner.description === null || taskWithAssigner.description === undefined) {
+      delete taskWithAssigner.description;
+    }
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert(taskWithAssigner as any)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Task 생성 실패: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  // 일반 Task 처리
   // assignee_id가 설정되어 있는지 확인
   if (!task.assignee_id) {
     throw new Error("할당받은 사람을 선택해주세요.");
   }
 
-  // assigner와 assignee가 같은지 확인
+  // assigner와 assignee가 같은지 확인 (일반 Task는 자기 할당 불가)
   if (currentUserId === task.assignee_id) {
     throw new Error("자기 자신에게 Task를 할당할 수 없습니다.");
   }
@@ -146,6 +184,7 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id">): Promise
   const taskWithAssigner: any = {
     ...task,
     assigner_id: currentUserId,
+    is_self_task: false, // 명시적으로 false 설정
     created_by: currentUserId,
   };
   
@@ -318,6 +357,7 @@ export async function deleteTask(id: string): Promise<void> {
  * 멤버용 Task 목록 조회
  * 현재 사용자가 담당자 또는 지시자인 Task만 조회
  * 모든 프로젝트에서 Task 조회 (프로젝트별이 아님)
+ * 자기 할당 Task는 제외됨
  * 
  * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: true)
  * @returns TaskWithProfiles[]
@@ -339,7 +379,8 @@ export async function getTasksForMember(
       assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
       assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
     `)
-    .or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`);
+    .or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`)
+    .eq("is_self_task", false); // 자기 할당 Task 제외
 
   // APPROVED 제외 옵션
   if (excludeApproved) {
@@ -378,6 +419,7 @@ export async function getTasksForMember(
 /**
  * Admin용 Task 목록 조회
  * 모든 Task 조회 (APPROVED 제외 옵션)
+ * 자기 할당 Task는 제외됨
  * 
  * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: true)
  * @returns TaskWithProfiles[]
@@ -408,7 +450,8 @@ export async function getTasksForAdmin(
       *,
       assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
       assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
-    `);
+    `)
+    .eq("is_self_task", false); // 자기 할당 Task 제외
 
   // APPROVED 제외 옵션
   if (excludeApproved) {
@@ -445,9 +488,71 @@ export async function getTasksForAdmin(
 }
 
 /**
+ * 자기 할당 Task 목록 조회
+ * 자기 자신에게 할당한 Task만 조회
+ * 
+ * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: false)
+ * @returns TaskWithProfiles[]
+ */
+export async function getSelfTasks(
+  excludeApproved: boolean = false,
+): Promise<TaskWithProfiles[]> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  const userId = session.session.user.id;
+
+  let query = supabase
+    .from("tasks")
+    .select(`
+      *,
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
+    `)
+    .eq("is_self_task", true)
+    .eq("assigner_id", userId);
+
+  // APPROVED 제외 옵션
+  if (excludeApproved) {
+    query = query.neq("task_status", "APPROVED");
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(`자기 할당 Task 목록 조회 실패: ${error.message}`);
+  }
+
+  const tasks = (data || []) as TaskWithProfiles[];
+
+  // 읽지 않은 메시지 수 배치 조회
+  if (tasks.length > 0) {
+    const taskIds = tasks.map((task) => task.id);
+    try {
+      const unreadCounts = await getUnreadMessageCounts(taskIds, userId);
+      // 각 Task에 읽지 않은 메시지 수 추가
+      tasks.forEach((task) => {
+        task.unread_message_count = unreadCounts.get(task.id) || 0;
+      });
+    } catch (error) {
+      // 읽지 않은 메시지 수 조회 실패 시 기본값 0 설정
+      console.error("읽지 않은 메시지 수 조회 실패:", error);
+      tasks.forEach((task) => {
+        task.unread_message_count = 0;
+      });
+    }
+  }
+
+  return tasks;
+}
+
+/**
  * Task 상태 변경
  * - assignee: ASSIGNED → IN_PROGRESS, IN_PROGRESS → WAITING_CONFIRM만 가능
  * - assigner: WAITING_CONFIRM → APPROVED/REJECTED만 가능
+ * - 자기 할당 Task: IN_PROGRESS → APPROVED 직접 전환 허용
  * - Admin이 assigner/assignee인 경우에도 상태 변경 가능
  */
 export async function updateTaskStatus(
@@ -478,11 +583,30 @@ export async function updateTaskStatus(
       throw new Error("이미 해당 상태입니다.");
     }
 
-    // 상태 전환 유효성 검증
-    if (!isValidStatusTransition(task.task_status, newStatus)) {
-      throw new Error(
-        getStatusTransitionErrorMessage(task.task_status, newStatus),
-      );
+    // 자기 할당 Task의 경우: IN_PROGRESS → APPROVED 직접 전환 허용
+    if (task.is_self_task === true) {
+      if (task.task_status === "IN_PROGRESS" && newStatus === "APPROVED") {
+        // 자기 할당 Task는 본인만 상태 변경 가능
+        if (task.assigner_id !== userId) {
+          throw new Error("자기 할당 Task는 본인만 상태를 변경할 수 있습니다.");
+        }
+        // 직접 전환 허용 (검증 통과)
+      } else {
+        // 다른 상태 전환은 일반 Task와 동일하게 검증
+        if (!isValidStatusTransition(task.task_status, newStatus)) {
+          throw new Error(
+            getStatusTransitionErrorMessage(task.task_status, newStatus),
+          );
+        }
+      }
+    } else {
+      // 일반 Task: 기존 검증 로직 유지
+      // 상태 전환 유효성 검증
+      if (!isValidStatusTransition(task.task_status, newStatus)) {
+        throw new Error(
+          getStatusTransitionErrorMessage(task.task_status, newStatus),
+        );
+      }
     }
 
     // 사용자 역할 확인
@@ -493,12 +617,15 @@ export async function updateTaskStatus(
       throw new Error("이 Task의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
     }
 
-    // 역할별 권한 검증
-    const userRole = isAssignee ? "assignee" : "assigner";
-    if (!canUserChangeStatus(userRole, task.task_status, newStatus)) {
-      throw new Error(
-        getStatusTransitionErrorMessage(task.task_status, newStatus, userRole),
-      );
+    // 자기 할당 Task가 아닌 경우에만 역할별 권한 검증
+    if (!task.is_self_task) {
+      // 역할별 권한 검증
+      const userRole = isAssignee ? "assignee" : "assigner";
+      if (!canUserChangeStatus(userRole, task.task_status, newStatus)) {
+        throw new Error(
+          getStatusTransitionErrorMessage(task.task_status, newStatus, userRole),
+        );
+      }
     }
   } else if (fetchError && fetchError.code !== "PGRST116") {
     // PGRST116이 아닌 다른 에러는 즉시 실패

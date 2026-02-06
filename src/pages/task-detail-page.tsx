@@ -373,24 +373,30 @@ export default function TaskDetailPage() {
     );
   }
 
+  // 자기 할당 Task 여부 확인
+  const isSelfTask = task.is_self_task === true;
+
   // 현재 사용자가 assigner인지 assignee인지 확인
   const isAssigner = currentUserId === task.assigner_id;
   const isAssignee = currentUserId === task.assignee_id;
-  // 수정 권한: 지시자만 수정 가능
+  // 수정 권한: 지시자만 수정 가능 (자기 할당 Task는 본인만)
   const canEdit = isAssigner;
-  // 삭제 권한: 지시자만 삭제 가능
+  // 삭제 권한: 지시자만 삭제 가능 (자기 할당 Task는 본인만)
   const canDelete = isAssigner;
-  // 채팅 작성 권한: 지시자 또는 담당자만 작성 가능
+  // 채팅 작성 권한: 지시자 또는 담당자만 작성 가능 (자기 할당 Task는 본인만)
   const canSendMessage = isAssigner || isAssignee;
 
-  // 상태 변경 버튼 표시 조건
+  // 자기 할당 Task: 완료 버튼만 표시 (IN_PROGRESS → APPROVED)
+  const canCompleteSelfTask = isSelfTask && isAssigner && task.task_status === "IN_PROGRESS";
+
+  // 일반 Task: 상태 변경 버튼 표시 조건
   const canChangeToInProgress =
-    isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
-  const canChangeToWaitingConfirm = isAssignee && task.task_status === "IN_PROGRESS";
-  const canApprove = isAssigner && task.task_status === "WAITING_CONFIRM";
-  const canReject = isAssigner && task.task_status === "WAITING_CONFIRM";
-  // 강제 승인 버튼 표시 조건: 지시자만, APPROVED 상태가 아닐 때만
-  const canForceApprove = isAssigner && task.task_status !== "APPROVED";
+    !isSelfTask && isAssignee && (task.task_status === "ASSIGNED" || task.task_status === "REJECTED");
+  const canChangeToWaitingConfirm = !isSelfTask && isAssignee && task.task_status === "IN_PROGRESS";
+  const canApprove = !isSelfTask && isAssigner && task.task_status === "WAITING_CONFIRM";
+  const canReject = !isSelfTask && isAssigner && task.task_status === "WAITING_CONFIRM";
+  // 강제 승인 버튼 표시 조건: 지시자만, APPROVED 상태가 아닐 때만 (자기 할당 Task 제외)
+  const canForceApprove = !isSelfTask && isAssigner && task.task_status !== "APPROVED";
 
   // 상대방 정보 계산
   const counterpart = isAssigner ? task.assignee : task.assigner;
@@ -1624,6 +1630,20 @@ export default function TaskDetailPage() {
 
           {/* 상태 변경 버튼들 */}
           <div className="flex items-center gap-1 shrink-0">
+            {/* 자기 할당 Task: 완료 버튼만 표시 */}
+            {canCompleteSelfTask && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleStatusChangeClick("APPROVED")}
+                disabled={updateTaskStatus.isPending}
+                className="h-8 px-2 text-xs"
+                title="완료"
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            )}
+            {/* 일반 Task: 기존 상태 변경 버튼들 */}
             {canChangeToInProgress && (
               <Button
                 variant="ghost"

@@ -43,10 +43,12 @@ export async function getTaskSchedules(
   const targetUserId = userId || currentUserId;
 
   // Get tasks where the target user is assignee
+  // 자기 할당 Task는 제외
   const { data: userTasks, error: tasksError } = await supabase
     .from("tasks")
     .select("id")
-    .eq("assignee_id", targetUserId);
+    .eq("assignee_id", targetUserId)
+    .eq("is_self_task", false); // 자기 할당 Task 제외
 
   if (tasksError) {
     console.error("사용자 Task 조회 에러:", tasksError);

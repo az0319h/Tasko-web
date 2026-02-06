@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { taskCreateSchema, taskCreateSpecificationSchema, taskUpdateSchema, type TaskCreateFormData, type TaskCreateSpecificationFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
+import { taskCreateSchema, taskCreateSelfTaskSchema, taskCreateSpecificationSchema, taskUpdateSchema, type TaskCreateFormData, type TaskCreateSelfTaskFormData, type TaskCreateSpecificationFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
 import { useCurrentProfile, useProfiles } from "@/hooks";
 import type { TaskWithProfiles } from "@/api/task";
 import {
@@ -36,6 +36,7 @@ interface TaskFormDialogProps {
   preFilledTitle?: string; // 자동 입력할 지시사항
   autoFillMode?: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 자동 채우기 모드
   isSpecificationMode?: boolean; // 명세서 모드 (2개 task 생성)
+  defaultSelfTask?: boolean; // 자기 할당 Task 모드 (true일 때 담당자 선택 필드 숨김)
 }
 
 /**
@@ -51,10 +52,12 @@ export function TaskFormDialog({
   preFilledTitle,
   autoFillMode,
   isSpecificationMode = false,
+  defaultSelfTask = false,
 }: TaskFormDialogProps) {
   const { data: currentProfile } = useCurrentProfile();
   const { data: profiles = [] } = useProfiles();
   const isEditMode = !!task;
+  const isSelfTaskMode = defaultSelfTask && !isEditMode; // 자기 할당 Task 모드
   
   // 파일 상태 관리 (생성 모드에서만 사용)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -66,11 +69,14 @@ export function TaskFormDialog({
 
   // 수정 모드와 생성 모드에 따라 다른 스키마 사용
   // 명세서 모드일 때는 별도 스키마 사용
+  // 자기 할당 Task 모드일 때는 assignee_id가 없는 스키마 사용
   const formSchema = isEditMode 
     ? taskUpdateSchema 
     : isSpecificationMode 
       ? taskCreateSpecificationSchema 
-      : taskCreateSchema;
+      : isSelfTaskMode
+        ? taskCreateSelfTaskSchema
+        : taskCreateSchema;
   
   // 명세서 모드용 기본 마감일 계산 (useForm 전에 선언)
   const getDefaultSpecificationDueDates = (): { claimDrawing: string; draft: string } => {
@@ -133,7 +139,7 @@ export function TaskFormDialog({
     reset,
     setValue,
     watch,
-  } = useForm<TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>({
+  } = useForm<TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>({
     resolver: zodResolver(formSchema) as any,
     defaultValues: getDefaultValues() as any,
   });
@@ -355,9 +361,9 @@ export function TaskFormDialog({
     }
   };
 
-  const onFormSubmit = async (data: TaskCreateFormData | TaskCreateSpecificationFormData | TaskUpdateFormData) => {
+  const onFormSubmit = async (data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData) => {
     // 생성 모드일 때만 파일과 특이사항 전달
-    await onSubmit(data as TaskCreateFormData | TaskUpdateFormData, !isEditMode ? attachedFiles : undefined, !isEditMode ? notes : undefined);
+    await onSubmit(data as TaskCreateFormData | TaskCreateSelfTaskFormData | TaskUpdateFormData, !isEditMode ? attachedFiles : undefined, !isEditMode ? notes : undefined);
     if (!isEditMode) {
       reset();
       setAttachedFiles([]);
@@ -454,40 +460,53 @@ export function TaskFormDialog({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="assignee_id">
-                  담당자 (할당받은 사람) <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={assigneeId}
-                  onValueChange={(value) => setValue("assignee_id", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="담당자를 선택하세요" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableAssignees.length === 0 ? (
-                      <SelectItem value="no-assignees" disabled>
-                        선택 가능한 담당자가 없습니다
-                      </SelectItem>
-                    ) : (
-                      availableAssignees.map((profile) => {
-                        const displayName = profile.full_name 
-                          ? `${profile.full_name} (${profile.email})`
-                          : profile.email;
-                        return (
-                          <SelectItem key={profile.id} value={profile.id}>
-                            {displayName}
-                          </SelectItem>
-                        );
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
-                {!isEditMode && "assignee_id" in errors && errors.assignee_id && (
-                  <p className="text-sm text-destructive">{errors.assignee_id.message}</p>
-                )}
-              </div>
+              {/* 자기 할당 Task 모드일 때는 담당자 선택 필드 숨김 */}
+              {!isSelfTaskMode ? (
+                <div className="space-y-2">
+                  <Label htmlFor="assignee_id">
+                    담당자 (할당받은 사람) <span className="text-destructive">*</span>
+                  </Label>
+                  <Select
+                    value={assigneeId}
+                    onValueChange={(value) => setValue("assignee_id", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="담당자를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAssignees.length === 0 ? (
+                        <SelectItem value="no-assignees" disabled>
+                          선택 가능한 담당자가 없습니다
+                        </SelectItem>
+                      ) : (
+                        availableAssignees.map((profile) => {
+                          const displayName = profile.full_name 
+                            ? `${profile.full_name} (${profile.email})`
+                            : profile.email;
+                          return (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              {displayName}
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {!isEditMode && "assignee_id" in errors && errors.assignee_id && (
+                    <p className="text-sm text-destructive">{errors.assignee_id.message}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label>담당자</Label>
+                  <div className="px-3 py-2 border rounded-md bg-muted text-sm">
+                    {currentProfile?.full_name || currentProfile?.email || "본인"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    자기 할당 Task는 본인이 담당자로 자동 설정됩니다.
+                  </p>
+                </div>
+              )}
             </>
           )}
 
@@ -704,7 +723,7 @@ export function TaskFormDialog({
               disabled={
                 isLoading ||
                 (!isEditMode && (
-                  !assigneeId || 
+                  (!isSelfTaskMode && !assigneeId) || 
                   !taskCategory || 
                   (isSpecificationMode ? (!dueDateClaimDrawing || !dueDateDraft) : !dueDate)
                 ))
