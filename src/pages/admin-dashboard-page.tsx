@@ -468,6 +468,11 @@ export default function AdminDashboardPage() {
       newParams.set("status", statusToSet);
     }
 
+    // emailSent 설정
+    if (emailSentToSet && emailSentToSet !== "all") {
+      newParams.set("emailSent", emailSentToSet);
+    }
+
     // keyword 설정
     if (keywordToSet && keywordToSet.trim()) {
       newParams.set("keyword", keywordToSet);
