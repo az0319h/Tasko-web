@@ -345,7 +345,7 @@ export default function TaskDetailPage() {
             <p className="text-muted-foreground mt-2 text-xs break-words sm:text-sm">
               {error.message}
             </p>
-            <Button onClick={() => navigate(-1)} className="mt-4" size="sm">
+            <Button onClick={() => navigate("/")} className="mt-4" size="sm">
               돌아가기
             </Button>
           </CardContent>
@@ -364,7 +364,7 @@ export default function TaskDetailPage() {
             <p className="text-muted-foreground mt-2 text-xs sm:text-sm">
               요청하신 Task가 존재하지 않거나 접근 권한이 없습니다.
             </p>
-            <Button onClick={() => navigate(-1)} className="mt-4 px-3 py-2" size="sm">
+            <Button onClick={() => navigate("/")} className="mt-4 px-3 py-2" size="sm">
               돌아가기
             </Button>
           </CardContent>
