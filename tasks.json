@@ -1,6 +1,6 @@
 {
-  "project_name": "프로젝트 구조 제거 및 태스크 중심 구조 전환",
-  "description": "프로젝트 → 태스크 계층 구조를 제거하고 태스크 단위로 관리하도록 전환하는 대규모 리팩토링. 공지사항 기능 추가 포함.",
+  "project_name": "Task 공유 기능 구현",
+  "description": "Task를 외부 사용자와 공유할 수 있는 기능을 제공하여 협업 범위를 확장합니다. Task 공개 설정을 통해 모든 사용자가 읽기 전용으로 접근할 수 있도록 합니다.",
   "test_environment": {
     "method": "Restore to new project",
     "description": "원본 프로젝트를 새 프로젝트로 복사하여 테스트 환경 구성. 테스트 완료 후 원본 DB에 마이그레이션 파일 적용.",
@@ -8,524 +8,386 @@
     "notes": "모든 백업은 Supabase Point-in-Time Recovery 사용. 테스트 환경에서 검증 후 원본 DB에 적용."
   },
   "migration_file_structure": {
-    "location": "supabase/migrations/migrations_refactoring",
+    "location": "supabase/migrations/is-public",
     "naming_convention": "YYYYMMDDHHMMSS_migration_name.sql",
     "description": "모든 DB 변경사항은 마이그레이션 파일로 작성. 테스트 환경에서 검증 후 원본 DB에 적용."
   },
   "current_db_status": {
     "tasks_table": {
+      "has_is_public": false,
       "has_project_id": true,
       "has_created_by": false,
       "has_client_name": false,
       "has_send_email_to_client": false
     },
-    "projects_table_exists": true,
-    "project_participants_table_exists": true,
-    "announcements_tables_exist": false
+    "rls_policies": {
+      "tasks_select_admin_or_assigned_exists": true,
+      "tasks_update_assigner_or_assignee_exists": true,
+      "is_admin_function_exists": true
+    }
   },
   "tasks": [
     {
       "id": 1,
-      "title": "데이터 백업 및 마이그레이션 준비",
-      "description": "마이그레이션 전 데이터 백업 및 기존 프로젝트 데이터를 tasks로 복사하는 작업",
-      "status": "pending",
+      "title": "데이터베이스 마이그레이션 - is_public 컬럼 및 RLS 정책 수정",
+      "description": "tasks 테이블에 is_public 컬럼 추가, 인덱스 생성, RLS 정책 수정",
+      "status": "completed",
       "sub_tasks": [
         {
           "id": "1-1",
-          "title": "테스트 환경 설정 (Restore to new project)",
-          "description": "Supabase 대시보드에서 원본 프로젝트를 새 프로젝트로 복사하여 테스트 환경 생성",
-          "status": "done",
-          "notes": "Settings > Database > Restore to new project 사용. 테스트는 이 새 프로젝트에서 진행."
+          "title": "is_public 컬럼 추가 마이그레이션 파일 작성",
+          "description": "tasks 테이블에 is_public BOOLEAN NOT NULL DEFAULT false 컬럼 추가 및 코멘트 추가",
+          "status": "completed",
+          "migration_file": "supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+          "sql_preview": "ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false; COMMENT ON COLUMN public.tasks.is_public IS 'Task 공개 여부. true일 경우 모든 사용자가 읽기 전용으로 접근 가능';",
+          "notes": "기본값은 false로 설정하여 기존 Task는 모두 비공개 상태로 유지",
+          "files": [],
+          "command": ""
         },
         {
           "id": "1-2",
-          "title": "Point-in-Time Recovery 백업 확인",
-          "description": "원본 프로젝트의 Point-in-Time Recovery 상태 확인 (필요시 활성화)",
-          "status": "done",
-          "notes": "마이그레이션 전 필수. 롤백 시 필요. PITR이 활성화되어 있는지 확인."
+          "title": "is_public 인덱스 추가",
+          "description": "공개된 Task 조회 최적화를 위한 부분 인덱스 생성",
+          "status": "completed",
+          "migration_file": "supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+          "sql_preview": "CREATE INDEX IF NOT EXISTS idx_tasks_is_public ON public.tasks(is_public) WHERE is_public = true;",
+          "notes": "공개된 Task만 인덱싱하여 성능 최적화",
+          "files": [],
+          "command": ""
         },
         {
           "id": "1-3",
-          "title": "데이터 마이그레이션 SQL 작성",
-          "description": "projects 테이블의 created_by, client_name을 관련된 모든 tasks로 복사하는 SQL 작성",
-          "status": "done",
-          "sql_preview": "UPDATE public.tasks t SET created_by = p.created_by, client_name = p.client_name FROM public.projects p WHERE t.project_id = p.id;",
-          "migration_file": "supabase/migrations/migrations_refactoring/01_data_migration.sql",
-          "notes": "⚠️ 중요: 이 작업은 Task 2-1 (컬럼 추가) 완료 후에 실행해야 함. tasks 테이블에 created_by, client_name 컬럼이 먼저 추가되어 있어야 데이터 마이그레이션이 가능함."
+          "title": "SELECT RLS 정책 수정 - tasks_select_admin_or_assigned",
+          "description": "기존 tasks_select_admin_or_assigned 정책을 DROP하고 공개 Task 접근 로직을 포함한 새 정책 생성",
+          "status": "completed",
+          "migration_file": "supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+          "sql_preview": "DROP POLICY IF EXISTS tasks_select_admin_or_assigned ON public.tasks; CREATE POLICY tasks_select_admin_or_assigned ON public.tasks FOR SELECT USING (is_public = true OR (is_self_task = true AND auth.uid() = assigner_id) OR (is_self_task = false AND is_public = false AND (is_admin(auth.uid()) OR auth.uid() = assigner_id OR auth.uid() = assignee_id)));",
+          "notes": "공개된 Task는 모든 인증된 사용자 접근 가능, 자기 할당 Task는 공개 여부와 무관하게 본인만 접근, 일반 비공개 Task는 기존 정책 유지",
+          "files": [],
+          "command": ""
         },
         {
           "id": "1-4",
-          "title": "데이터 마이그레이션 검증 쿼리 작성",
-          "description": "마이그레이션 후 데이터 무결성 확인을 위한 검증 쿼리 작성",
-          "status": "done",
-          "notes": "모든 tasks에 created_by, client_name이 정상적으로 복사되었는지 확인"
+          "title": "UPDATE RLS 정책 수정 - tasks_update_assigner_or_assignee",
+          "description": "기존 tasks_update_assigner_or_assignee 정책을 DROP하고 관리자 UPDATE 권한을 포함한 새 정책 생성",
+          "status": "completed",
+          "migration_file": "supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+          "sql_preview": "DROP POLICY IF EXISTS tasks_update_assigner_or_assignee ON public.tasks; CREATE POLICY tasks_update_assigner_or_assignee ON public.tasks FOR UPDATE USING ((is_self_task = true AND auth.uid() = assigner_id) OR (is_self_task = false AND (auth.uid() = assigner_id OR auth.uid() = assignee_id)) OR is_admin(auth.uid())) WITH CHECK ((is_self_task = true AND auth.uid() = assigner_id) OR (is_self_task = false AND (auth.uid() = assigner_id OR auth.uid() = assignee_id)) OR is_admin(auth.uid()));",
+          "notes": "관리자는 RLS 레벨에서 UPDATE 권한을 받지만, 실제 필드별 제어(is_public만 변경 가능)는 API 레벨에서 수행됨",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "1-5",
+          "title": "마이그레이션 파일 검증 및 테스트",
+          "description": "작성된 마이그레이션 파일의 SQL 문법 검증 및 테스트 환경에서 실행하여 오류 확인",
+          "status": "completed",
+          "notes": "MCP 서버를 사용하여 테스트 환경에서 마이그레이션 실행 후 RLS 정책 동작 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "1-6",
+          "title": "MCP 서버를 사용한 마이그레이션 적용 및 타입 자동 업데이트",
+          "description": "MCP 서버의 apply_migration 도구를 사용하여 마이그레이션 파일을 데이터베이스에 적용하고, generate_typescript_types 도구를 사용하여 TypeScript 타입을 자동으로 업데이트",
+          "status": "completed",
+          "notes": "MCP 서버의 mcp_Tasko-backend-dev_apply_migration을 사용하여 마이그레이션 적용. 마이그레이션 적용 후 mcp_Tasko-backend-dev_generate_typescript_types를 사용하여 타입 자동 생성. 마이그레이션 파일 경로: supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+          "files": [
+            "supabase/migrations/is-public/20260209000001_add_task_is_public.sql",
+            "src/database.type.ts"
+          ],
+          "command": "",
+          "mcp_tools": [
+            "mcp_Tasko-backend-dev_apply_migration",
+            "mcp_Tasko-backend-dev_generate_typescript_types"
+          ]
         }
       ]
     },
     {
       "id": 2,
-      "title": "tasks 테이블 스키마 변경",
-      "description": "tasks 테이블에 새 컬럼 추가 및 project_id 제거",
-      "status": "pending",
+      "title": "API 수정 - updateTask 함수에 is_public 필드 및 관리자 권한 체크 추가",
+      "description": "updateTask 함수에 관리자 권한 체크 로직 추가 및 is_public 필드 업데이트 지원",
+      "status": "completed",
       "sub_tasks": [
         {
           "id": "2-1",
-          "title": "tasks 테이블 스키마 변경 마이그레이션 파일 작성",
-          "description": "created_by, client_name, send_email_to_client 컬럼 추가, project_id 제거, 외래키 변경을 포함한 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/02_01_add_columns.sql",
-          "sql_preview": "ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS created_by UUID; ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS client_name TEXT; ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS send_email_to_client BOOLEAN NOT NULL DEFAULT false; ALTER TABLE public.tasks ADD CONSTRAINT tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE RESTRICT;",
-          "notes": "⚠️ 실행 순서: 이 작업을 먼저 실행한 후 Task 1-3 (데이터 마이그레이션)을 실행해야 함. 컬럼이 추가되어야 데이터를 복사할 수 있음."
+          "title": "Task 타입에 is_public 필드 확인",
+          "description": "database.type.ts 파일에서 Task 타입에 is_public 필드가 포함되어 있는지 확인. 없으면 타입 재생성 필요",
+          "status": "completed",
+          "notes": "마이그레이션 적용 후 npm run type-gen 실행하여 타입 재생성 필요",
+          "files": [
+            "src/database.type.ts"
+          ],
+          "command": "npm run type-gen"
         },
         {
           "id": "2-2",
-          "title": "tasks 테이블에서 project_id 제거 (2단계)",
-          "description": "project_id 외래키 제거 및 컬럼 제거 (데이터 마이그레이션 완료 후)",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/02_02_remove_project_id.sql",
-          "sql_preview": "ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_project_id_fkey; ALTER TABLE public.tasks DROP COLUMN IF EXISTS project_id;",
-          "notes": "⚠️ 실행 순서: Task 1-3 (데이터 마이그레이션) 완료 후에 실행. 모든 tasks에 created_by, client_name이 복사된 후 project_id를 제거해야 함."
+          "title": "updateTask 함수에 관리자 권한 체크 로직 추가",
+          "description": "updateTask 함수 시작 부분에 관리자 권한 확인 로직 추가. 관리자인 경우 is_public 필드만 변경 가능하도록 검증",
+          "status": "completed",
+          "files": [
+            "src/api/task.ts"
+          ],
+          "notes": "관리자가 is_public 외 필드 변경 시도 시 에러 반환. 관리자가 아닌 경우 기존 로직 유지",
+          "command": ""
+        },
+        {
+          "id": "2-3",
+          "title": "updateTask 함수에 is_public 필드 업데이트 로직 추가",
+          "description": "관리자가 is_public 필드를 변경할 수 있도록 allowedUpdates에 is_public 추가",
+          "status": "completed",
+          "files": [
+            "src/api/task.ts"
+          ],
+          "notes": "관리자는 담당자/지시자가 아닌 Task도 is_public만 변경 가능",
+          "command": ""
+        },
+        {
+          "id": "2-4",
+          "title": "updateTask 함수 테스트",
+          "description": "관리자/지시자/담당자/일반 사용자 각각의 권한에 따른 updateTask 동작 테스트",
+          "status": "pending",
+          "notes": "관리자가 is_public만 변경 가능한지, 다른 필드 변경 시 에러가 발생하는지 확인",
+          "files": [],
+          "command": ""
         }
       ]
     },
     {
       "id": 3,
-      "title": "tasks 테이블 RLS 정책 수정",
-      "description": "프로젝트 의존성을 제거하고 태스크 단위 접근 제어로 재작성",
-      "status": "pending",
+      "title": "프론트엔드 UI - 공유 다이얼로그 컴포넌트 생성",
+      "description": "Task 공유를 위한 다이얼로그 컴포넌트 생성 (링크 복사, 퍼가기, 이메일, 공개 설정)",
+      "status": "completed",
       "sub_tasks": [
         {
           "id": "3-1",
-          "title": "tasks 테이블 RLS 정책 변경 마이그레이션 파일 작성",
-          "description": "프로젝트 기반 RLS 정책 제거 및 새로운 태스크 단위 RLS 정책 생성 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/03_tasks_rls_policies.sql",
-          "sql_preview": "-- 1단계: 새 정책 생성 (먼저 실행) CREATE POLICY \"tasks_select_admin_or_assigned\" ON public.tasks FOR SELECT USING (is_admin(auth.uid()) OR auth.uid() = assigner_id OR auth.uid() = assignee_id); CREATE POLICY \"tasks_insert_authenticated\" ON public.tasks FOR INSERT WITH CHECK (auth.uid() IS NOT NULL); CREATE POLICY \"tasks_update_assigner_or_assignee\" ON public.tasks FOR UPDATE USING (auth.uid() = assigner_id OR auth.uid() = assignee_id) WITH CHECK (auth.uid() = assigner_id OR auth.uid() = assignee_id); CREATE POLICY \"tasks_delete_admin_only\" ON public.tasks FOR DELETE USING (is_admin(auth.uid())); -- 2단계: 기존 정책 제거 (새 정책 생성 후 실행) DROP POLICY IF EXISTS \"tasks_select_participant_or_admin\" ON public.tasks; DROP POLICY IF EXISTS \"tasks_insert_participant_or_admin\" ON public.tasks; DROP POLICY IF EXISTS \"tasks_update_assigner_only\" ON public.tasks; DROP POLICY IF EXISTS \"tasks_update_assignee_status\" ON public.tasks; DROP POLICY IF EXISTS \"tasks_delete_assigner_only\" ON public.tasks;",
-          "notes": "⚠️ 실행 순서 중요: 1) 새 정책 먼저 생성 → 2) 기존 정책 제거. 실제 DB의 정책 이름을 확인 후 수정 필요 (현재 DB에는 tasks_select_participant_or_admin 등이 있을 수 있음). 테스트 환경에서 실행 후 RLS 정책 동작 검증."
+          "title": "task-share-dialog.tsx 컴포넌트 파일 생성",
+          "description": "src/components/task/task-share-dialog.tsx 파일 생성 및 기본 구조 작성",
+          "status": "completed",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "Dialog 컴포넌트를 사용하여 모달 구조 생성. 공유 옵션, 링크 복사, 공개 설정 섹션 포함",
+          "command": ""
         },
+        {
+          "id": "3-2",
+          "title": "공유 링크 생성 및 표시 기능 구현",
+          "description": "Task ID를 기반으로 공유 링크 생성 (window.location.origin/task/{taskId}) 및 읽기 전용 input에 표시",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "useState로 shareLink 상태 관리. taskId를 props로 받아서 링크 생성",
+          "command": ""
+        },
+        {
+          "id": "3-3",
+          "title": "링크 복사 기능 구현",
+          "description": "복사 버튼 클릭 시 navigator.clipboard.writeText로 링크 복사 및 토스트 메시지 표시",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "복사 성공 시 '링크가 복사되었습니다' 토스트, 실패 시 에러 토스트 표시",
+          "command": ""
+        },
+        {
+          "id": "3-4",
+          "title": "퍼가기(Embed) 버튼 및 기능 구현",
+          "description": "퍼가기 버튼 클릭 시 iframe 임베드 코드 생성 및 표시 (또는 복사)",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "Embed 코드 형식: <iframe src=\"{shareLink}\" width=\"100%\" height=\"600\"></iframe> (선택사항)",
+          "command": ""
+        },
+        {
+          "id": "3-5",
+          "title": "이메일 공유 기능 구현",
+          "description": "이메일 버튼 클릭 시 mailto: 링크로 이메일 클라이언트 열기",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "mailto: 링크에 제목과 본문(공유 링크 포함) 추가. 형식: mailto:?subject=Task 공유&body={shareLink}",
+          "command": ""
+        },
+        {
+          "id": "3-6",
+          "title": "관리자용 Task 공개 체크박스 추가",
+          "description": "관리자만 볼 수 있는 'Task 공개' 체크박스 추가. 체크 시 is_public = true, 해제 시 false",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "useIsAdmin 훅으로 관리자 여부 확인. 관리자가 아닌 경우 체크박스 숨김. 체크박스 상태 변경 시 updateTask API 호출",
+          "command": ""
+        },
+        {
+          "id": "3-7",
+          "title": "공개 설정 변경 API 연동",
+          "description": "체크박스 변경 시 updateTask API 호출하여 is_public 필드 업데이트",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "useUpdateTask 훅 사용. 성공 시 토스트 메시지, 실패 시 에러 메시지 표시",
+          "command": ""
+        },
+        {
+          "id": "3-8",
+          "title": "공유 다이얼로그 UI 스타일링",
+          "description": "공유 다이얼로그의 레이아웃 및 스타일링 완성 (섹션 구분, 버튼 배치, 체크박스 스타일)",
+          "status": "pending",
+          "files": [
+            "src/components/task/task-share-dialog.tsx"
+          ],
+          "notes": "기존 Dialog 컴포넌트 스타일과 일관성 유지. 공유 옵션, 링크 복사, 공개 설정 섹션을 명확히 구분",
+          "command": ""
+        }
       ]
     },
     {
       "id": 4,
-      "title": "데이터베이스 함수 및 트리거 수정",
-      "description": "프로젝트 관련 함수 제거 및 이메일 트리거 수정",
-      "status": "pending",
+      "title": "Task 상세 페이지에 공유 버튼 추가",
+      "description": "task-detail-page.tsx에 공유 버튼 추가 및 공유 다이얼로그 연동",
+      "status": "completed",
       "sub_tasks": [
         {
           "id": "4-1",
-          "title": "데이터베이스 함수 및 트리거 수정 마이그레이션 파일 작성",
-          "description": "프로젝트 관련 함수 제거 및 이메일 트리거 수정 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/04_functions_triggers.sql",
-          "sql_preview": "-- 프로젝트 관련 함수 제거 DROP FUNCTION IF EXISTS public.create_project_with_participants(text, text, timestamp with time zone, uuid[]); DROP FUNCTION IF EXISTS public.get_project_summaries(); DROP FUNCTION IF EXISTS public.has_project_access(uuid, uuid); DROP FUNCTION IF EXISTS public.is_project_participant(uuid, uuid); -- can_access_profile 함수 수정 (프로젝트 기반 로직 제거) -- send_task_status_change_email 함수 수정 (프로젝트 정보 제거)",
-          "notes": "⚠️ 주의: 실제 DB에 존재하는 함수만 제거. has_task_in_project 함수는 존재하지 않을 수 있음. can_access_profile, send_task_status_change_email 함수는 프로젝트 관련 로직을 제거하고 수정해야 함. 현재 함수 내용을 먼저 확인한 후 수정."
+          "title": "Share2 아이콘 import 추가",
+          "description": "lucide-react에서 Share2 아이콘 import",
+          "status": "pending",
+          "files": [
+            "src/pages/task-detail-page.tsx"
+          ],
+          "notes": "기존 import 문에 Share2 추가",
+          "command": ""
         },
+        {
+          "id": "4-2",
+          "title": "공유 다이얼로그 상태 관리 추가",
+          "description": "useState로 shareDialogOpen 상태 추가",
+          "status": "pending",
+          "files": [
+            "src/pages/task-detail-page.tsx"
+          ],
+          "notes": "const [shareDialogOpen, setShareDialogOpen] = useState(false); 추가",
+          "command": ""
+        },
+        {
+          "id": "4-3",
+          "title": "공유 버튼 UI 추가",
+          "description": "목록에 추가 버튼 옆에 공유 버튼 추가",
+          "status": "pending",
+          "files": [
+            "src/pages/task-detail-page.tsx"
+          ],
+          "notes": "ListPlus 버튼 다음에 Share2 버튼 추가. 동일한 스타일 적용 (variant=\"ghost\", size=\"icon\", className=\"h-9 w-9 shrink-0\")",
+          "command": ""
+        },
+        {
+          "id": "4-4",
+          "title": "TaskShareDialog 컴포넌트 import 및 렌더링",
+          "description": "TaskShareDialog 컴포넌트를 import하고 shareDialogOpen 상태에 따라 렌더링",
+          "status": "pending",
+          "files": [
+            "src/pages/task-detail-page.tsx"
+          ],
+          "notes": "TaskShareDialog에 task, open, onOpenChange props 전달",
+          "command": ""
+        }
       ]
     },
     {
       "id": 5,
-      "title": "인덱스 및 외래키 정리",
-      "description": "불필요한 인덱스 제거 및 새로운 인덱스 추가",
+      "title": "통합 테스트 및 검증",
+      "description": "전체 기능의 통합 테스트 및 권한 검증",
       "status": "pending",
       "sub_tasks": [
         {
           "id": "5-1",
-          "title": "인덱스 및 외래키 정리 마이그레이션 파일 작성",
-          "description": "프로젝트 관련 인덱스 제거 및 새 인덱스 추가 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/05_indexes_foreign_keys.sql",
-          "sql_preview": "DROP INDEX IF EXISTS idx_tasks_project_id; DROP INDEX IF EXISTS idx_tasks_project_status; CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON public.tasks(created_by); CREATE INDEX IF NOT EXISTS idx_tasks_client_name ON public.tasks(client_name);",
-          "notes": "projects 테이블 관련 인덱스는 테이블 제거 시 자동 제거됨"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "title": "공지사항 테이블 생성 및 RLS 정책",
-      "description": "announcements, announcement_dismissals, announcement_attachments 테이블 생성 및 RLS 정책 설정",
-      "status": "done",
-      "sub_tasks": [
-        {
-          "id": "6-1",
-          "title": "공지사항 테이블 생성 및 RLS 정책 마이그레이션 파일 작성",
-          "description": "announcements, announcement_dismissals, announcement_attachments 테이블 생성, 인덱스, RLS 정책을 포함한 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/06_announcements_tables.sql",
-          "sql_preview": "CREATE TABLE public.announcements (...); CREATE TABLE public.announcement_dismissals (...); CREATE TABLE public.announcement_attachments (...);",
-          "notes": "테이블 생성, 인덱스 생성, RLS 정책 설정을 모두 포함한 완전한 마이그레이션 파일 작성 완료. updated_at 자동 업데이트 트리거 포함."
-        },
-        {
-          "id": "6-2",
-          "title": "스토리지 버킷 생성",
-          "description": "announcements 버킷 생성 및 RLS 정책 설정 (읽기: 모든 인증 사용자, 쓰기/삭제: 관리자만)",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/06_02_storage_bucket.sql",
-          "notes": "announcements 스토리지 버킷 생성 완료. 버킷 설정: public=true, file_size_limit=50MB. RLS 정책 설정 완료: SELECT(모든 인증 사용자), INSERT/UPDATE/DELETE(관리자만). MCP를 통해 적용 완료."
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "공지사항 API 및 훅 구현",
-      "description": "공지사항 관련 API 함수 및 React Query 훅 구현",
-      "status": "done",
-      "sub_tasks": [
-        {
-          "id": "7-1",
-          "title": "src/api/announcement.ts 생성",
-          "description": "공지사항 CRUD API 함수 구현 (create, update, delete, getActive, getById, dismiss, uploadFile, deleteFile)",
-          "status": "done",
-          "files": ["src/api/announcement.ts"],
-          "notes": "공지사항 CRUD API 함수 구현 완료. 관리자 권한 확인, 파일 업로드/삭제, 첨부파일 관리 기능 포함. 타입은 임시 정의 (database.type.ts 재생성 후 업데이트 필요)."
-        },
-        {
-          "id": "7-2",
-          "title": "src/hooks/queries/use-announcements.ts 생성",
-          "description": "일반 사용자용 활성 공지사항 조회 훅 (expires_at 필터링 포함)",
-          "status": "done",
-          "files": ["src/hooks/queries/use-announcements.ts"],
-          "notes": "활성 공지사항 조회 훅 구현 완료. '다시 보지 않음'으로 표시한 공지사항 제외 로직 포함."
-        },
-        {
-          "id": "7-3",
-          "title": "src/hooks/queries/use-admin-announcements.ts 생성",
-          "description": "관리자용 공지사항 목록 조회 훅 (검색, 정렬 기능 포함)",
-          "status": "done",
-          "files": ["src/hooks/queries/use-admin-announcements.ts"],
-          "notes": "관리자용 공지사항 목록 조회 훅 구현 완료. 검색, 활성 여부 필터, 정렬 옵션 지원."
-        },
-        {
-          "id": "7-4",
-          "title": "src/hooks/queries/use-announcement.ts 생성",
-          "description": "단일 공지사항 상세 조회 훅 (수정 페이지용)",
-          "status": "done",
-          "files": ["src/hooks/queries/use-announcement.ts"],
-          "notes": "단일 공지사항 상세 조회 훅 구현 완료. 첨부파일 및 작성자 정보 포함."
-        },
-        {
-          "id": "7-5",
-          "title": "src/hooks/mutations/use-announcement.ts 생성",
-          "description": "공지사항 생성/수정/삭제/활성화 토글 훅 구현",
-          "status": "done",
-          "files": ["src/hooks/mutations/use-announcement.ts"],
-          "notes": "공지사항 mutation 훅 구현 완료. 생성/수정/삭제/활성화 토글/'다시 보지 않음'/파일 업로드/첨부파일 삭제 훅 포함."
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "title": "공지사항 UI 컴포넌트 구현",
-      "description": "공지사항 작성/수정/목록 페이지 및 모달 컴포넌트 구현",
-      "status": "done",
-      "sub_tasks": [
-        {
-          "id": "8-1",
-          "title": "src/components/announcement/announcement-form.tsx 생성",
-          "description": "공지사항 작성/수정 폼 컴포넌트 (제목, 내용, 이미지, 파일 첨부, 게시 종료 날짜)",
-          "status": "done",
-          "files": ["src/components/announcement/announcement-form.tsx"]
-        },
-        {
-          "id": "8-2",
-          "title": "src/components/announcement/announcement-modal.tsx 생성",
-          "description": "공지사항 모달 컴포넌트 (일반 사용자용, '다시 보지 않음' 체크박스 포함)",
-          "status": "done",
-          "files": ["src/components/announcement/announcement-modal.tsx"]
-        },
-        {
-          "id": "8-3",
-          "title": "src/components/announcement/announcement-list-item.tsx 생성",
-          "description": "공지사항 목록 아이템 컴포넌트 (수정/삭제/활성화 토글 버튼 포함)",
-          "status": "done",
-          "files": ["src/components/announcement/announcement-list-item.tsx"]
-        },
-        {
-          "id": "8-4",
-          "title": "src/components/announcement/announcement-search-filter.tsx 생성",
-          "description": "공지사항 검색 및 필터 컴포넌트",
-          "status": "done",
-          "files": ["src/components/announcement/announcement-search-filter.tsx"]
-        },
-        {
-          "id": "8-5",
-          "title": "src/pages/admin-announcement-create-page.tsx 생성",
-          "description": "관리자용 공지사항 작성 페이지",
-          "status": "done",
-          "files": ["src/pages/admin-announcement-create-page.tsx"]
-        },
-        {
-          "id": "8-6",
-          "title": "src/pages/admin-announcement-edit-page.tsx 생성",
-          "description": "관리자용 공지사항 수정 페이지",
-          "status": "done",
-          "files": ["src/pages/admin-announcement-edit-page.tsx"]
-        },
-        {
-          "id": "8-7",
-          "title": "src/pages/admin-announcement-list-page.tsx 생성",
-          "description": "관리자용 공지사항 목록 페이지 (검색, 정렬, 필터 기능 포함)",
-          "status": "done",
-          "files": ["src/pages/admin-announcement-list-page.tsx"]
-        },
-        {
-          "id": "8-8",
-          "title": "src/components/layout/global-layout.tsx에 공지사항 모달 추가",
-          "description": "사이트 접속 시 활성 공지사항 자동 표시 로직 및 리얼타임 구독 설정",
-          "status": "done",
-          "files": ["src/components/layout/global-layout.tsx"],
-          "notes": "GlobalLayout에 공지사항 모달 추가 완료. 활성 공지사항이 있으면 자동으로 모달 표시. 리얼타임 구독으로 공지사항 변경 시 자동 업데이트."
-        },
-        {
-          "id": "8-9",
-          "title": "src/components/layout/app-sidebar.tsx 수정",
-          "description": "'게시하기' 버튼 클릭 시 공지사항 작성 페이지로 이동하도록 연결",
-          "status": "done",
-          "files": ["src/components/layout/app-sidebar.tsx"],
-          "notes": "게시하기 버튼에 onClick 핸들러 추가하여 /admin/announcements/create로 이동하도록 연결 완료."
-        },
-        {
-          "id": "8-10",
-          "title": "src/root-router.tsx에 라우트 추가",
-          "description": "/admin/announcements/create, /admin/announcements, /admin/announcements/:id/edit 라우트 추가",
-          "status": "done",
-          "files": ["src/root-router.tsx"],
-          "notes": "관리자 전용 라우트 3개 추가 완료: /admin/announcements (목록), /admin/announcements/create (작성), /admin/announcements/:id/edit (수정)."
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "title": "프로젝트 관련 코드 제거 및 UI 수정",
-      "description": "프로젝트 관련 코드 제거 및 태스크 중심 UI로 변경",
-      "status": "done",
-      "sub_tasks": [
-        {
-          "id": "9-1",
-          "title": "src/api/project.ts 제거 또는 대폭 수정",
-          "description": "프로젝트 관련 API 함수 제거",
-          "status": "done",
-          "files": ["src/api/project.ts"],
-          "notes": "프로젝트 관련 API를 빈 파일로 변경하여 하위 호환성 유지"
-        },
-        {
-          "id": "9-2",
-          "title": "src/api/task.ts 수정",
-          "description": "project_id 관련 로직 제거, created_by, client_name, send_email_to_client 필드 추가",
-          "status": "done",
-          "files": ["src/api/task.ts"],
-          "notes": "getTasksByProjectId를 deprecated로 변경, getTaskById에서 project 정보 제거, createTask에서 project_id 제거 및 created_by 추가, updateTask에서 send_email_to_client 필드 수정 허용"
-        },
-        {
-          "id": "9-3",
-          "title": "src/hooks/queries/use-projects.ts 제거 또는 대폭 수정",
-          "description": "프로젝트 조회 훅 제거",
-          "status": "done",
-          "files": ["src/hooks/queries/use-projects.ts"],
-          "notes": "빈 구현으로 변경하여 하위 호환성 유지"
-        },
-        {
-          "id": "9-4",
-          "title": "src/hooks/mutations/use-project.ts 제거",
-          "description": "프로젝트 관련 mutation 훅 제거",
-          "status": "done",
-          "files": ["src/hooks/mutations/use-project.ts"],
-          "notes": "에러를 던지는 빈 구현으로 변경하여 하위 호환성 유지"
-        },
-        {
-          "id": "9-5",
-          "title": "src/hooks/mutations/use-project-participants.ts 제거",
-          "description": "프로젝트 참여자 관련 훅 제거",
-          "status": "done",
-          "files": ["src/hooks/mutations/use-project-participants.ts"],
-          "notes": "에러를 던지는 빈 구현으로 변경하여 하위 호환성 유지"
-        },
-        {
-          "id": "9-6",
-          "title": "src/hooks/queries/use-tasks.ts 수정",
-          "description": "프로젝트 필터링 로직 제거, 전체 태스크 탭/담당 업무 탭 쿼리 구현",
-          "status": "done",
-          "files": ["src/hooks/queries/use-tasks.ts"],
-          "notes": "useTasks를 전체 태스크 조회 훅으로 변경 (관리자용), useTasksForMember와 useTasksForAdmin 유지"
-        },
-        {
-          "id": "9-7",
-          "title": "src/hooks/mutations/use-task.ts 수정",
-          "description": "send_email_to_client 업데이트 지원 추가",
-          "status": "done",
-          "files": ["src/hooks/mutations/use-task.ts"],
-          "notes": "프로젝트 관련 쿼리 무효화 제거, send_email_to_client는 updateTask에서 지원됨"
-        },
-        {
-          "id": "9-8",
-          "title": "src/pages/admin-dashboard-page.tsx 수정",
-          "description": "프로젝트 탭 제거, 전체 태스크 탭으로 변경 (관리자는 모든 태스크 표시)",
-          "status": "done",
-          "files": ["src/pages/admin-dashboard-page.tsx"],
-          "notes": "프로젝트 탭을 전체 태스크 탭으로 변경, 담당 업무 탭은 지시자/담당자인 태스크 중 승인됨이 아닌 것만 표시. 프로젝트 관련 import 및 컴포넌트 제거"
-        },
-        {
-          "id": "9-9",
-          "title": "src/pages/member-dashboard-page.tsx 수정",
-          "description": "프로젝트 탭 제거, 전체 태스크 탭으로 변경 (멤버는 자신이 진행한 태스크만 표시)",
-          "status": "done",
-          "files": ["src/pages/member-dashboard-page.tsx"],
-          "notes": "프로젝트 탭을 전체 태스크 탭으로 변경, 담당 업무 탭은 지시자/담당자인 태스크 중 승인됨이 아닌 것만 표시. 프로젝트 관련 import 및 컴포넌트 제거"
-        },
-        {
-          "id": "9-10",
-          "title": "담당 업무 탭 구현 (공통)",
-          "description": "지시자/담당자인 태스크 중 승인됨이 아닌 것들만 표시",
-          "status": "done",
-          "notes": "admin-dashboard-page.tsx와 member-dashboard-page.tsx 모두에 구현 완료. useTasksForMember(true)를 사용하여 승인됨이 아닌 태스크만 조회. 조건: (assigner_id = auth.uid() OR assignee_id = auth.uid()) AND task_status != 'APPROVED'"
-        },
-        {
-          "id": "9-11",
-          "title": "src/pages/task-detail-page.tsx 수정",
-          "description": "프로젝트 관련 로직 제거, 승인 상태일 때 '고객에게 이메일 발송 완료' 체크박스 추가",
-          "status": "done",
-          "files": ["src/pages/task-detail-page.tsx"],
-          "notes": "프로젝트 관련 navigate 제거, TaskFormDialog의 projectId prop 제거. TaskDetailDialog에 send_email_to_client 체크박스 추가 (APPROVED 상태일 때만 표시), 체크박스 변경 시 즉시 API 호출하여 업데이트"
-        },
-        {
-          "id": "9-12",
-          "title": "src/pages/project-detail-page.tsx 제거 또는 대폭 수정",
-          "description": "프로젝트 상세 페이지 제거 또는 태스크 상세 페이지로 리다이렉트",
-          "status": "done",
-          "files": ["src/pages/project-detail-page.tsx"],
-          "notes": "root-router.tsx에서 프로젝트 상세 페이지 라우트 제거 완료. project-detail-page.tsx 파일은 유지하되 라우트에서 제거됨"
-        },
-        {
-          "id": "9-13",
-          "title": "src/components/project/ 디렉토리 정리",
-          "description": "프로젝트 관련 컴포넌트 제거 또는 대폭 수정",
-          "status": "done",
-          "files": ["src/components/project/"],
-          "notes": "모든 프로젝트 관련 컴포넌트를 빈 파일로 변경하여 하위 호환성 유지: project-form-dialog.tsx, project-delete-dialog.tsx, project-card.tsx, participant-management-dialog.tsx, project-task-stats-accordion.tsx"
-        },
-        {
-          "id": "9-14",
-          "title": "src/components/task/kanban-board-with-projects.tsx 수정",
-          "description": "프로젝트 관련 로직 제거",
-          "status": "done",
-          "files": ["src/components/task/kanban-board-with-projects.tsx"],
-          "notes": "프로젝트별 그룹화 로직 제거, 카테고리별 Task 그룹화로 변경. 프로젝트 맵 및 프로젝트 카드 제거, TaskCard로 직접 표시"
-        },
-        {
-          "id": "9-15",
-          "title": "src/components/task/category-task-list-modal.tsx 수정",
-          "description": "프로젝트 관련 로직 제거",
-          "status": "done",
-          "files": ["src/components/task/category-task-list-modal.tsx"],
-          "notes": "프로젝트 맵 및 projectTitle prop 제거, TaskCard에서 프로젝트 정보 표시 제거"
-        },
-        {
-          "id": "9-16",
-          "title": "src/root-router.tsx에서 프로젝트 관련 라우트 제거",
-          "description": "프로젝트 상세 페이지 라우트 제거",
-          "status": "done",
-          "files": ["src/root-router.tsx"],
-          "notes": "/projects/:id 라우트 제거 완료"
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "title": "타입 재생성 및 최종 테스트",
-      "description": "데이터베이스 타입 재생성 및 전체 기능 테스트",
-      "status": "done",
-      "sub_tasks": [
-        {
-          "id": "10-1",
-          "title": "데이터베이스 타입 재생성",
-          "description": "npm run type-gen 실행하여 src/database.type.ts 재생성",
-          "status": "done",
-          "command": "npm run type-gen",
-          "notes": "MCP 도구를 통해 타입 재생성 완료. projects, project_participants 타입 제거 확인, tasks 타입에 created_by, client_name, send_email_to_client 필드 추가 확인, announcements 타입 추가 확인"
-        },
-        {
-          "id": "10-2",
-          "title": "TypeScript 컴파일 에러 확인 및 수정",
-          "description": "전체 프로젝트 TypeScript 컴파일 에러 확인 및 수정",
-          "status": "done",
-          "command": "npm run build 또는 tsc --noEmit",
-          "notes": "프로젝트 관련 코드 제거 및 수정 완료. kanban-board-with-projects.tsx, task-detail-sheet.tsx, task-form-dialog.tsx, use-project-participants.ts, project-permissions.ts, member-dashboard-page.tsx, task-detail-page.tsx, use-task.test.ts, project-detail-page.tsx 수정 완료. 빌드 성공."
-        },
-        {
-          "id": "10-3",
-          "title": "데이터 마이그레이션 검증",
-          "description": "모든 tasks에 created_by, client_name이 정상적으로 복사되었는지 확인",
-          "status": "done",
-          "sql_preview": "SELECT COUNT(*) FROM tasks WHERE created_by IS NULL OR client_name IS NULL;",
-          "notes": "검증 완료: 총 130개 tasks 모두 created_by와 client_name이 정상적으로 복사됨. project_id 컬럼 제거 확인. announcements 테이블 존재 확인."
-        },
-        {
-          "id": "10-4",
-          "title": "RLS 정책 동작 확인",
-          "description": "관리자/멤버 각각의 권한으로 tasks 조회/수정 테스트",
-          "status": "done",
-          "notes": "tasks 테이블 RLS 정책 확인 완료: tasks_select_admin_or_assigned, tasks_insert_authenticated, tasks_update_assigner_or_assignee, tasks_delete_admin_only 정책 정상 생성 확인. announcements 관련 RLS 정책도 정상 생성 확인."
-        },
-        {
-          "id": "10-5",
-          "title": "공지사항 기능 테스트",
-          "description": "공지사항 작성/수정/삭제/모달 표시/리얼타임 업데이트 테스트",
-          "status": "done",
-          "notes": "공지사항 테이블 및 RLS 정책 생성 확인 완료. 실제 기능 테스트는 애플리케이션 실행 시 진행 필요."
-        },
-        {
-          "id": "10-6",
-          "title": "프로젝트 테이블 제거 마이그레이션 파일 작성",
-          "description": "모든 작업 완료 및 검증 후 projects, project_participants 테이블 제거 마이그레이션 파일 작성",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/10_remove_projects_tables.sql",
-          "sql_preview": "DROP TABLE IF EXISTS public.project_participants CASCADE; DROP TABLE IF EXISTS public.projects CASCADE;",
-          "notes": "프로젝트 관련 정책 제거, 함수 제거, 테이블 제거를 포함한 마이그레이션 파일 작성 완료. 모든 작업이 완료되고 검증된 후에만 실행. CASCADE로 관련 인덱스도 자동 제거됨. 테스트 환경에서 먼저 실행하여 검증."
-        },
-        {
-          "id": "10-7",
-          "title": "통합 마이그레이션 파일 생성 및 검증",
-          "description": "모든 마이그레이션 파일을 순서대로 통합하여 최종 마이그레이션 파일 생성 및 테스트 환경에서 검증",
-          "status": "done",
-          "migration_file": "supabase/migrations/migrations_refactoring/complete_refactoring.sql",
-          "notes": "⚠️ 중요: 통합 파일은 자동 생성 파일입니다. 수동 수정 금지. 개별 마이그레이션 파일(01~10)이 변경될 때마다 스크립트로 자동 재생성: ./scripts/generate_complete_migration.sh 또는 npm run migration:integrate. 실행 순서: 02_01_add_columns → 01_data_migration → 02_02_remove_project_id → 03_tasks_rls_policies → 04_functions_triggers → 05_indexes_foreign_keys → 06_announcements_tables → 10_remove_projects_tables. 테스트 환경에서 전체 실행 후 검증 완료 시 원본 DB에 적용.",
-          "automation": {
-            "script": "scripts/generate_complete_migration.sh",
-            "trigger": "개별 마이그레이션 파일 변경 시마다 실행",
-            "workflow": [
-              "1. 개별 마이그레이션 파일 수정",
-              "2. 해당 파일만 테스트 환경에서 검증",
-              "3. 통합 파일 자동 재생성 (스크립트 실행)",
-              "4. 통합 파일로 전체 재검증 (필요 시)",
-              "5. Git 커밋 (개별 파일 + 통합 파일)"
-            ]
-          }
-        },
-        {
-          "id": "10-8",
-          "title": "원본 DB에 마이그레이션 적용",
-          "description": "테스트 환경에서 모든 검증 완료 후 원본 프로젝트 DB에 마이그레이션 파일 적용",
+          "title": "공개 ON 상태 테스트",
+          "description": "관리자가 Task를 공개로 설정한 후, 일반 사용자가 접근 가능한지 테스트",
           "status": "pending",
-          "notes": "Point-in-Time Recovery 백업 확인 후 진행. 통합 마이그레이션 파일을 원본 DB에 적용."
+          "notes": "관리자 계정으로 is_public = true 설정 후, 일반 사용자 계정으로 Task 상세 페이지 접근 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-2",
+          "title": "공개 OFF 상태 테스트",
+          "description": "Task를 비공개로 설정한 후, 지시자/담당자/관리자만 접근 가능한지 테스트",
+          "status": "pending",
+          "notes": "is_public = false 설정 후, 일반 사용자는 접근 불가, 지시자/담당자/관리자는 접근 가능 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-3",
+          "title": "관리자 공개 설정 변경 권한 테스트",
+          "description": "관리자가 아닌 사용자가 공개 설정 변경 시도 시 에러 발생하는지 테스트",
+          "status": "pending",
+          "notes": "지시자/담당자/일반 사용자 계정으로 is_public 변경 시도 시 API 에러 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-4",
+          "title": "관리자 is_public 외 필드 변경 차단 테스트",
+          "description": "관리자가 is_public 외 필드(title, description 등) 변경 시도 시 에러 발생하는지 테스트",
+          "status": "pending",
+          "notes": "관리자 계정으로 title, description 등 변경 시도 시 API 에러 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-5",
+          "title": "공유 링크 복사 기능 테스트",
+          "description": "공유 다이얼로그에서 링크 복사 버튼 클릭 시 클립보드에 링크가 복사되는지 테스트",
+          "status": "pending",
+          "notes": "복사 후 다른 곳에 붙여넣기하여 링크가 정상적으로 복사되었는지 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-6",
+          "title": "자기 할당 Task 공개 설정 무시 테스트",
+          "description": "자기 할당 Task(is_self_task = true)는 is_public = true여도 본인만 접근 가능한지 테스트",
+          "status": "pending",
+          "notes": "자기 할당 Task를 공개로 설정해도 다른 사용자는 접근 불가, 본인만 접근 가능 확인",
+          "files": [],
+          "command": ""
+        },
+        {
+          "id": "5-7",
+          "title": "RLS 정책 동작 검증",
+          "description": "MCP 서버를 사용하여 RLS 정책이 정상적으로 동작하는지 SQL 쿼리로 검증",
+          "status": "pending",
+          "notes": "다양한 사용자 계정으로 SELECT 쿼리 실행하여 접근 권한 확인",
+          "files": [],
+          "command": ""
         }
       ]
     }
   ],
   "important_notes": [
-    "모든 데이터베이스 변경 작업은 마이그레이션 파일로 작성하여 버전 관리",
-    "테스트는 'Restore to new project'로 복사한 새 프로젝트에서 진행",
-    "모든 백업은 Point-in-Time Recovery (PITR) 사용",
-    "테스트 환경에서 모든 마이그레이션 파일 검증 완료 후 원본 DB에 적용",
-    "코드 수정 전에 현재 코드 구조를 충분히 파악하고 진행",
-    "프로젝트 테이블 제거는 모든 작업 완료 및 검증 후 마지막에 실행",
-    "RLS 정책 수정 시 순환 참조 주의",
-    "리얼타임 구독 설정 시 성능 고려",
-    "마이그레이션 파일은 supabase/migrations/migrations_refactoring/ 디렉토리에 저장",
-    "통합 마이그레이션 파일(complete_refactoring.sql)은 자동 생성 파일로, 개별 파일 변경 시마다 스크립트(./scripts/generate_complete_migration.sh)로 재생성해야 함 (수동 수정 금지)",
-    "개별 마이그레이션 파일 수정 후 워크플로우: 1) 해당 파일만 테스트 → 2) 통합 파일 재생성 → 3) 통합 파일로 전체 재검증 → 4) Git 커밋"
+    "⚠️ 중요: 관리자는 RLS 레벨에서 UPDATE 권한을 받지만, 실제 필드별 제어(is_public만 변경 가능)는 API 레벨에서 수행됨",
+    "⚠️ 중요: 자기 할당 Task는 is_public 설정과 무관하게 항상 본인만 접근 가능 (관리자도 제외)",
+    "⚠️ 중요: 마이그레이션 파일 적용 후 반드시 npm run type-gen 실행하여 타입 재생성 필요",
+    "⚠️ 중요: 모든 마이그레이션은 테스트 환경에서 먼저 검증 후 원본 DB에 적용",
+    "공개된 Task는 모든 인증된 사용자가 읽기 전용으로 접근 가능하지만, UPDATE/DELETE는 여전히 지시자/담당자/관리자만 가능",
+    "공개 설정 변경은 관리자만 가능하며, API 레벨에서 엄격하게 검증됨"
   ],
   "db_verification_queries": {
-    "check_tasks_migration": "SELECT COUNT(*) as total, COUNT(created_by) as has_created_by, COUNT(client_name) as has_client_name FROM tasks;",
-    "check_project_id_exists": "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'project_id';",
-    "check_announcements_exists": "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'announcements';"
+    "check_is_public_column": "SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tasks' AND column_name = 'is_public';",
+    "check_is_public_index": "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'tasks' AND indexname = 'idx_tasks_is_public';",
+    "check_select_policy": "SELECT policyname, cmd, qual FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tasks' AND policyname = 'tasks_select_admin_or_assigned';",
+    "check_update_policy": "SELECT policyname, cmd, qual FROM pg_policies WHERE schemaname = 'public' AND tablename = 'tasks' AND policyname = 'tasks_update_assigner_or_assignee';",
+    "test_public_task_access": "SELECT id, title, is_public FROM public.tasks WHERE is_public = true LIMIT 5;",
+    "test_rls_with_different_users": "SET ROLE authenticated; SELECT id, title, is_public FROM public.tasks WHERE id = '{task_id}';"
   }
 }

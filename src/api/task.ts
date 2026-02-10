@@ -7,6 +7,7 @@ import {
   isValidStatusTransition,
 } from "@/lib/task-status";
 import { getUnreadMessageCounts } from "./message";
+import { checkAdminPermission } from "./admin";
 
 export type Task = Tables<"tasks">;
 export type TaskInsert = TablesInsert<"tasks">;
@@ -45,9 +46,11 @@ export async function getTasksByProjectId(_projectId: string): Promise<TaskWithP
  * assigner와 assignee의 프로필 정보를 JOIN하여 함께 반환
  * 
  * 권한별 접근 제어:
+ * - 공개된 Task (is_public = true): 모든 인증된 사용자 접근 가능 (자기 할당 Task 제외)
+ * - 자기 할당 Task: 공개 여부와 무관하게 본인만 접근 가능
  * - Admin: 모든 Task 상세 접근 가능
  * - Member (assigner/assignee): 자신의 Task 상세 접근 가능
- * - Member (기타): 제한된 정보만 반환 (description 마스킹)
+ * - Member (기타): 비공개 Task는 접근 불가
  */
 export async function getTaskById(id: string): Promise<TaskWithProfiles | null> {
   const { data: session } = await supabase.auth.getSession();
@@ -89,15 +92,25 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
   const isAdmin = profile?.role === "admin";
   const isAssigner = data.assigner_id === userId;
   const isAssignee = data.assignee_id === userId;
+  const isPublic = data.is_public === true;
 
   // 권한 검증 및 필드 제어
+  // 공개된 Task는 모든 인증된 사용자가 읽기 전용으로 접근 가능 (자기 할당 Task 제외)
+  if (isPublic && !data.is_self_task) {
+    // 공개된 일반 Task: 모든 인증된 사용자 접근 가능
+    return data as TaskWithProfiles;
+  }
+
+  // 자기 할당 Task는 공개 여부와 무관하게 본인만 접근 가능
+  if (data.is_self_task && !isAssigner) {
+    // 자기 할당 Task인데 본인이 아닌 경우: 접근 거부
+    return null;
+  }
+
+  // 비공개 Task: Admin, assigner, assignee만 접근 가능
   if (!isAdmin && !isAssigner && !isAssignee) {
-    // 일반 멤버가 자신의 Task가 아닌 경우: 제한된 정보만 반환
-    // description을 null로 마스킹하여 상세 내용 접근 차단
-    return {
-      ...data,
-      description: null,
-    } as TaskWithProfiles;
+    // 일반 멤버가 자신의 Task가 아닌 경우: 접근 거부
+    return null;
   }
 
   // Admin 또는 assigner/assignee: 모든 필드 반환
@@ -225,6 +238,9 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
 
   const userId = session.session.user.id;
 
+  // 관리자 권한 확인
+  const isAdmin = await checkAdminPermission();
+
   // 현재 Task 조회 (존재 여부 및 권한 확인)
   const { data: task, error: fetchError } = await supabase
     .from("tasks")
@@ -236,15 +252,31 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
   }
 
-  // send_email_to_client 필드는 담당자(assignee)만 변경 가능
-  if (updates.send_email_to_client !== undefined) {
-    if (task.assignee_id !== userId) {
-      throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+  // 관리자인 경우: is_public 필드만 변경 가능하도록 검증
+  if (isAdmin) {
+    // 관리자가 is_public 외 필드 변경 시도 시 에러 반환
+    const nonPublicFields = Object.keys(updates).filter(
+      (key) => key !== "is_public"
+    );
+    if (nonPublicFields.length > 0) {
+      throw new Error("관리자는 is_public 필드만 변경할 수 있습니다.");
+    }
+    // is_public 필드만 허용
+    if (updates.is_public === undefined) {
+      throw new Error("수정할 내용이 없습니다.");
     }
   } else {
-    // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
-    if (task.assigner_id !== userId) {
-      throw new Error("Task 수정은 지시자만 가능합니다.");
+    // 관리자가 아닌 경우: 기존 로직 유지
+    // send_email_to_client 필드는 담당자(assignee)만 변경 가능
+    if (updates.send_email_to_client !== undefined) {
+      if (task.assignee_id !== userId) {
+        throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+      }
+    } else {
+      // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
+      if (task.assigner_id !== userId) {
+        throw new Error("Task 수정은 지시자만 가능합니다.");
+      }
     }
   }
 
@@ -258,47 +290,56 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   }
 
   // 허용된 필드만 명시적으로 포함 (whitelist 방식)
-  // 허용 필드: title, description, due_date, client_name, send_email_to_client
   const allowedUpdates: Partial<TaskUpdate> = {};
   
-  // title 수정 허용 (지시자만)
-  if (updates.title !== undefined && updates.title !== null) {
-    if (task.assigner_id !== userId) {
-      throw new Error("Task 제목 수정은 지시자만 가능합니다.");
+  // 관리자인 경우: is_public 필드만 허용
+  if (isAdmin) {
+    if (updates.is_public !== undefined) {
+      allowedUpdates.is_public = updates.is_public;
     }
-    allowedUpdates.title = updates.title;
-  }
-  
-  // description 수정 허용 (null도 허용, 지시자만)
-  if ("description" in updates && updates.description !== undefined) {
-    if (task.assigner_id !== userId) {
-      throw new Error("Task 설명 수정은 지시자만 가능합니다.");
+  } else {
+    // 관리자가 아닌 경우: 기존 필드 허용 로직
+    // 허용 필드: title, description, due_date, client_name, send_email_to_client
+    
+    // title 수정 허용 (지시자만)
+    if (updates.title !== undefined && updates.title !== null) {
+      if (task.assigner_id !== userId) {
+        throw new Error("Task 제목 수정은 지시자만 가능합니다.");
+      }
+      allowedUpdates.title = updates.title;
     }
-    (allowedUpdates as any).description = updates.description;
-  }
-  
-  // client_name 수정 허용 (지시자만)
-  if (updates.client_name !== undefined && updates.client_name !== null) {
-    if (task.assigner_id !== userId) {
-      throw new Error("고객명 수정은 지시자만 가능합니다.");
+    
+    // description 수정 허용 (null도 허용, 지시자만)
+    if ("description" in updates && updates.description !== undefined) {
+      if (task.assigner_id !== userId) {
+        throw new Error("Task 설명 수정은 지시자만 가능합니다.");
+      }
+      (allowedUpdates as any).description = updates.description;
     }
-    allowedUpdates.client_name = updates.client_name;
-  }
-  
-  // due_date 수정 허용 (null도 허용, 지시자만)
-  if (updates.due_date !== undefined) {
-    if (task.assigner_id !== userId) {
-      throw new Error("마감일 수정은 지시자만 가능합니다.");
+    
+    // client_name 수정 허용 (지시자만)
+    if (updates.client_name !== undefined && updates.client_name !== null) {
+      if (task.assigner_id !== userId) {
+        throw new Error("고객명 수정은 지시자만 가능합니다.");
+      }
+      allowedUpdates.client_name = updates.client_name;
     }
-    allowedUpdates.due_date = updates.due_date;
-  }
-  
-  // send_email_to_client 수정 허용 (담당자만, 승인 상태일 때만 사용)
-  if (updates.send_email_to_client !== undefined) {
-    if (task.assignee_id !== userId) {
-      throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+    
+    // due_date 수정 허용 (null도 허용, 지시자만)
+    if (updates.due_date !== undefined) {
+      if (task.assigner_id !== userId) {
+        throw new Error("마감일 수정은 지시자만 가능합니다.");
+      }
+      allowedUpdates.due_date = updates.due_date;
     }
-    (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
+    
+    // send_email_to_client 수정 허용 (담당자만, 승인 상태일 때만 사용)
+    if (updates.send_email_to_client !== undefined) {
+      if (task.assignee_id !== userId) {
+        throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+      }
+      (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
+    }
   }
   
   // assigner_id, assignee_id, task_status는 이미 위에서 차단됨
