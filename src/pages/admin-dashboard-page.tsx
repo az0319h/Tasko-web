@@ -104,6 +104,18 @@ function formatDueDate(dateString: string | null | undefined): string | null {
 }
 
 /**
+ * 생성일 포맷팅 (예: 26년 01월 25일)
+ */
+function formatCreatedDate(dateString: string | null | undefined): string | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  const year = String(date.getFullYear()).slice(-2);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}년 ${month}월 ${day}일`;
+}
+
+/**
  * 날짜 차이 계산 (일수)
  */
 function calculateDaysDifference(dueDateString: string | null | undefined): number | null {
@@ -216,8 +228,13 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState(keywordParam || "");
 
   const sortDueParam = searchParams.get("sortDue") as SortDueParam | null;
+  // 승인된 태스크 탭(approved-tasks): 생성일 기본 내림차순(최신순), 그 외 탭: 마감일 기본 오름차순
   const sortDue: SortDueParam =
-    sortDueParam === "asc" || sortDueParam === "desc" ? sortDueParam : "asc";
+    sortDueParam === "asc" || sortDueParam === "desc"
+      ? sortDueParam
+      : tabParam === "approved-tasks"
+        ? "desc"
+        : "asc";
 
   const sortEmailSentParam = searchParams.get("sortEmailSent") as SortEmailSentParam | null;
   const sortEmailSent: SortEmailSentParam =
@@ -510,8 +527,8 @@ export default function AdminDashboardPage() {
     const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const approvedTasksPageToSet = updates?.approvedTasksPage !== undefined ? updates.approvedTasksPage : approvedTasksCurrentPage;
 
-    // sortDue 설정
-    if (sortDueToSet !== "asc") {
+    // sortDue 설정 (승인된 태스크 탭 기본값: desc, asc일 때만 URL에 추가)
+    if (sortDueToSet !== "desc") {
       newParams.set("sortDue", sortDueToSet);
     }
 
@@ -1254,24 +1271,21 @@ export default function AdminDashboardPage() {
     }
   }, [categoryFilteredApprovedTasks, emailSent]);
 
-  // 승인된 태스크 탭: 정렬
+  // 승인된 태스크 탭: 정렬 (생성일 기준)
   const sortedApprovedTasks = useMemo(() => {
     const sorted = [...emailSentFilteredApprovedTasks];
 
     sorted.sort((a, b) => {
-      // 마감일로 정렬
       if (sortDue === "asc") {
-        // 마감일 빠른 순: 마감일이 없는 Task는 뒤로
-        if (!a.due_date && !b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        if (!a.created_at && !b.created_at) return 0;
+        if (!a.created_at) return 1;
+        if (!b.created_at) return -1;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       } else {
-        // 마감일 느린 순: 마감일이 없는 Task는 뒤로
-        if (!a.due_date && !b.due_date) return 0;
-        if (!a.due_date) return 1;
-        if (!b.due_date) return -1;
-        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+        if (!a.created_at && !b.created_at) return 0;
+        if (!a.created_at) return 1;
+        if (!b.created_at) return -1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
     });
 
@@ -2553,7 +2567,7 @@ export default function AdminDashboardPage() {
                     onClick={handleApprovedTasksSortDueChange}
                   >
                     <div className="flex items-center gap-2">
-                      마감일
+                      생성일
                       <ArrowUpDown className="size-3 sm:size-4" />
                     </div>
                   </th>
@@ -2584,10 +2598,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 ) : (
                   paginatedApprovedTasks.map((task) => {
-                    const dueDate = formatDueDate(task.due_date);
-                    const daysDiff = calculateDaysDifference(task.due_date);
-                    const dDayText = getDDayText(daysDiff);
-                    const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+                    const createdAt = task.created_at ? formatCreatedDate(task.created_at) : null;
 
                     const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
                     const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
@@ -2637,14 +2648,9 @@ export default function AdminDashboardPage() {
                           </div>
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          {dueDate ? (
-                            <span
-                              className={cn(
-                                "text-xs whitespace-nowrap sm:text-sm",
-                                dueDateColorClass,
-                              )}
-                            >
-                              {dueDate} {dDayText}
+                          {createdAt ? (
+                            <span className="text-xs whitespace-nowrap sm:text-sm">
+                              {createdAt}
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs sm:text-sm">-</span>
