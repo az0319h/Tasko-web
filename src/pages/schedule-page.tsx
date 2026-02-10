@@ -17,9 +17,9 @@ type CalendarView = "dayGridMonth" | "timeGridWeek" | "timeGridDay";
 type Profile = Tables<"profiles">;
 
 function getViewFromUrl(viewParam: string | null): CalendarView {
-  if (viewParam === "week") return "timeGridWeek";
+  if (viewParam === "month") return "dayGridMonth";
   if (viewParam === "day") return "timeGridDay";
-  return "dayGridMonth"; // 기본값: 월
+  return "timeGridWeek"; // 기본값: 주
 }
 
 export default function SchedulePage() {
