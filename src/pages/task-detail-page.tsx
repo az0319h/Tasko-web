@@ -20,6 +20,8 @@ import {
   RotateCcw,
   ListPlus,
   Share2,
+  ListFilterPlus,
+  HeartPlus,
 } from "lucide-react";
 import {
   useTask,
@@ -1729,7 +1731,7 @@ export default function TaskDetailPage() {
               className="h-9 w-9 shrink-0"
               title="목록에 추가"
             >
-              <ListPlus className="h-5 w-5" />
+                  <HeartPlus className="h-5 w-5"/>
             </Button>
             {/* 공유 버튼 */}
             <Button
@@ -1966,7 +1968,7 @@ export default function TaskDetailPage() {
                   onChange={(e) => setMessageInput(e.target.value)}
                   onPaste={handlePaste}
                   placeholder="메시지 입력..."
-                  className="w-full resize-none border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
+                  className="w-full border-0 bg-transparent px-2 py-1.5 text-sm focus:outline-none sm:px-3 sm:py-2 sm:text-base"
                   style={{
                     lineHeight: "1.5",
                   }}
