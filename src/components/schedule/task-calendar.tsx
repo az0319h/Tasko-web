@@ -24,7 +24,7 @@ interface TaskCalendarProps {
   readOnly?: boolean; // 읽기 전용 모드 (드래그/리사이즈 불가)
 }
 
-export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, readOnly = false }: TaskCalendarProps) {
+export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, readOnly = false }: TaskCalendarProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,7 +41,7 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
   const prevSelectedUserIdRef = useRef<string | undefined>(selectedUserId);
   const prevStartDateRef = useRef<Date>(startDate);
   const prevEndDateRef = useRef<Date>(endDate);
-  const prevViewTypeRef = useRef<string | null>(searchParams.get("view") || "month");
+  const prevViewTypeRef = useRef<string | null>(searchParams.get("view") || "week");
 
   // Fetch schedules for the current date range
   // placeholderData로 인해 이전 데이터가 표시되면서 새 데이터 로드
@@ -148,7 +148,7 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
 
     // URL 파라미터 업데이트 (replace: true로 브라우저 히스토리 쌓지 않음)
     const newParams = new URLSearchParams(searchParams);
-    const currentViewParam = newParams.get("view") || "month";
+    const currentViewParam = newParams.get("view") || "week";
     
     // 뷰 타입이 변경되었는지 확인
     const viewChanged = prevViewTypeRef.current !== viewParam;
@@ -227,7 +227,7 @@ export function TaskCalendar({ initialView = "dayGridMonth", selectedUserId, rea
     
     // 현재 URL 파라미터와 다를 때만 업데이트 (무한 루프 방지)
     if (currentViewParam !== viewParam) {
-      if (viewParam === "month") {
+      if (viewParam === "week") {
         // 기본값이므로 파라미터에서 제거
         newParams.delete("view");
       } else {
