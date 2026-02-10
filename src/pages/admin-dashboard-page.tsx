@@ -334,7 +334,7 @@ export default function AdminDashboardPage() {
   const isFirstRenderRef = useRef(true);
   const prevAllTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
   const prevMyTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam }>({ search: "", category: "all", status: "all", sortDue: "asc" });
-  const prevApprovedTasksFiltersRef = useRef<{ search: string; category: CategoryParam; sortDue: SortDueParam; sortEmailSent: SortEmailSentParam; emailSent: EmailSentParam }>({ search: "", category: "all", sortDue: "asc", sortEmailSent: "asc", emailSent: "all" });
+  const prevApprovedTasksFiltersRef = useRef<{ search: string; category: CategoryParam; sortDue: SortDueParam; sortEmailSent: SortEmailSentParam; emailSent: EmailSentParam }>({ search: "", category: "all", sortDue: "desc", sortEmailSent: "asc", emailSent: "all" });
   const prevSelfTasksFiltersRef = useRef<{ search: string; category: CategoryParam; status: StatusParam; sortDue: SortDueParam; emailSent: EmailSentParam }>({ search: "", category: "all", status: "all", sortDue: "asc", emailSent: "all" });
 
   // 대시보드 페이지에 있을 때 현재 URL을 세션 스토리지에 저장
@@ -1493,6 +1493,7 @@ export default function AdminDashboardPage() {
       isFirstRenderRef.current = false;
       prevAllTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
       prevMyTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue };
+      prevApprovedTasksFiltersRef.current = { search: debouncedSearch, category, sortDue, sortEmailSent, emailSent };
       prevSelfTasksFiltersRef.current = { search: debouncedSearch, category, status, sortDue, emailSent };
       return;
     }
