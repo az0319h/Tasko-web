@@ -19,6 +19,7 @@ import {
   Copy,
   RotateCcw,
   ListPlus,
+  Share2,
 } from "lucide-react";
 import {
   useTask,
@@ -58,6 +59,7 @@ import { MessageDeleteDialog } from "@/components/dialog/message-delete-dialog";
 import { AddToListDialog } from "@/components/task-list/add-to-list-dialog";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { LinkPreviewCard } from "@/components/message/link-preview-card";
+import { TaskShareDialog } from "@/components/task/task-share-dialog";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
@@ -96,6 +98,7 @@ export default function TaskDetailPage() {
   const [isForceApproving, setIsForceApproving] = useState(false);
   const [messageDeleteDialogOpen, setMessageDeleteDialogOpen] = useState(false);
   const [pendingDeleteMessage, setPendingDeleteMessage] = useState<MessageWithProfile | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // Draft 상태의 파일들
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set()); // 업로드 중인 파일 이름들
@@ -310,16 +313,30 @@ export default function TaskDetailPage() {
     };
   }, [openMenuMessageId, handleClickOutside, handleEscape]);
 
-  // 권한 체크: assigner, assignee, Admin만 접근 가능
+  // 권한 체크: 공개된 Task는 모든 인증된 사용자 접근 가능, 비공개 Task는 assigner, assignee, Admin만 접근 가능
   useEffect(() => {
     if (!task || !currentUserId) return;
 
     const isAssigner = currentUserId === task.assigner_id;
     const isAssignee = currentUserId === task.assignee_id;
+    const isPublic = task.is_public === true;
+    
+    // 공개된 일반 Task는 모든 인증된 사용자 접근 가능 (자기 할당 Task 제외)
+    if (isPublic && !task.is_self_task) {
+      return; // 접근 허용
+    }
+    
+    // 자기 할당 Task는 공개 여부와 무관하게 본인만 접근 가능
+    if (task.is_self_task && !isAssigner) {
+      toast.error("이 Task에 접근할 권한이 없습니다.");
+      navigate(-1);
+      return;
+    }
+    
+    // 비공개 Task: assigner, assignee, Admin만 접근 가능
     const hasAccess = isAssigner || isAssignee || isAdmin;
-
     if (!hasAccess) {
-      toast.error("이 Task의 채팅에 접근할 권한이 없습니다.");
+      toast.error("이 Task에 접근할 권한이 없습니다.");
       navigate(-1);
     }
   }, [task, currentUserId, isAdmin, navigate]);
@@ -1714,6 +1731,16 @@ export default function TaskDetailPage() {
             >
               <ListPlus className="h-5 w-5" />
             </Button>
+            {/* 공유 버튼 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShareDialogOpen(true)}
+              className="h-9 w-9 shrink-0"
+              title="공유"
+            >
+              <Share2 className="h-5 w-5" />
+            </Button>
             {/* 정보 버튼 */}
             <Button
               variant="ghost"
@@ -2073,6 +2100,15 @@ export default function TaskDetailPage() {
           open={addToListDialogOpen}
           onOpenChange={setAddToListDialogOpen}
           taskId={taskId}
+        />
+      )}
+
+      {/* 공유 Dialog */}
+      {task && (
+        <TaskShareDialog
+          task={task}
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
         />
       )}
     </div>
