@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { Play, CheckCircle, XCircle } from "lucide-react";
+import { Play, CheckCircle, XCircle, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
@@ -161,6 +161,17 @@ export function TaskCard({
               <span>{assigneeDisplay}</span>
             </div>
           </div>
+
+          {/* 참조자 정보 */}
+          {task.references && task.references.length > 0 && (
+            <div className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                <span className="font-medium">참조자:</span>
+                <span>{task.references.length}명</span>
+              </div>
+            </div>
+          )}
 
           {/* 생성일 - showFullInfo가 true일 때만 표시 */}
           {showFullInfo && createdAt && (

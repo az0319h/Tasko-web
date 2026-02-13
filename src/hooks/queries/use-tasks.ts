@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTaskById, getTasksForMember, getTasksForAdmin, getSelfTasks } from "@/api/task";
+import { getTaskById, getTasksForMember, getTasksForAdmin, getSelfTasks, getTasksAsReference } from "@/api/task";
 import type { Task, TaskWithProfiles } from "@/api/task";
 
 /**
@@ -67,6 +67,18 @@ export function useSelfTasks(excludeApproved: boolean = false) {
   return useQuery<TaskWithProfiles[]>({
     queryKey: ["tasks", "self", excludeApproved],
     queryFn: () => getSelfTasks(excludeApproved),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * 참조자로 지정된 Task 목록 조회 훅
+ * 현재 사용자가 참조자로 지정된 Task만 조회
+ */
+export function useTasksAsReference() {
+  return useQuery<TaskWithProfiles[]>({
+    queryKey: ["tasks", "reference"],
+    queryFn: () => getTasksAsReference(),
     staleTime: 30 * 1000,
   });
 }

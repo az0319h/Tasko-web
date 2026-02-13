@@ -121,6 +121,25 @@ export function TaskDetailSheet({
             </p>
           </div>
 
+          {/* 참조자 */}
+          {task.references && task.references.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">참조자</h3>
+              <div className="space-y-1">
+                {task.references.map((ref) => (
+                  <p key={ref.id} className="text-base font-medium">
+                    {ref.full_name || ref.email || ref.id}
+                    {ref.email && ref.full_name && (
+                      <span className="text-muted-foreground ml-2 text-sm">
+                        ({ref.email})
+                      </span>
+                    )}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 마감일 */}
           <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">마감일</h3>

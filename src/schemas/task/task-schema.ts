@@ -28,6 +28,7 @@ export const taskCreateSchema = z.object({
     },
     { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
   ),
+  reference_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
 /**
@@ -51,6 +52,7 @@ export const taskCreateSelfTaskSchema = z.object({
     },
     { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
   ),
+  reference_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
 /**
@@ -86,6 +88,7 @@ export const taskCreateSpecificationSchema = z.object({
     },
     { message: "마감일은 오늘 날짜를 포함한 이후 날짜만 선택할 수 있습니다." }
   ),
+  reference_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
 /**

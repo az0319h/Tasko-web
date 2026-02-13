@@ -65,7 +65,7 @@ import { TaskShareDialog } from "@/components/task/task-share-dialog";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
-import { isMessageReadByCounterpart } from "@/api/message";
+import { getUnreadCountForMessageFromData } from "@/api/message";
 import { uploadTaskFile, getTaskFileDownloadUrl } from "@/api/storage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -112,11 +112,14 @@ export default function TaskDetailPage() {
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prevIsPresentRef = useRef<boolean>(false); // 이전 Presence 상태 추적
   const lastMarkAsReadTimeRef = useRef<number>(0); // 마지막 읽음 처리 시간 (중복 호출 방지용)
   const prevMessagesLengthRef = useRef<number>(0); // 이전 메시지 개수 추적 (스크롤 제어용)
+  const isUserNearBottomRef = useRef<boolean>(true); // 최하단 근처에 있으면 새 메시지 시 자동 스크롤
+  const SCROLL_NEAR_BOTTOM_THRESHOLD = 100; // px
 
   const currentUserId = currentProfile?.id;
   const queryClient = useQueryClient();
@@ -130,17 +133,15 @@ export default function TaskDetailPage() {
   // 채팅 로그 리얼타임 구독 활성화
   useRealtimeChatLogs(taskId, !!taskId);
 
-  // 케이스 1: 초기 로드 시 읽음 처리 (taskId 변경 시)
-  // taskId가 변경되면 초기 로드로 간주하고, Presence가 활성화되어 있을 때 읽음 처리
+  // 케이스 1: 초기 로드 시 읽음 처리 (taskId 변경 또는 Presence 활성화 시)
+  // Presence가 활성화되면 즉시 읽음 처리 (채널 구독 비동기 완료 후 isPresent=true)
   useEffect(() => {
     if (taskId && currentUserId && isPresent) {
-      // taskId가 변경되면 초기 로드로 간주
       const now = Date.now();
-      // 1초 이내 중복 호출 방지
       if (now - lastMarkAsReadTimeRef.current > 1000) {
         lastMarkAsReadTimeRef.current = now;
         console.log(
-          `[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load)`,
+          `[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load / presence ready)`,
         );
         markMessagesAsRead.mutate(taskId, {
           onSuccess: () => {
@@ -150,13 +151,12 @@ export default function TaskDetailPage() {
           },
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 1: Failed to mark messages as read:`, error);
-            lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
+            lastMarkAsReadTimeRef.current = 0;
           },
         });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [taskId, currentUserId]); // taskId 변경 시에만 실행 (isPresent는 체크만 하고 의존성에는 포함하지 않음)
+  }, [taskId, currentUserId, isPresent, markMessagesAsRead]);
 
   // 케이스 2: 채팅 화면 재진입 시 읽음 처리 (Presence false → true 전환)
   useEffect(() => {
@@ -192,7 +192,18 @@ export default function TaskDetailPage() {
     lastMarkAsReadTimeRef.current = 0;
   }, [taskId]);
 
-  // 새 메시지 수신 시 스크롤 하단으로 이동 (본인이 보낸 메시지일 때만)
+  // 스크롤 시 하단 근처 여부 추적 (새 메시지 시 자동 스크롤 여부 결정)
+  const handleChatScroll = useCallback(() => {
+    const el = chatScrollContainerRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    isUserNearBottomRef.current = distanceFromBottom <= SCROLL_NEAR_BOTTOM_THRESHOLD;
+  }, []);
+
+  // 새 메시지 수신 시 스크롤 하단으로 이동
+  // - 본인이 보낸 메시지: 항상 스크롤
+  // - 상대가 보낸 메시지: 하단 근처에 있을 때만 스크롤 (위로 스크롤해 과거 읽는 중이면 그대로)
   useEffect(() => {
     if (!currentUserId || messages.length === 0) {
       prevMessagesLengthRef.current = messages.length;
@@ -201,10 +212,15 @@ export default function TaskDetailPage() {
 
     // 메시지가 새로 추가된 경우만 확인
     if (messages.length > prevMessagesLengthRef.current) {
-      // 마지막 메시지가 본인이 보낸 메시지인지 확인
       const lastMessage = messages[messages.length - 1];
-      if (lastMessage && lastMessage.user_id === currentUserId) {
-        // 본인이 보낸 메시지일 때만 스크롤
+      if (!lastMessage) {
+        prevMessagesLengthRef.current = messages.length;
+        return;
+      }
+      const isMyMessage = lastMessage.user_id === currentUserId;
+      const shouldScroll =
+        isMyMessage || (isUserNearBottomRef.current && !isMyMessage);
+      if (shouldScroll) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }
     }
@@ -235,32 +251,20 @@ export default function TaskDetailPage() {
       return;
     }
 
-    // 지시자/담당자 확인
     const isCurrentUserAssigner = currentUserId === task.assigner_id;
     const isCurrentUserAssignee = currentUserId === task.assignee_id;
+    const isReference = task.references?.some((ref) => ref.id === currentUserId) ?? false;
 
-    // 지시자/담당자가 아니면 읽음 처리 안 함
-    if (!isCurrentUserAssigner && !isCurrentUserAssignee) {
+    // 지시자/담당자/참조자가 아니면 읽음 처리 안 함
+    if (!isCurrentUserAssigner && !isCurrentUserAssignee && !isReference) {
       return;
     }
 
-    // 상대방 ID 확인
-    const counterpartId = isCurrentUserAssigner ? task.assignee_id : task.assigner_id;
-
-    // 상대방이 보낸 읽지 않은 메시지가 있는지 확인
+    // 다른 사람이 보낸 읽지 않은 메시지가 있는지 확인
     const hasUnreadMessages = messages.some((message) => {
-      // 상대방이 보낸 메시지만 확인
-      if (message.user_id !== counterpartId) {
-        return false;
-      }
-
-      // 읽음 상태 확인
+      if (message.user_id === currentUserId) return false; // 본인 메시지는 제외
       const readBy = message.read_by || [];
-      if (!Array.isArray(readBy)) {
-        return true; // read_by가 배열이 아니면 읽지 않은 것으로 간주
-      }
-
-      // 현재 사용자가 읽었는지 확인
+      if (!Array.isArray(readBy)) return true;
       return !readBy.some((id: string) => String(id) === String(currentUserId));
     });
 
@@ -315,28 +319,23 @@ export default function TaskDetailPage() {
     };
   }, [openMenuMessageId, handleClickOutside, handleEscape]);
 
-  // 권한 체크: 공개된 Task는 모든 인증된 사용자 접근 가능, 비공개 Task는 assigner, assignee, Admin만 접근 가능
+  // 권한 체크: assigner, assignee, 참조자, Admin만 접근 가능
   useEffect(() => {
     if (!task || !currentUserId) return;
 
     const isAssigner = currentUserId === task.assigner_id;
     const isAssignee = currentUserId === task.assignee_id;
-    const isPublic = task.is_public === true;
-    
-    // 공개된 일반 Task는 모든 인증된 사용자 접근 가능 (자기 할당 Task 제외)
-    if (isPublic && !task.is_self_task) {
-      return; // 접근 허용
-    }
-    
-    // 자기 할당 Task는 공개 여부와 무관하게 본인만 접근 가능
+    const isReference = task.references?.some((ref: { id?: string }) => ref.id === currentUserId) ?? false;
+
+    // 자기 할당 Task는 본인만 접근 가능
     if (task.is_self_task && !isAssigner) {
       toast.error("이 Task에 접근할 권한이 없습니다.");
       navigate(-1);
       return;
     }
-    
-    // 비공개 Task: assigner, assignee, Admin만 접근 가능
-    const hasAccess = isAssigner || isAssignee || isAdmin;
+
+    // 일반 Task: assigner, assignee, 참조자, Admin만 접근 가능
+    const hasAccess = isAssigner || isAssignee || isReference || isAdmin;
     if (!hasAccess) {
       toast.error("이 Task에 접근할 권한이 없습니다.");
       navigate(-1);
@@ -395,15 +394,16 @@ export default function TaskDetailPage() {
   // 자기 할당 Task 여부 확인
   const isSelfTask = task.is_self_task === true;
 
-  // 현재 사용자가 assigner인지 assignee인지 확인
+  // 현재 사용자가 assigner인지 assignee인지 참조자인지 확인
   const isAssigner = currentUserId === task.assigner_id;
   const isAssignee = currentUserId === task.assignee_id;
+  const isReference = task.references?.some((ref: { id?: string }) => ref.id === currentUserId) ?? false;
   // 수정 권한: 지시자만 수정 가능 (자기 할당 Task는 본인만)
   const canEdit = isAssigner;
   // 삭제 권한: 지시자만 삭제 가능 (자기 할당 Task는 본인만)
   const canDelete = isAssigner;
-  // 채팅 작성 권한: 지시자 또는 담당자만 작성 가능 (자기 할당 Task는 본인만)
-  const canSendMessage = isAssigner || isAssignee;
+  // 채팅 작성 권한: 지시자, 담당자, 참조자 (참조자도 채팅 작성 가능)
+  const canSendMessage = isAssigner || isAssignee || isReference;
 
   // 자기 할당 Task: 완료 버튼만 표시 (IN_PROGRESS → APPROVED)
   const canCompleteSelfTask = isSelfTask && isAssigner && task.task_status === "IN_PROGRESS";
@@ -421,6 +421,27 @@ export default function TaskDetailPage() {
   const counterpart = isAssigner ? task.assignee : task.assigner;
   const counterpartName = counterpart?.full_name || counterpart?.email || (isAssigner ? task.assignee_id : task.assigner_id);
   const counterpartEmail = counterpart?.email;
+
+  // 참여자 표시: 참조자 있으면 지시자/담당자/참조자 모두 표시, 없으면 기존처럼 상대방만
+  const hasReferences = task.references && task.references.length > 0;
+  const participantDisplay = hasReferences
+    ? (() => {
+        const assignerLabel = task.assigner_id
+          ? `지시자: ${task.assigner?.full_name || task.assigner?.email || task.assigner_id}${task.assigner?.email ? `(${task.assigner.email})` : ""}`
+          : null;
+        const assigneeLabel = task.assignee_id
+          ? `담당자: ${task.assignee?.full_name || task.assignee?.email || task.assignee_id}${task.assignee?.email ? `(${task.assignee.email})` : ""}`
+          : null;
+        const refLabels = (task.references ?? [])
+          .map(
+            (ref) =>
+              `${ref.full_name || ref.email || ref.id}${ref.email ? `(${ref.email})` : ""}`,
+          )
+          .join(", ");
+        const referenceLabel = refLabels ? `참조자: ${refLabels}` : null;
+        return [assignerLabel, assigneeLabel, referenceLabel].filter(Boolean).join(", ");
+      })()
+    : counterpartName + (counterpartEmail && counterpart?.full_name ? ` (${counterpartEmail})` : "");
 
   // 상태 변경 버튼 클릭 핸들러 (Dialog 표시)
   const handleStatusChangeClick = (newStatus: TaskStatus) => {
@@ -969,19 +990,18 @@ export default function TaskDetailPage() {
     return isLastInGroupMap;
   };
 
-  // 메시지가 상대방(assigner 또는 assignee)에 의해 읽혔는지 확인
-  const isMessageRead = (message: MessageWithProfile): boolean => {
-    if (!currentUserId || !task || !task.assigner_id || !task.assignee_id) {
-      return false;
-    }
+  // 메시지의 미읽음 인원 수 (카카오톡 스타일: 참조자 포함 미읽음 인원 표시)
+  const getUnreadCount = (message: MessageWithProfile): number => {
+    if (!task || !task.assigner_id) return 0;
     try {
-      return isMessageReadByCounterpart(message, currentUserId, {
+      return getUnreadCountForMessageFromData(message, {
         assigner_id: task.assigner_id,
         assignee_id: task.assignee_id,
+        references: task.references,
       });
     } catch (error) {
       console.error("읽음 상태 확인 중 에러:", error);
-      return false;
+      return 0;
     }
   };
 
@@ -1190,14 +1210,21 @@ export default function TaskDetailPage() {
                 </span>
               )}
               <div className="group relative max-w-full min-w-0" data-message-menu={message.id}>
-                <div
-                  className={cn(
-                    "max-w-full min-w-0 rounded-lg border-2 px-3 py-2 sm:px-4 sm:py-3",
-                    isMine
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted text-foreground border-muted",
-                  )}
-                >
+                <div className="flex items-end gap-1 max-w-full min-w-0">
+                  {isMine && (() => {
+                    const unread = getUnreadCount(message);
+                    return unread > 0 ? (
+                      <span className="text-primary shrink-0 pb-0.5 text-[10px] sm:pb-1 sm:text-xs">{unread}</span>
+                    ) : null;
+                  })()}
+                  <div
+                    className={cn(
+                      "max-w-full min-w-0 rounded-lg border-2 px-3 py-2 sm:px-4 sm:py-3",
+                      isMine
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted text-foreground border-muted",
+                    )}
+                  >
                   <div className="flex max-w-full min-w-0 items-center gap-2">
                     <span className="shrink-0 text-base sm:text-xl">
                       {getFileIcon(message.file_type || "")}
@@ -1262,6 +1289,7 @@ export default function TaskDetailPage() {
                       </a>
                     </div>
                   </div>
+                </div>
                 </div>
                 {/* 상대방 메시지: 복사 아이콘만 표시 */}
                 {!isMine && (
@@ -1352,10 +1380,6 @@ export default function TaskDetailPage() {
                   <span className="text-muted-foreground text-10-regular sm:text-xs">
                     {formatMessageTime(message.created_at)}
                   </span>
-                  {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                  {isMine && isMessageRead(message) && (
-                    <span className="text-muted-foreground text-10-regular sm:text-xs">읽음</span>
-                  )}
                 </div>
               )}
             </div>
@@ -1396,26 +1420,37 @@ export default function TaskDetailPage() {
               </span>
             )}
             <div className="group relative max-w-full min-w-0" data-message-menu={message.id}>
-              <div
-                className={cn(
-                  "min-w-0 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5",
-                  isMine ? "bg-primary text-primary-foreground w-fit ml-auto" : "bg-muted text-foreground w-fit",
-                )}
-              >
-                <p
-                  className="break-words whitespace-pre-wrap text-14-regular md:text-16-regular"
-                  style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
-                >
-                  {renderTextWithLinks(message.content || "")}
-                </p>
-              </div>
-              {/* 링크 미리보기 (첫 번째 URL만 표시) */}
               {(() => {
                 const urls = extractUrls(message.content || "");
-                const firstUrl = urls[0];
-                return firstUrl ? (
-                  <LinkPreviewCard url={firstUrl} isMine={isMine} />
-                ) : null;
+                const hasLinkPreview = !!urls[0];
+                const unread = getUnreadCount(message);
+                return (
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex items-end gap-1 max-w-full min-w-0">
+                      {/* 링크 미리보기 없을 때만: 숫자를 텍스트 박스 옆에 표시 */}
+                      {isMine && !hasLinkPreview && unread > 0 && (
+                        <span className="text-primary shrink-0 pb-0.5 text-[10px] sm:pb-1 sm:text-xs">{unread}</span>
+                      )}
+                      <div
+                        className={cn(
+                          "min-w-0 rounded-lg px-2 py-1 sm:px-3 sm:py-1.5",
+                          isMine ? "bg-primary text-primary-foreground w-fit ml-auto" : "bg-muted text-foreground w-fit",
+                        )}
+                      >
+                        <p
+                          className="break-words whitespace-pre-wrap text-14-regular md:text-16-regular"
+                          style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
+                        >
+                          {renderTextWithLinks(message.content || "")}
+                        </p>
+                      </div>
+                    </div>
+                    {/* 링크 미리보기 (SEO 카드) */}
+                    {hasLinkPreview && (
+                      <LinkPreviewCard url={urls[0]} isMine={isMine} />
+                    )}
+                  </div>
+                );
               })()}
               {/* 상대방 메시지: 복사 아이콘만 표시 */}
               {!isMine && (
@@ -1503,13 +1538,18 @@ export default function TaskDetailPage() {
             </div>
             {isLastInGroup && (
               <div className="mt-0.5 flex items-center gap-1 px-1 sm:mt-1">
+                {/* 링크 미리보기 있을 때: 숫자 먼저, 그 다음 시간 */}
+                {isMine && (() => {
+                  const urls = extractUrls(message.content || "");
+                  const hasLinkPreview = !!urls[0];
+                  const unread = getUnreadCount(message);
+                  return hasLinkPreview && unread > 0 ? (
+                    <span className="text-primary text-[10px] sm:text-xs">{unread}</span>
+                  ) : null;
+                })()}
                 <span className="text-muted-foreground text-[10px] sm:text-xs">
                   {formatMessageTime(message.created_at)}
                 </span>
-                {/* 읽음 표시 (본인이 보낸 메시지만) */}
-                {isMine && isMessageRead(message) && (
-                  <span className="text-muted-foreground text-[10px] sm:text-xs">읽음</span>
-                )}
               </div>
             )}
           </div>
@@ -1638,12 +1678,11 @@ export default function TaskDetailPage() {
             alt={counterpartName || "사용자"}
           />
 
-          {/* Task 제목 및 상대방 정보 */}
+          {/* Task 제목 및 참여자 정보 - 채팅 참여자 전체 표시 (truncate 없음) */}
           <div className="min-w-0 flex-1">
             <h1 className="text-base font-semibold truncate">{task.title}</h1>
-            <p className="text-xs text-muted-foreground truncate">
-              {counterpartName}
-              {counterpartEmail && counterpart?.full_name && ` (${counterpartEmail})`}
+            <p className="text-xs text-muted-foreground break-words whitespace-normal" title={participantDisplay}>
+              {participantDisplay}
             </p>
           </div>
 
@@ -1761,7 +1800,9 @@ export default function TaskDetailPage() {
       <div className="flex-1 overflow-hidden flex flex-col">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
-            className="relative flex-1 overflow-x-hidden  pt-4"
+            ref={chatScrollContainerRef}
+            className="relative flex-1 overflow-x-hidden overflow-y-auto pt-4"
+            onScroll={handleChatScroll}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
@@ -1900,7 +1941,7 @@ export default function TaskDetailPage() {
             {!canSendMessage && (
               <div className="bg-muted/50 border-muted rounded-lg border p-3 text-center sm:p-4">
                 <p className="text-muted-foreground text-xs sm:text-sm">
-                  지시자 또는 담당자만 메시지를 작성할 수 있습니다.
+                  지시자, 담당자, 참조자만 메시지를 작성할 수 있습니다.
                 </p>
                 {isAdmin && (
                   <p className="text-muted-foreground/70 mt-1 text-xs">
@@ -2003,7 +2044,7 @@ export default function TaskDetailPage() {
                     multiple
                     className="hidden"
                     onChange={handleFileSelect}
-                    accept="image/*,application/pdf,.doc,.docx,.hwp,.hwpx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.zip,.rar,.7z"
+                    accept="*/*"
                     disabled={!canSendMessage}
                   />
 

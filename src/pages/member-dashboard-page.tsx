@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, useSearchParams, useLocation, useNavigate } from "react-router";
 import { Search, Plus, ArrowUpDown, ChevronDown, Mail, CheckCircle2, XCircle, Bell } from "lucide-react";
-import { useTasksForMember, useSelfTasks, useCurrentProfile, useRealtimeDashboardMessages } from "@/hooks";
+import { useTasksForMember, useSelfTasks, useTasksAsReference, useCurrentProfile, useRealtimeDashboardMessages } from "@/hooks";
 import { useDebounce } from "@/hooks";
 import { TaskStatusChangeDialog } from "@/components/dialog/task-status-change-dialog";
 import { useUpdateTaskStatus, useCreateTask, useUpdateTask } from "@/hooks/mutations/use-task";
@@ -170,7 +170,7 @@ function getDueDateColorClass(daysDiff: number | null, taskStatus: TaskStatus): 
   }
 }
 
-type DashboardTab = "all-tasks" | "my-tasks" | "self-tasks";
+type DashboardTab = "all-tasks" | "my-tasks" | "self-tasks" | "reference-tasks";
 type StatusParam = "all" | "assigned" | "in_progress" | "waiting_confirm" | "rejected" | "approved";
 type SortDueParam = "asc" | "desc";
 type SortEmailSentParam = "asc" | "desc";
@@ -184,17 +184,29 @@ export default function MemberDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: currentProfile } = useCurrentProfile();
-  // 승인된 태스크 탭: 자신이 진행한 태스크 중 승인된 것만 (자기 할당 Task 제외)
+  // 승인된 태스크 탭: 자신이 진행한 태스크 + 참조된 업무 중 승인된 것 (자기 할당 Task 제외)
   const { data: allMyTasksRaw = [], isLoading: allTasksLoading } = useTasksForMember(false);
-  const allMyTasks = useMemo(() => 
-    allMyTasksRaw.filter((task) => task.task_status === "APPROVED" && task.is_self_task === false), 
-    [allMyTasksRaw]
-  );
+  const { data: referenceTasksRaw = [], isLoading: referenceTasksLoading } = useTasksAsReference();
+  const allMyTasks = useMemo(() => {
+    const fromMember = allMyTasksRaw.filter(
+      (task) => task.task_status === "APPROVED" && task.is_self_task === false,
+    );
+    const fromReference = referenceTasksRaw
+      .filter((task) => task.task_status === "APPROVED" && task.is_self_task === false)
+      .map((task) => ({ ...task, isReferencedTask: true as const }));
+    const fromMemberWithFlag = fromMember.map((task) => ({ ...task, isReferencedTask: false as const }));
+    return [...fromMemberWithFlag, ...fromReference];
+  }, [allMyTasksRaw, referenceTasksRaw]);
   // 담당 업무 탭: 지시자/담당자인 태스크 중 승인됨이 아닌 것만
   const { data: myTasks = [], isLoading: myTasksLoading } = useTasksForMember(true);
   // 개인 태스크 탭: 자기 할당 Task만 조회
   const { data: selfTasksRaw = [], isLoading: selfTasksLoading } = useSelfTasks(false);
   const selfTasks = useMemo(() => selfTasksRaw, [selfTasksRaw]);
+  // 참조된 업무 탭: 참조자로 지정된 Task만 조회 (승인된 Task는 제외 → 승인된 탭으로 이동)
+  const referenceTasks = useMemo(
+    () => referenceTasksRaw.filter((task) => task.task_status !== "APPROVED"),
+    [referenceTasksRaw],
+  );
   const updateTaskStatus = useUpdateTaskStatus();
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
@@ -204,7 +216,7 @@ export default function MemberDashboardPage() {
   // 탭 상태 - URL 쿼리 파라미터에서 읽기
   const tabParam = searchParams.get("tab") as DashboardTab | null;
   const [activeTab, setActiveTab] = useState<DashboardTab>(
-    tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "self-tasks" ? tabParam : "my-tasks",
+    tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "self-tasks" || tabParam === "reference-tasks" ? tabParam : "my-tasks",
   );
 
   // URL params 읽기 (전체 태스크 탭 및 담당 업무 탭용)
@@ -236,6 +248,15 @@ export default function MemberDashboardPage() {
   const validCategoryParams: CategoryParam[] = ["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"];
   const category: CategoryParam =
     categoryParam && validCategoryParams.includes(categoryParam) ? categoryParam : "all";
+
+  // 참조된 업무 탭용 카테고리/상태 (탭 전환 시 독립 유지)
+  const referenceCategoryParam = searchParams.get("referenceCategory") as CategoryParam | null;
+  const referenceCategory: CategoryParam =
+    referenceCategoryParam && validCategoryParams.includes(referenceCategoryParam) ? referenceCategoryParam : "all";
+  const referenceStatusParam = searchParams.get("referenceStatus") as StatusParam | null;
+  const validReferenceStatusParams: StatusParam[] = ["all", "assigned", "in_progress", "waiting_confirm", "rejected"];
+  const referenceStatus: StatusParam =
+    referenceStatusParam && validReferenceStatusParams.includes(referenceStatusParam) ? referenceStatusParam : "all";
 
   const statusParam = searchParams.get("status") as StatusParam | null;
   const validStatusParams: StatusParam[] = [
@@ -291,6 +312,14 @@ export default function MemberDashboardPage() {
   const selfTasksPageParam = searchParams.get("selfTasksPage");
   const selfTasksCurrentPage = selfTasksPageParam ? Math.max(1, parseInt(selfTasksPageParam, 10)) : 1;
   const [selfTasksItemsPerPage, setSelfTasksItemsPerPage] = useState(() => {
+    const saved = sessionStorage.getItem("tablePageSize");
+    return saved ? parseInt(saved, 10) : 10;
+  });
+
+  // 페이지네이션 상태 (참조된 업무 탭용)
+  const referenceTasksPageParam = searchParams.get("referenceTasksPage");
+  const referenceTasksCurrentPage = referenceTasksPageParam ? Math.max(1, parseInt(referenceTasksPageParam, 10)) : 1;
+  const [referenceTasksItemsPerPage, setReferenceTasksItemsPerPage] = useState(() => {
     const saved = sessionStorage.getItem("tablePageSize");
     return saved ? parseInt(saved, 10) : 10;
   });
@@ -476,6 +505,41 @@ export default function MemberDashboardPage() {
     setSearchParams(newParams, { replace: true });
   };
 
+  // URL params 업데이트 헬퍼 함수 (참조된 업무 탭용)
+  const updateReferenceTasksUrlParams = (
+    updates?: Partial<{
+      keyword?: string;
+      referenceTasksPage?: number;
+      sortDue?: SortDueParam;
+      referenceCategory?: CategoryParam;
+      referenceStatus?: StatusParam;
+    }>,
+  ) => {
+    const newParams = new URLSearchParams();
+    newParams.set("tab", "reference-tasks");
+    const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
+    const referenceTasksPageToSet = updates?.referenceTasksPage !== undefined ? updates.referenceTasksPage : referenceTasksCurrentPage;
+    const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
+    const referenceCategoryToSet = updates?.referenceCategory !== undefined ? updates.referenceCategory : referenceCategory;
+    const referenceStatusToSet = updates?.referenceStatus !== undefined ? updates.referenceStatus : referenceStatus;
+    if (keywordToSet && keywordToSet.trim()) {
+      newParams.set("keyword", keywordToSet);
+    }
+    if (referenceTasksPageToSet !== undefined && referenceTasksPageToSet !== 1) {
+      newParams.set("referenceTasksPage", referenceTasksPageToSet.toString());
+    }
+    if (sortDueToSet !== "asc") {
+      newParams.set("sortDue", sortDueToSet);
+    }
+    if (referenceCategoryToSet !== "all") {
+      newParams.set("referenceCategory", referenceCategoryToSet);
+    }
+    if (referenceStatusToSet !== "all") {
+      newParams.set("referenceStatus", referenceStatusToSet);
+    }
+    setSearchParams(newParams, { replace: true });
+  };
+
   // 검색어 변경 핸들러 (로컬 state 및 URL params 업데이트)
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -484,6 +548,8 @@ export default function MemberDashboardPage() {
       updateAllTasksUrlParams({ keyword: value });
     } else if (activeTab === "self-tasks") {
       updateSelfTasksUrlParams({ keyword: value });
+    } else if (activeTab === "reference-tasks") {
+      updateReferenceTasksUrlParams({ keyword: value, referenceTasksPage: 1 });
     } else {
       updateMyTasksUrlParams({ keyword: value });
     }
@@ -535,6 +601,16 @@ export default function MemberDashboardPage() {
   // 상태 필터 변경 핸들러 (개인 태스크 탭용)
   const handleSelfTasksStatusChange = (newStatus: StatusParam) => {
     updateSelfTasksUrlParams({ status: newStatus });
+  };
+
+  // 카테고리 필터 변경 핸들러 (참조된 업무 탭용)
+  const handleReferenceTasksCategoryChange = (newCategory: CategoryParam) => {
+    updateReferenceTasksUrlParams({ referenceCategory: newCategory, referenceTasksPage: 1 });
+  };
+
+  // 상태 필터 변경 핸들러 (참조된 업무 탭용)
+  const handleReferenceTasksStatusChange = (newStatus: StatusParam) => {
+    updateReferenceTasksUrlParams({ referenceStatus: newStatus, referenceTasksPage: 1 });
   };
 
   // 이메일 발송 필터 변경 핸들러 (개인 태스크 탭용)
@@ -630,6 +706,7 @@ export default function MemberDashboardPage() {
     dueDateDraft: string,
     files?: File[],
     notes?: string,
+    referenceIds?: string[],
   ) => {
     if (!currentProfile?.id) return;
 
@@ -638,6 +715,8 @@ export default function MemberDashboardPage() {
       const dueDate1Str = dueDateClaimDrawing;
       const dueDate2Str = dueDateDraft;
 
+      const refIds = referenceIds?.filter((id) => id !== assigneeId) ?? [];
+
       // Task 1 생성
       const task1 = await createTask.mutateAsync({
         title: "청구항 및 도면",
@@ -645,6 +724,7 @@ export default function MemberDashboardPage() {
         due_date: dueDate1Str,
         task_category: "SPECIFICATION",
         client_name: clientName,
+        reference_ids: refIds,
       });
 
       // Task 2 생성
@@ -654,6 +734,7 @@ export default function MemberDashboardPage() {
         due_date: dueDate2Str,
         task_category: "SPECIFICATION",
         client_name: clientName,
+        reference_ids: refIds,
       });
 
       // 각 Task에 특이사항/파일 메시지 생성
@@ -847,6 +928,7 @@ export default function MemberDashboardPage() {
           specificationData.due_date_draft,
           files,
           notes,
+          specificationData.reference_ids,
         );
       } finally {
         setIsCreatingTask(false);
@@ -859,6 +941,7 @@ export default function MemberDashboardPage() {
       // 1. 태스크 생성
       const isSelfTask = activeTab === "self-tasks";
       const createData = data as TaskCreateFormData | TaskCreateSelfTaskFormData;
+      const referenceIds = (createData as TaskCreateFormData).reference_ids ?? [];
       const newTask = await createTask.mutateAsync({
         title: createData.title,
         assignee_id: isSelfTask ? undefined : (createData as TaskCreateFormData).assignee_id, // 자기 할당 Task는 assignee_id 불필요
@@ -866,6 +949,7 @@ export default function MemberDashboardPage() {
         client_name: createData.client_name || null,
         due_date: createData.due_date,
         is_self_task: isSelfTask, // 자기 할당 Task 플래그
+        reference_ids: referenceIds.length > 0 ? referenceIds : undefined,
       });
 
       // 2. 파일이 있으면 업로드 후 메시지로 전송
@@ -1113,15 +1197,66 @@ export default function MemberDashboardPage() {
     return sortedMyTasks.slice(startIndex, endIndex);
   }, [sortedMyTasks, myTasksCurrentPage, myTasksItemsPerPage]);
 
+  // 참조된 업무 탭: 검색 필터링
+  const searchedReferenceTasks = useMemo(() => {
+    if (!debouncedSearch.trim()) return referenceTasks;
+    const query = debouncedSearch.toLowerCase();
+    return referenceTasks.filter((task) => {
+      const titleMatch = task.title.toLowerCase().includes(query);
+      const clientNameMatch = (task.client_name || "").toLowerCase().includes(query);
+      const uniqueIdMatch = task.id.slice(0, 8).toLowerCase().includes(query);
+      const assignerName = (task.assigner?.full_name || task.assigner?.email || "").toLowerCase().includes(query);
+      const assigneeName = (task.assignee?.full_name || task.assignee?.email || "").toLowerCase().includes(query);
+      return titleMatch || clientNameMatch || uniqueIdMatch || assignerName || assigneeName;
+    });
+  }, [referenceTasks, debouncedSearch]);
+
+  // 참조된 업무 탭: 카테고리 필터링
+  const categoryFilteredReferenceTasks = useMemo(() => {
+    if (referenceCategory === "all") return searchedReferenceTasks;
+    return searchedReferenceTasks.filter((task) => task.task_category === referenceCategory);
+  }, [searchedReferenceTasks, referenceCategory]);
+
+  // 참조된 업무 탭: 상태 필터링
+  const statusFilteredReferenceTasks = useMemo(() => {
+    const dbStatus = statusMap[referenceStatus];
+    if (dbStatus === null) return categoryFilteredReferenceTasks;
+    return categoryFilteredReferenceTasks.filter((task) => task.task_status === dbStatus);
+  }, [categoryFilteredReferenceTasks, referenceStatus]);
+
+  // 참조된 업무 탭: 마감일 정렬
+  const sortedReferenceTasks = useMemo(() => {
+    const sorted = [...statusFilteredReferenceTasks];
+    sorted.sort((a, b) => {
+      if (sortDue === "asc") {
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      } else {
+        if (!a.due_date && !b.due_date) return 0;
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        return new Date(b.due_date).getTime() - new Date(a.due_date).getTime();
+      }
+    });
+    return sorted;
+  }, [statusFilteredReferenceTasks, sortDue]);
+
+  // 참조된 업무 탭: 페이지네이션
+  const paginatedReferenceTasks = useMemo(() => {
+    const startIndex = (referenceTasksCurrentPage - 1) * referenceTasksItemsPerPage;
+    const endIndex = startIndex + referenceTasksItemsPerPage;
+    return sortedReferenceTasks.slice(startIndex, endIndex);
+  }, [sortedReferenceTasks, referenceTasksCurrentPage, referenceTasksItemsPerPage]);
+
+  // 참조된 업무 탭: 총 페이지 수
+  const referenceTasksTotalPages = Math.ceil(sortedReferenceTasks.length / referenceTasksItemsPerPage) || 1;
+
   // 현재 표시 중인 Task ID 목록 추출 (실시간 구독용)
-  // sortedMyTasks/sortedAllTasks를 사용하여 필터링/정렬이 완료된 Task ID를 추출
-  // 페이지네이션된 Task만 구독하여 성능 최적화
   const currentTaskIds = useMemo(() => {
     const taskIds = new Set<string>();
     
-    // 현재 활성 탭에 따라 표시 중인 Task ID 수집
-    // activeTab을 사용하여 탭 구분 (category는 카테고리 필터이므로 사용하지 않음)
-    // paginatedMyTasks/paginatedAllTasks 대신 sortedMyTasks/sortedAllTasks에서 페이지네이션 범위만 추출
     if (activeTab === "my-tasks") {
       const startIndex = (myTasksCurrentPage - 1) * myTasksItemsPerPage;
       const endIndex = startIndex + myTasksItemsPerPage;
@@ -1134,24 +1269,16 @@ export default function MemberDashboardPage() {
       sortedAllTasks.slice(startIndex, endIndex).forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
+    } else if (activeTab === "reference-tasks") {
+      const startIndex = (referenceTasksCurrentPage - 1) * referenceTasksItemsPerPage;
+      const endIndex = startIndex + referenceTasksItemsPerPage;
+      sortedReferenceTasks.slice(startIndex, endIndex).forEach((task) => {
+        if (task.id) taskIds.add(task.id);
+      });
     }
     
-    const result = Array.from(taskIds);
-    console.log(`[Member Dashboard] 📋 Current task IDs for subscription:`, {
-      activeTab,
-      category,
-      count: result.length,
-      taskIds: result,
-      sortedMyTasksCount: sortedMyTasks.length,
-      sortedAllTasksCount: sortedAllTasks.length,
-      paginatedMyTasksCount: paginatedMyTasks.length,
-      paginatedAllTasksCount: paginatedAllTasks.length,
-      myTasksCurrentPage,
-      allTasksCurrentPage,
-    });
-    
-    return result;
-  }, [activeTab, category, sortedMyTasks, sortedAllTasks, myTasksCurrentPage, allTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage]);
+    return Array.from(taskIds);
+  }, [activeTab, sortedMyTasks, sortedAllTasks, sortedReferenceTasks, myTasksCurrentPage, allTasksCurrentPage, referenceTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage, referenceTasksItemsPerPage]);
 
   // 실시간 구독 활성화
   console.log(`[Member Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
@@ -1263,7 +1390,7 @@ export default function MemberDashboardPage() {
   // URL 쿼리 파라미터 변경 시 탭 상태 및 검색어 동기화
   useEffect(() => {
     const tabParam = searchParams.get("tab") as DashboardTab | null;
-    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "self-tasks" ? tabParam : "my-tasks";
+    const newTab = tabParam === "all-tasks" || tabParam === "my-tasks" || tabParam === "self-tasks" || tabParam === "reference-tasks" ? tabParam : "my-tasks";
     const keywordFromUrl = searchParams.get("keyword") || "";
     
     if (newTab !== activeTab) {
@@ -1350,7 +1477,10 @@ export default function MemberDashboardPage() {
     if (activeTab === "self-tasks" && selfTasksTotalPages > 0 && selfTasksCurrentPage > selfTasksTotalPages) {
       updateSelfTasksUrlParams({ selfTasksPage: 1 });
     }
-  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, selfTasksCurrentPage, selfTasksTotalPages, activeTab]);
+    if (activeTab === "reference-tasks" && referenceTasksTotalPages > 0 && referenceTasksCurrentPage > referenceTasksTotalPages) {
+      updateReferenceTasksUrlParams({ referenceTasksPage: 1 });
+    }
+  }, [allTasksCurrentPage, allTasksTotalPages, myTasksCurrentPage, myTasksTotalPages, selfTasksCurrentPage, selfTasksTotalPages, referenceTasksCurrentPage, referenceTasksTotalPages, activeTab]);
 
   const isLoading = allTasksLoading || myTasksLoading;
 
@@ -1499,9 +1629,10 @@ export default function MemberDashboardPage() {
           setSearchQuery(""); // 검색어도 초기화
         }}
       >
-        {/* 담당 업무 / 승인된 태스크 / 개인 태스크 탭 */}
+        {/* 담당 업무 / 참조된 업무 / 승인된 태스크 / 개인 태스크 탭 */}
         <TabsList className="mt-4">
           <TabsTrigger value="my-tasks">담당 업무</TabsTrigger>
+          <TabsTrigger value="reference-tasks">참조된 업무</TabsTrigger>
           <TabsTrigger value="all-tasks">승인된 태스크</TabsTrigger>
           <TabsTrigger value="self-tasks">개인 태스크</TabsTrigger>
         </TabsList>
@@ -1716,7 +1847,7 @@ export default function MemberDashboardPage() {
                       colSpan={7}
                       className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
                     >
-                      {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
+                      {(debouncedSearch || category !== "all" || status !== "all") ? "조건에 맞는 업무가 없습니다." : "업무가 없습니다."}
                     </td>
                   </tr>
                 ) : (
@@ -2038,7 +2169,7 @@ export default function MemberDashboardPage() {
                       colSpan={7}
                       className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
                     >
-                      {debouncedSearch ? "검색 결과가 없습니다." : "Task가 없습니다."}
+                      {(debouncedSearch || category !== "all" || emailSent !== "all") ? "조건에 맞는 업무가 없습니다." : "업무가 없습니다."}
                     </td>
                   </tr>
                 ) : (
@@ -2048,11 +2179,15 @@ export default function MemberDashboardPage() {
                     const assignerName = task.assigner?.full_name || task.assigner?.email?.split('@')[0] || '-';
                     const assigneeName = task.assignee?.full_name || task.assignee?.email?.split('@')[0] || '-';
                     const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
+                    const isReferencedTask = "isReferencedTask" in task && task.isReferencedTask === true;
 
                     return (
                       <tr
                         key={task.id}
-                        className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                        className={cn(
+                          "hover:bg-muted/50 border-b transition-colors cursor-pointer",
+                          isReferencedTask && "bg-primary/20",
+                        )}
                         onClick={() => {
                           const currentUrl =
                             window.location.pathname + window.location.search;
@@ -2522,9 +2657,7 @@ export default function MemberDashboardPage() {
                 ) : paginatedSelfTasks.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-2 py-8 text-center text-muted-foreground sm:px-4">
-                      {searchedSelfTasks.length === 0
-                        ? "개인 태스크가 없습니다."
-                        : "검색 결과가 없습니다."}
+                      {(debouncedSearch || category !== "all" || status !== "all" || emailSent !== "all") ? "조건에 맞는 업무가 없습니다." : "업무가 없습니다."}
                     </td>
                   </tr>
                 ) : (
@@ -2645,6 +2778,338 @@ export default function MemberDashboardPage() {
                 updateSelfTasksUrlParams({ selfTasksPage: 1 });
               }}
             />
+          )}
+        </TabsContent>
+
+        {/* 참조된 업무 탭 */}
+        <TabsContent value="reference-tasks" className="space-y-4">
+          {referenceTasksLoading ? (
+            <DefaultSpinner />
+          ) : (
+            <div className="space-y-4">
+              {/* 필터 영역 (담당 업무 탭과 동일) */}
+              <div className="space-y-3">
+                {/* 모바일: Select 드롭다운 */}
+                <div className="flex gap-2 sm:hidden">
+                  <Select value={referenceCategory} onValueChange={(value) => handleReferenceTasksCategoryChange(value as CategoryParam)}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue>
+                        {referenceCategory === "all"
+                          ? "전체 카테고리"
+                          : referenceCategory === "REVIEW"
+                            ? "검토"
+                            : referenceCategory === "REVISION"
+                              ? "수정"
+                              : referenceCategory === "CONTRACT"
+                                ? "계약"
+                                : referenceCategory === "SPECIFICATION"
+                                  ? "명세서"
+                                  : referenceCategory === "APPLICATION"
+                                    ? "출원"
+                                    : "전체"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                        const categoryLabels: Record<CategoryParam, string> = {
+                          all: "전체",
+                          REVIEW: "검토",
+                          REVISION: "수정",
+                          CONTRACT: "계약",
+                          SPECIFICATION: "명세서",
+                          APPLICATION: "출원",
+                        };
+                        const dbStatus = statusMap[referenceStatus];
+                        const filteredByStatus =
+                          dbStatus === null
+                            ? searchedReferenceTasks.filter((task) => task.task_status !== "APPROVED")
+                            : searchedReferenceTasks.filter((task) => task.task_status === dbStatus);
+                        const count =
+                          categoryValue === "all"
+                            ? filteredByStatus.length
+                            : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                        return (
+                          <SelectItem key={categoryValue} value={categoryValue}>
+                            {categoryLabels[categoryValue]} ({count}개)
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <Select value={referenceStatus} onValueChange={(value) => handleReferenceTasksStatusChange(value as StatusParam)}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue>
+                        {referenceStatus === "all"
+                          ? "전체 상태"
+                          : referenceStatus === "assigned"
+                            ? "할당됨"
+                            : referenceStatus === "in_progress"
+                              ? "진행중"
+                              : referenceStatus === "waiting_confirm"
+                                ? "확인대기"
+                                : referenceStatus === "rejected"
+                                  ? "거부됨"
+                                  : "전체"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
+                        const statusLabels: Record<StatusParam, string> = {
+                          all: "전체",
+                          assigned: "할당됨",
+                          in_progress: "진행중",
+                          waiting_confirm: "확인대기",
+                          rejected: "거부됨",
+                          approved: "승인됨",
+                        };
+                        const filteredByCategory =
+                          referenceCategory === "all"
+                            ? searchedReferenceTasks
+                            : searchedReferenceTasks.filter((task) => task.task_category === referenceCategory);
+                        const dbStatus = statusMap[statusValue];
+                        const count =
+                          dbStatus === null
+                            ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
+                            : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+                        return (
+                          <SelectItem key={statusValue} value={statusValue}>
+                            {statusLabels[statusValue]} ({count}개)
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* 태블릿/PC: 버튼 그룹 */}
+                <div className="hidden sm:block space-y-2">
+                  {/* 카테고리 필터 버튼 */}
+                  <div className="flex flex-wrap gap-2">
+                    {(["all", "REVIEW", "REVISION", "CONTRACT", "SPECIFICATION", "APPLICATION"] as CategoryParam[]).map((categoryValue) => {
+                      const categoryLabels: Record<CategoryParam, string> = {
+                        all: "전체",
+                        REVIEW: "검토",
+                        REVISION: "수정",
+                        CONTRACT: "계약",
+                        SPECIFICATION: "명세서",
+                        APPLICATION: "출원",
+                      };
+                      const dbStatus = statusMap[referenceStatus];
+                      const filteredByStatus =
+                        dbStatus === null
+                          ? searchedReferenceTasks.filter((task) => task.task_status !== "APPROVED")
+                          : searchedReferenceTasks.filter((task) => task.task_status === dbStatus);
+                      const count =
+                        categoryValue === "all"
+                          ? filteredByStatus.length
+                          : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                      return (
+                        <Button
+                          key={categoryValue}
+                          variant={referenceCategory === categoryValue ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleReferenceTasksCategoryChange(categoryValue)}
+                          className="p-1 sm:p-1.5"
+                        >
+                          {categoryLabels[categoryValue]} ({count}개)
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  {/* 상태 필터 버튼 */}
+                  <div className="flex flex-wrap gap-2">
+                    {(["all", "assigned", "in_progress", "waiting_confirm", "rejected"] as StatusParam[]).map((statusValue) => {
+                      const statusLabels: Record<StatusParam, string> = {
+                        all: "전체",
+                        assigned: "할당됨",
+                        in_progress: "진행중",
+                        waiting_confirm: "확인대기",
+                        rejected: "거부됨",
+                        approved: "승인됨",
+                      };
+                      const filteredByCategory =
+                        referenceCategory === "all"
+                          ? searchedReferenceTasks
+                          : searchedReferenceTasks.filter((task) => task.task_category === referenceCategory);
+                      const dbStatus = statusMap[statusValue];
+                      const count =
+                        dbStatus === null
+                          ? filteredByCategory.filter((task) => task.task_status !== "APPROVED").length
+                          : filteredByCategory.filter((task) => task.task_status === dbStatus).length;
+                      return (
+                        <Button
+                          key={statusValue}
+                          variant={referenceStatus === statusValue ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleReferenceTasksStatusChange(statusValue)}
+                          className="p-1 sm:p-1.5"
+                        >
+                          {statusLabels[statusValue]} ({count}개)
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {/* 검색창 */}
+              <div className="w-full">
+                <div className="relative">
+                  <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                  <Input
+                    placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              {/* Task 테이블 */}
+              <div className="overflow-x-scroll">
+                <table className="w-full min-w-[800px] table-fixed">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">고유 ID</th>
+                      <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">고객명</th>
+                      <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">지시사항</th>
+                      <th
+                        className="hover:bg-muted/50 w-[14.285%] cursor-pointer px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm"
+                        onClick={() => {
+                          const newSortDue: SortDueParam = sortDue === "asc" ? "desc" : "asc";
+                          updateReferenceTasksUrlParams({ sortDue: newSortDue, referenceTasksPage: 1 });
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          마감일
+                          <ArrowUpDown className="size-3 sm:size-4" />
+                        </div>
+                      </th>
+                      <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">
+                        <StatusFilterDropdown
+                          status={referenceStatus}
+                          onStatusChange={handleReferenceTasksStatusChange}
+                          tasks={categoryFilteredReferenceTasks}
+                          hideApproved={true}
+                        />
+                      </th>
+                      <th className="w-[14.285%] px-2 py-3 text-center text-xs font-medium sm:px-4 sm:text-sm">새 메시지</th>
+                      <th className="w-[14.285%] px-2 py-3 text-left text-xs font-medium sm:px-4 sm:text-sm">지시자/담당자</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedReferenceTasks.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="text-muted-foreground h-24 text-center text-xs sm:text-sm"
+                        >
+                          {(debouncedSearch || referenceCategory !== "all" || referenceStatus !== "all") ? "조건에 맞는 업무가 없습니다." : "업무가 없습니다."}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedReferenceTasks.map((task) => {
+                        const dueDate = formatDueDate(task.due_date);
+                        const daysDiff = calculateDaysDifference(task.due_date);
+                        const dDayText = getDDayText(daysDiff);
+                        const dueDateColorClass = getDueDateColorClass(daysDiff, task.task_status);
+                        const assignerName = task.assigner?.full_name || task.assigner?.email?.split("@")[0] || "-";
+                        const assigneeName = task.assignee?.full_name || task.assignee?.email?.split("@")[0] || "-";
+                        const assignerAssigneeDisplay = `${assignerName} / ${assigneeName}`;
+                        return (
+                          <tr
+                            key={task.id}
+                            className="hover:bg-muted/50 border-b transition-colors cursor-pointer"
+                            onClick={() => {
+                              const currentUrl = window.location.pathname + window.location.search;
+                              sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                              navigate(`/tasks/${task.id}`);
+                            }}
+                          >
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              <div className="line-clamp-2 text-xs sm:text-sm">
+                                {task.id ? (
+                                  <span className="font-mono text-xs text-primary">{task.id.slice(0, 8).toUpperCase()}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              <div className="line-clamp-2 text-xs sm:text-sm">
+                                {task.client_name || <span className="text-muted-foreground">-</span>}
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              <div className="line-clamp-2 text-xs sm:text-sm">
+                                <Link
+                                  to={`/tasks/${task.id}`}
+                                  className="line-clamp-2 hover:underline cursor-pointer text-primary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const currentUrl = window.location.pathname + window.location.search;
+                                    sessionStorage.setItem("previousDashboardUrl", currentUrl);
+                                  }}
+                                >
+                                  {task.title}
+                                </Link>
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              {dueDate ? (
+                                <span
+                                  className={cn(
+                                    "text-xs whitespace-nowrap sm:text-sm",
+                                    dueDateColorClass,
+                                  )}
+                                >
+                                  {dueDate} {dDayText}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              <TaskStatusBadge status={task.task_status} />
+                            </td>
+                            <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
+                              {task.unread_message_count && task.unread_message_count > 0 ? (
+                                <div className="relative inline-flex">
+                                  <Bell className="h-6 w-6" style={{ fill: "oklch(0.637 0.237 25.331)", color: "oklch(0.637 0.237 25.331)" }} />
+                                  <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-semibold text-white">
+                                    {task.unread_message_count}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs sm:text-sm">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-3 sm:px-4 sm:py-4">
+                              <div className="line-clamp-2 text-xs sm:text-sm">{assignerAssigneeDisplay}</div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* 페이지네이션 */}
+              {sortedReferenceTasks.length > 0 && (
+                <TablePagination
+                  currentPage={referenceTasksCurrentPage}
+                  totalPages={referenceTasksTotalPages}
+                  pageSize={referenceTasksItemsPerPage}
+                  totalItems={sortedReferenceTasks.length}
+                  selectedCount={0}
+                  onPageChange={(page) => {
+                    updateReferenceTasksUrlParams({ referenceTasksPage: page });
+                  }}
+                  onPageSizeChange={(newPageSize) => {
+                    setReferenceTasksItemsPerPage(newPageSize);
+                    sessionStorage.setItem("tablePageSize", newPageSize.toString());
+                    updateReferenceTasksUrlParams({ referenceTasksPage: 1 });
+                  }}
+                />
+              )}
+            </div>
           )}
         </TabsContent>
       </Tabs>

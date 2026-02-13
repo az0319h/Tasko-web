@@ -29,6 +29,12 @@ export type TaskWithProfiles = Task & {
     email: string;
     avatar_url: string | null;
   } | null;
+  references?: Array<{
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  }>; // 참조자 목록
   unread_message_count?: number; // 읽지 않은 메시지 수
 };
 
@@ -46,11 +52,10 @@ export async function getTasksByProjectId(_projectId: string): Promise<TaskWithP
  * assigner와 assignee의 프로필 정보를 JOIN하여 함께 반환
  * 
  * 권한별 접근 제어:
- * - 공개된 Task (is_public = true): 모든 인증된 사용자 접근 가능 (자기 할당 Task 제외)
- * - 자기 할당 Task: 공개 여부와 무관하게 본인만 접근 가능
  * - Admin: 모든 Task 상세 접근 가능
- * - Member (assigner/assignee): 자신의 Task 상세 접근 가능
- * - Member (기타): 비공개 Task는 접근 불가
+ * - 자기 할당 Task: 본인만 접근 가능
+ * - Member (assigner/assignee/참조자): 자신의 Task 상세 접근 가능
+ * - Member (기타): 접근 불가
  */
 export async function getTaskById(id: string): Promise<TaskWithProfiles | null> {
   const { data: session } = await supabase.auth.getSession();
@@ -60,7 +65,7 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
 
   const userId = session.session.user.id;
 
-  // Task 조회
+  // Task 조회 (참조자 정보 포함)
   const { data, error } = await supabase
     .from("tasks")
     .select(`
@@ -82,6 +87,21 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
     return null;
   }
 
+  // 참조자 목록 조회 (user_id FK로 profiles 조인)
+  const { data: referenceData, error: refError } = await supabase
+    .from("task_references")
+    .select(`
+      profiles(id, full_name, email, avatar_url)
+    `)
+    .eq("task_id", id);
+
+  if (refError) {
+    throw new Error(`참조자 조회 실패: ${refError.message}`);
+  }
+
+  // 참조자 목록 매핑 (profiles가 객체로 반환됨)
+  const references = referenceData?.map((ref: any) => ref.profiles).filter(Boolean) || [];
+
   // Admin 권한 확인
   const { data: profile } = await supabase
     .from("profiles")
@@ -92,29 +112,20 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
   const isAdmin = profile?.role === "admin";
   const isAssigner = data.assigner_id === userId;
   const isAssignee = data.assignee_id === userId;
-  const isPublic = data.is_public === true;
+  const isReference = references.some((ref: any) => ref.id === userId);
 
-  // 권한 검증 및 필드 제어
-  // 공개된 Task는 모든 인증된 사용자가 읽기 전용으로 접근 가능 (자기 할당 Task 제외)
-  if (isPublic && !data.is_self_task) {
-    // 공개된 일반 Task: 모든 인증된 사용자 접근 가능
-    return data as TaskWithProfiles;
-  }
-
-  // 자기 할당 Task는 공개 여부와 무관하게 본인만 접근 가능
+  // 권한 검증: Admin, assigner, assignee, 참조자만 접근 가능
   if (data.is_self_task && !isAssigner) {
-    // 자기 할당 Task인데 본인이 아닌 경우: 접근 거부
     return null;
   }
 
-  // 비공개 Task: Admin, assigner, assignee만 접근 가능
-  if (!isAdmin && !isAssigner && !isAssignee) {
-    // 일반 멤버가 자신의 Task가 아닌 경우: 접근 거부
+  if (!isAdmin && !isAssigner && !isAssignee && !isReference) {
+    // 일반 멤버가 자신의 Task가 아니고 참조자도 아닌 경우: 접근 거부
     return null;
   }
 
-  // Admin 또는 assigner/assignee: 모든 필드 반환
-  return data as TaskWithProfiles;
+  // Admin 또는 assigner/assignee/참조자: 모든 필드 반환
+  return { ...data, references } as TaskWithProfiles;
 }
 
 /**
@@ -123,8 +134,14 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
  * - assignee_id는 필수 입력값 (단, is_self_task = true일 때는 자동 설정)
  * - assigner와 assignee는 모두 해당 프로젝트에 속한 사용자여야 함
  * - is_self_task = true일 때: assignee_id 자동 설정, task_status = IN_PROGRESS 자동 설정
+ * - reference_ids: 참조자 목록 (선택 사항, 0명 이상)
  */
-export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_self_task?: boolean }): Promise<Task> {
+export async function createTask(
+  task: Omit<TaskInsert, "assigner_id"> & { 
+    is_self_task?: boolean;
+    reference_ids?: string[];
+  }
+): Promise<Task> {
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) {
     throw new Error("인증이 필요합니다.");
@@ -132,6 +149,7 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_se
 
   const currentUserId = session.session.user.id;
   const isSelfTask = task.is_self_task === true;
+  const referenceIds = task.reference_ids || [];
 
   // Admin 권한 확인
   const { data: profile } = await supabase
@@ -148,8 +166,10 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_se
   // 자기 할당 Task 처리
   if (isSelfTask) {
     // 자기 할당 Task: assignee_id 자동 설정, task_status 자동 설정
+    // reference_ids는 tasks 테이블에 없으므로 제거 (별도 task_references에 insert)
+    const { reference_ids: _refIdsSelf, ...taskWithoutRefsSelf } = task as any;
     const taskWithAssigner: any = {
-      ...task,
+      ...taskWithoutRefsSelf,
       assigner_id: currentUserId,
       assignee_id: currentUserId, // 자기 자신으로 자동 설정
       task_status: "IN_PROGRESS", // 자동으로 진행중 상태 설정
@@ -177,6 +197,23 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_se
       throw new Error(`Task 생성 실패: ${error.message}`);
     }
 
+    // 참조자 추가 (bulk insert)
+    if (referenceIds.length > 0) {
+      const referenceRows = referenceIds.map((userId) => ({
+        task_id: data.id,
+        user_id: userId,
+      }));
+
+      const { error: refError } = await supabase
+        .from("task_references")
+        .insert(referenceRows);
+
+      if (refError) {
+        console.error("참조자 추가 실패:", refError);
+        throw new Error(`Task는 생성되었으나 참조자 추가에 실패했습니다: ${refError.message}`);
+      }
+    }
+
     return data;
   }
 
@@ -194,8 +231,10 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_se
   // assigner_id를 현재 로그인한 사용자로 자동 설정
   // created_by도 현재 사용자로 설정 (프로젝트 구조 제거 후)
   // description이 null이거나 undefined일 때는 객체에서 제거 (스키마 캐시 문제 방지)
+  // reference_ids는 tasks 테이블에 없으므로 제거 (별도 task_references에 insert)
+  const { reference_ids: _refIds, ...taskWithoutRefs } = task as any;
   const taskWithAssigner: any = {
-    ...task,
+    ...taskWithoutRefs,
     assigner_id: currentUserId,
     is_self_task: false, // 명시적으로 false 설정
     created_by: currentUserId,
@@ -219,6 +258,23 @@ export async function createTask(task: Omit<TaskInsert, "assigner_id"> & { is_se
 
   if (error) {
     throw new Error(`Task 생성 실패: ${error.message}`);
+  }
+
+  // 참조자 추가 (bulk insert)
+  if (referenceIds.length > 0) {
+    const referenceRows = referenceIds.map((userId) => ({
+      task_id: data.id,
+      user_id: userId,
+    }));
+
+    const { error: refError } = await supabase
+      .from("task_references")
+      .insert(referenceRows);
+
+    if (refError) {
+      console.error("참조자 추가 실패:", refError);
+      throw new Error(`Task는 생성되었으나 참조자 추가에 실패했습니다: ${refError.message}`);
+    }
   }
 
   return data;
@@ -252,21 +308,8 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
   }
 
-  // 관리자인 경우: is_public 필드만 변경 가능하도록 검증
-  if (isAdmin) {
-    // 관리자가 is_public 외 필드 변경 시도 시 에러 반환
-    const nonPublicFields = Object.keys(updates).filter(
-      (key) => key !== "is_public"
-    );
-    if (nonPublicFields.length > 0) {
-      throw new Error("관리자는 is_public 필드만 변경할 수 있습니다.");
-    }
-    // is_public 필드만 허용
-    if (updates.is_public === undefined) {
-      throw new Error("수정할 내용이 없습니다.");
-    }
-  } else {
-    // 관리자가 아닌 경우: 기존 로직 유지
+  // 관리자가 아닌 경우: 역할별 권한 검증
+  if (!isAdmin) {
     // send_email_to_client 필드는 담당자(assignee)만 변경 가능
     if (updates.send_email_to_client !== undefined) {
       if (task.assignee_id !== userId) {
@@ -292,54 +335,42 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   // 허용된 필드만 명시적으로 포함 (whitelist 방식)
   const allowedUpdates: Partial<TaskUpdate> = {};
   
-  // 관리자인 경우: is_public 필드만 허용
-  if (isAdmin) {
-    if (updates.is_public !== undefined) {
-      allowedUpdates.is_public = updates.is_public;
+  // 관리자: title, client_name, due_date, send_email_to_client 수정 가능
+  // 지시자: title, client_name, due_date 수정 가능
+  // 담당자: send_email_to_client 수정 가능
+  const canEditGeneralFields = isAdmin || task.assigner_id === userId;
+  const canEditSendEmail = isAdmin || task.assignee_id === userId;
+  
+  // title 수정 허용 (관리자 또는 지시자)
+  if (updates.title !== undefined && updates.title !== null) {
+    if (!canEditGeneralFields) {
+      throw new Error("Task 제목 수정은 지시자 또는 관리자만 가능합니다.");
     }
-  } else {
-    // 관리자가 아닌 경우: 기존 필드 허용 로직
-    // 허용 필드: title, description, due_date, client_name, send_email_to_client
-    
-    // title 수정 허용 (지시자만)
-    if (updates.title !== undefined && updates.title !== null) {
-      if (task.assigner_id !== userId) {
-        throw new Error("Task 제목 수정은 지시자만 가능합니다.");
-      }
-      allowedUpdates.title = updates.title;
+    allowedUpdates.title = updates.title;
+  }
+  
+  // client_name 수정 허용 (관리자 또는 지시자)
+  if (updates.client_name !== undefined && updates.client_name !== null) {
+    if (!canEditGeneralFields) {
+      throw new Error("고객명 수정은 지시자 또는 관리자만 가능합니다.");
     }
-    
-    // description 수정 허용 (null도 허용, 지시자만)
-    if ("description" in updates && updates.description !== undefined) {
-      if (task.assigner_id !== userId) {
-        throw new Error("Task 설명 수정은 지시자만 가능합니다.");
-      }
-      (allowedUpdates as any).description = updates.description;
+    allowedUpdates.client_name = updates.client_name;
+  }
+  
+  // due_date 수정 허용 (관리자 또는 지시자)
+  if (updates.due_date !== undefined) {
+    if (!canEditGeneralFields) {
+      throw new Error("마감일 수정은 지시자 또는 관리자만 가능합니다.");
     }
-    
-    // client_name 수정 허용 (지시자만)
-    if (updates.client_name !== undefined && updates.client_name !== null) {
-      if (task.assigner_id !== userId) {
-        throw new Error("고객명 수정은 지시자만 가능합니다.");
-      }
-      allowedUpdates.client_name = updates.client_name;
+    allowedUpdates.due_date = updates.due_date;
+  }
+  
+  // send_email_to_client 수정 허용 (관리자 또는 담당자)
+  if (updates.send_email_to_client !== undefined) {
+    if (!canEditSendEmail) {
+      throw new Error("고객에게 이메일 발송 완료 상태는 담당자 또는 관리자만 변경할 수 있습니다.");
     }
-    
-    // due_date 수정 허용 (null도 허용, 지시자만)
-    if (updates.due_date !== undefined) {
-      if (task.assigner_id !== userId) {
-        throw new Error("마감일 수정은 지시자만 가능합니다.");
-      }
-      allowedUpdates.due_date = updates.due_date;
-    }
-    
-    // send_email_to_client 수정 허용 (담당자만, 승인 상태일 때만 사용)
-    if (updates.send_email_to_client !== undefined) {
-      if (task.assignee_id !== userId) {
-        throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
-      }
-      (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
-    }
+    (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
   }
   
   // assigner_id, assignee_id, task_status는 이미 위에서 차단됨
@@ -395,11 +426,40 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 /**
+ * 여러 Task에 대한 참조자 목록 일괄 조회
+ */
+async function fetchReferencesForTasks(
+  taskIds: string[],
+): Promise<Map<string, Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>> {
+  if (taskIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("task_references")
+    .select("task_id, profiles(id, full_name, email, avatar_url)")
+    .in("task_id", taskIds);
+
+  if (error) {
+    console.error("참조자 일괄 조회 실패:", error);
+    return new Map();
+  }
+
+  const map = new Map<string, Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>();
+  for (const row of data || []) {
+    const ref = (row as any).profiles;
+    if (!ref?.id) continue;
+    const list = map.get((row as any).task_id) || [];
+    list.push(ref);
+    map.set((row as any).task_id, list);
+  }
+  return map;
+}
+
+/**
  * 멤버용 Task 목록 조회
  * 현재 사용자가 담당자 또는 지시자인 Task만 조회
  * 모든 프로젝트에서 Task 조회 (프로젝트별이 아님)
  * 자기 할당 Task는 제외됨
- * 
+ *
  * @param excludeApproved APPROVED 상태 Task 제외 여부 (기본값: true)
  * @returns TaskWithProfiles[]
  */
@@ -436,17 +496,20 @@ export async function getTasksForMember(
 
   const tasks = (data || []) as TaskWithProfiles[];
 
-  // 읽지 않은 메시지 수 배치 조회
   if (tasks.length > 0) {
     const taskIds = tasks.map((task) => task.id);
+    // 참조자 일괄 조회 (동일 Task 표시 일관성)
+    const refMap = await fetchReferencesForTasks(taskIds);
+    tasks.forEach((task) => {
+      task.references = refMap.get(task.id) || [];
+    });
+    // 읽지 않은 메시지 수 배치 조회
     try {
       const unreadCounts = await getUnreadMessageCounts(taskIds, userId);
-      // 각 Task에 읽지 않은 메시지 수 추가
       tasks.forEach((task) => {
         task.unread_message_count = unreadCounts.get(task.id) || 0;
       });
     } catch (error) {
-      // 읽지 않은 메시지 수 조회 실패 시 기본값 0 설정
       console.error("읽지 않은 메시지 수 조회 실패:", error);
       tasks.forEach((task) => {
         task.unread_message_count = 0;
@@ -507,17 +570,18 @@ export async function getTasksForAdmin(
 
   const tasks = (data || []) as TaskWithProfiles[];
 
-  // 읽지 않은 메시지 수 배치 조회
   if (tasks.length > 0) {
     const taskIds = tasks.map((task) => task.id);
+    const refMap = await fetchReferencesForTasks(taskIds);
+    tasks.forEach((task) => {
+      task.references = refMap.get(task.id) || [];
+    });
     try {
       const unreadCounts = await getUnreadMessageCounts(taskIds, userId);
-      // 각 Task에 읽지 않은 메시지 수 추가
       tasks.forEach((task) => {
         task.unread_message_count = unreadCounts.get(task.id) || 0;
       });
     } catch (error) {
-      // 읽지 않은 메시지 수 조회 실패 시 기본값 0 설정
       console.error("읽지 않은 메시지 수 조회 실패:", error);
       tasks.forEach((task) => {
         task.unread_message_count = 0;
@@ -770,5 +834,71 @@ export async function checkDueDateExceeded(
 
   console.log("[checkDueDateExceeded] 최종 반환 데이터:", data);
   return data;
+}
+
+/**
+ * 참조자인 Task 목록 조회
+ * 현재 사용자가 참조자로 등록된 Task 목록을 반환합니다.
+ * 
+ * @returns {Promise<TaskWithProfiles[]>} 참조된 Task 목록
+ */
+export async function getTasksAsReference(): Promise<TaskWithProfiles[]> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  const userId = session.session.user.id;
+
+  // 참조자로 등록된 Task ID 목록 조회
+  const { data: referenceData, error: refError } = await supabase
+    .from("task_references")
+    .select("task_id")
+    .eq("user_id", userId);
+
+  if (refError) {
+    throw new Error(`참조된 Task 조회 실패: ${refError.message}`);
+  }
+
+  // 참조된 Task가 없으면 빈 배열 반환
+  if (!referenceData || referenceData.length === 0) {
+    return [];
+  }
+
+  const taskIds = referenceData.map((ref) => ref.task_id);
+
+  // Task 목록 조회 (프로필 정보 포함)
+  const { data: tasksData, error: tasksError } = await supabase
+    .from("tasks")
+    .select(`
+      *,
+      assigner:profiles!tasks_assigner_id_fkey(id, full_name, email, avatar_url),
+      assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar_url)
+    `)
+    .in("id", taskIds)
+    .order("created_at", { ascending: false });
+
+  if (tasksError) {
+    throw new Error(`Task 목록 조회 실패: ${tasksError.message}`);
+  }
+
+  if (!tasksData) {
+    return [];
+  }
+
+  // 참조자 일괄 조회 (동일 Task 표시 일관성)
+  const idsForRef = tasksData.map((task) => task.id);
+  const refMap = await fetchReferencesForTasks(idsForRef);
+
+  // 미읽음 메시지 수 조회
+  const unreadCounts = await getUnreadMessageCounts(idsForRef, userId);
+
+  const tasksWithUnread: TaskWithProfiles[] = tasksData.map((task) => ({
+    ...task,
+    references: refMap.get(task.id) || [],
+    unread_message_count: unreadCounts.get(task.id) || 0,
+  }));
+
+  return tasksWithUnread;
 }
 

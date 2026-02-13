@@ -8,6 +8,11 @@ import {
   type TaskUpdate,
   type TaskWithProfiles,
 } from "@/api/task";
+
+export type CreateTaskInput = Omit<TaskInsert, "assigner_id"> & {
+  is_self_task?: boolean;
+  reference_ids?: string[];
+};
 import type { TaskStatus } from "@/lib/task-status";
 import { toast } from "sonner";
 
@@ -19,7 +24,7 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (task: Omit<TaskInsert, "assigner_id">) => createTask(task),
+    mutationFn: (task: CreateTaskInput) => createTask(task),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast.success("Task가 생성되었습니다.");

@@ -9,9 +9,6 @@ import { Mail} from 'lucide-react';
 import kakaoLogo from '@/assets/kakao.png';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useIsAdmin } from "@/hooks";
-import { useUpdateTask } from "@/hooks";
 import { toast } from "sonner";
 import type { Tables } from "@/database.type";
 
@@ -102,9 +99,6 @@ export function TaskShareDialog({
   onOpenChange,
 }: TaskShareDialogProps) {
   const [shareLink, setShareLink] = useState("");
-  const [isPublic, setIsPublic] = useState(task?.is_public ?? false);
-  const { data: isAdmin = false } = useIsAdmin();
-  const updateTask = useUpdateTask();
 
   // 공유 링크 생성 (절대 경로, HTTPS 보장)
   useEffect(() => {
@@ -141,11 +135,6 @@ export function TaskShareDialog({
       window.Kakao.init(kakaoAppKey);
     }
   }, []);
-
-  // is_public 상태 동기화
-  useEffect(() => {
-    setIsPublic(task?.is_public ?? false);
-  }, [task?.is_public]);
 
   // 링크 복사 기능
   const handleCopyLink = async () => {
@@ -302,23 +291,6 @@ ${shareLink}
     checkKakaoSDK();
   };
 
-  // 공개 설정 변경
-  const handlePublicToggle = async (checked: boolean) => {
-    if (!isAdmin) return;
-
-    try {
-      await updateTask.mutateAsync({
-        id: task.id,
-        updates: {
-          is_public: checked,
-        },
-      });
-      setIsPublic(checked);
-    } catch (error) {
-      // 에러는 useUpdateTask의 기본 onError에서 처리됨
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton>
@@ -361,32 +333,6 @@ ${shareLink}
                 </Button>
               </div>
             </div>
-          </div>
-
-          {/* 공개 설정 섹션 (모든 사용자에게 표시, 관리자만 변경 가능) */}
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="text-sm font-semibold">공개 설정</h3>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is-public"
-                checked={isPublic}
-                disabled={!isAdmin}
-                onCheckedChange={(checked) =>
-                  handlePublicToggle(checked === true)
-                }
-              />
-              <label
-                htmlFor="is-public"
-                className={`text-sm font-medium ${
-                  isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-70"
-                }`}
-              >
-                Task 공개
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              공개된 Task는 모든 인증된 사용자가 읽기 전용으로 접근할 수 있습니다.
-            </p>
           </div>
         </div>
       </DialogContent>

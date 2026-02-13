@@ -80,7 +80,7 @@ export function KanbanBoard({
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("dueDateAsc");
 
-  // 1단계: 역할 필터 적용 (지시자/담당자)
+  // 1단계: 역할 필터 적용 (지시자/담당자/참조자)
   const roleFilteredTasks = useMemo(() => {
     if (!currentUserId || roleFilter === "ALL") return tasks;
 
@@ -91,7 +91,11 @@ export function KanbanBoard({
         case "MY_ASSIGNEE":
           return task.assignee_id === currentUserId;
         case "MY_TASKS":
-          return task.assigner_id === currentUserId || task.assignee_id === currentUserId;
+          // 지시자, 담당자, 또는 참조자인 경우
+          const isAssigner = task.assigner_id === currentUserId;
+          const isAssignee = task.assignee_id === currentUserId;
+          const isReference = task.references && task.references.some(ref => ref.id === currentUserId);
+          return isAssigner || isAssignee || isReference;
         default:
           return true;
       }

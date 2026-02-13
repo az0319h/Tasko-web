@@ -110,6 +110,7 @@ export function useRealtimeDashboardMessages(
             console.log(`[Realtime Dashboard] 🔄 Invalidating queries for task ${taskId}`);
             queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
             queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks", "reference"] });
             console.log(`[Realtime Dashboard] ✅ Queries invalidated for task ${taskId}`);
           }
         )
