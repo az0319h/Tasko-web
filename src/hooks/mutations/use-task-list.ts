@@ -21,10 +21,10 @@ export function useCreateTaskList() {
     mutationFn: (title: string) => createTaskList(title),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
-      toast.success("Task 목록이 생성되었습니다.");
+      toast.success("업무 목록이 생성되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 목록 생성에 실패했습니다.");
+      toast.error(error.message || "업무 목록 생성에 실패했습니다.");
     },
   });
 }
@@ -43,10 +43,10 @@ export function useUpdateTaskList() {
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
       // 상세 페이지 쿼리도 무효화하여 items 포함한 전체 데이터 다시 조회
       queryClient.invalidateQueries({ queryKey: ["task-lists", "detail", variables.listId] });
-      toast.success("Task 목록이 수정되었습니다.");
+      toast.success("업무 목록이 수정되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 목록 수정에 실패했습니다.");
+      toast.error(error.message || "업무 목록 수정에 실패했습니다.");
     },
   });
 }
@@ -63,10 +63,10 @@ export function useDeleteTaskList() {
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
       queryClient.removeQueries({ queryKey: ["task-lists", "detail", listId] });
       queryClient.removeQueries({ queryKey: ["task-lists", "items", listId] });
-      toast.success("Task 목록이 삭제되었습니다.");
+      toast.success("업무 목록이 삭제되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 목록 삭제에 실패했습니다.");
+      toast.error(error.message || "업무 목록 삭제에 실패했습니다.");
     },
   });
 }
@@ -109,10 +109,10 @@ export function useRemoveTaskFromList() {
       queryClient.invalidateQueries({ queryKey: ["task-lists", "items", variables.listId] });
       queryClient.invalidateQueries({ queryKey: ["task-lists", "for-task", variables.taskId] });
       queryClient.invalidateQueries({ queryKey: ["task-lists", "list"] });
-      toast.success("Task가 목록에서 제거되었습니다.");
+      toast.success("업무가 목록에서 제거되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 제거에 실패했습니다.");
+      toast.error(error.message || "업무 제거에 실패했습니다.");
     },
   });
 }

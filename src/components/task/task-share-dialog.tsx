@@ -148,17 +148,49 @@ export function TaskShareDialog({
 
   // 이메일 공유 기능
   const handleEmailShare = () => {
-    const subject = encodeURIComponent("업무 공유의 건");
-    // URL을 인코딩하지 않고 그대로 넣어서 이메일 클라이언트가 자동으로 링크로 인식하도록 함
-    // URL 앞뒤에 공백과 줄바꿈을 넣어서 명확하게 구분
-    const bodyText = `아래와 같이 업무를 공유드립니다:
+    // 공유 링크 검증
+    if (!shareLink || shareLink.trim() === "") {
+      toast.error("공유 링크가 아직 생성되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    // 링크가 유효한 URL인지 확인
+    if (!shareLink.startsWith('http://') && !shareLink.startsWith('https://')) {
+      toast.error("공유 링크가 올바르지 않습니다.");
+      return;
+    }
+
+    try {
+      const subject = encodeURIComponent("업무 공유의 건");
+      // URL을 인코딩하지 않고 그대로 넣어서 이메일 클라이언트가 자동으로 링크로 인식하도록 함
+      // URL 앞뒤에 공백과 줄바꿈을 넣어서 명확하게 구분
+      const bodyText = `아래와 같이 업무를 공유드립니다:
 
 ${shareLink}
 
 위 링크를 클릭하여 Task를 확인하실 수 있습니다.
 만약 링크가 클릭되지 않는다면, 위 주소를 복사하여 브라우저 주소창에 붙여넣어주세요.`;
-    const body = encodeURIComponent(bodyText);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      const body = encodeURIComponent(bodyText);
+      
+      // mailto: URL 생성
+      const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
+      
+      // URL 길이 제한 확인 (일부 브라우저는 2000자 제한)
+      if (mailtoUrl.length > 2000) {
+        toast.warning("이메일 본문이 너무 깁니다. 링크 복사 기능을 사용해주세요.");
+        // 링크만 포함한 간단한 버전으로 재시도
+        const simpleBodyText = `업무 공유 링크:\n\n${shareLink}`;
+        const simpleBody = encodeURIComponent(simpleBodyText);
+        const simpleMailtoUrl = `mailto:?subject=${subject}&body=${simpleBody}`;
+        window.location.href = simpleMailtoUrl;
+        return;
+      }
+      
+      window.location.href = mailtoUrl;
+    } catch (error) {
+      console.error("이메일 공유 실패:", error);
+      toast.error("이메일 공유에 실패했습니다. 링크 복사 기능을 사용해주세요.");
+    }
   };
 
   // 카카오톡 공유 기능 (피드 템플릿 - 링크 카드 형태)

@@ -407,11 +407,11 @@ export function TaskFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-          <DialogTitle>{isEditMode ? "Task 수정" : "Task 생성"}</DialogTitle>
+          <DialogTitle>{isEditMode ? "업무 수정" : "업무 생성"}</DialogTitle>
           <DialogDescription>
             {isEditMode
-              ? "Task 정보를 수정합니다. 지시자와 담당자는 변경할 수 없습니다."
-              : "새로운 Task를 생성합니다. 필요한 정보를 입력해주세요."}
+              ? "업무 정보를 수정합니다. 지시자와 담당자는 변경할 수 없습니다."
+              : "새로운 업무를 생성합니다. 필요한 정보를 입력해주세요."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
@@ -576,7 +576,7 @@ export function TaskFormDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  참조자는 Task를 조회하고 채팅에 참여할 수 있습니다.
+                  참조자는 업무를 조회하고 채팅에 참여할 수 있습니다.
                 </p>
                 {/* 선택된 참조자 목록 */}
                 {referenceIds.length > 0 && (

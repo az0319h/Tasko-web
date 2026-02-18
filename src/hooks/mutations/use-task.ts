@@ -27,10 +27,10 @@ export function useCreateTask() {
     mutationFn: (task: CreateTaskInput) => createTask(task),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task가 생성되었습니다.");
+      toast.success("업무가 생성되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 생성에 실패했습니다.");
+      toast.error(error.message || "업무 생성에 실패했습니다.");
     },
   });
 }
@@ -49,10 +49,10 @@ export function useUpdateTask() {
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
       // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
-      toast.success("Task가 수정되었습니다.");
+      toast.success("업무가 수정되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 수정에 실패했습니다.");
+      toast.error(error.message || "업무 수정에 실패했습니다.");
     },
   });
 }
@@ -69,10 +69,10 @@ export function useDeleteTask() {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영 (삭제된 task는 자동으로 제거됨)
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
-      toast.success("Task가 삭제되었습니다.");
+      toast.success("업무가 삭제되었습니다.");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Task 삭제에 실패했습니다.");
+      toast.error(error.message || "업무 삭제에 실패했습니다.");
     },
   });
 }

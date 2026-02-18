@@ -226,7 +226,7 @@ export async function createMessage(message: MessageInsert): Promise<Message> {
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
   // 참조자 여부 확인
@@ -292,7 +292,7 @@ export async function createFileMessage(
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
   const { data: referenceData } = await supabase
@@ -359,7 +359,7 @@ export async function createMessageWithFiles(
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
   const { data: referenceData } = await supabase

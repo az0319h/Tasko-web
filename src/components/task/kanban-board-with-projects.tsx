@@ -48,7 +48,7 @@ const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: "ALL", label: "전체" },
   { value: "MY_ASSIGNER", label: "내가 지시자" },
   { value: "MY_ASSIGNEE", label: "내가 담당자" },
-  { value: "MY_TASKS", label: "내가 관련된 Task" },
+  { value: "MY_TASKS", label: "내가 관련된 업무" },
 ];
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
@@ -249,7 +249,7 @@ export function KanbanBoardWithProjects({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="계정 ID, Task 제목, 담당자명 또는 지시자명으로 검색..."
+            placeholder="계정 ID, 업무 제목, 담당자명 또는 지시자명으로 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"

@@ -337,7 +337,7 @@ export default function TaskDetailPage() {
     // 일반 Task: assigner, assignee, 참조자, Admin만 접근 가능
     const hasAccess = isAssigner || isAssignee || isReference || isAdmin;
     if (!hasAccess) {
-      toast.error("이 Task에 접근할 권한이 없습니다.");
+      toast.error("이 업무에 접근할 권한이 없습니다.");
       navigate(-1);
     }
   }, [task, currentUserId, isAdmin, navigate]);
@@ -482,7 +482,7 @@ export default function TaskDetailPage() {
 
     // 이미 승인됨 상태면 에러
     if (task.task_status === "APPROVED") {
-      toast.error("이미 승인된 Task입니다.");
+      toast.error("이미 승인된 업무입니다.");
       return;
     }
 

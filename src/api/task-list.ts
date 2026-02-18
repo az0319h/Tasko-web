@@ -260,7 +260,7 @@ export async function addTaskToList(listId: string, taskId: string): Promise<Tas
   if (error) {
     // 중복 추가 시도 시 에러 처리
     if (error.code === "23505") {
-      throw new Error("이미 목록에 추가된 Task입니다.");
+      throw new Error("이미 목록에 추가된 업무입니다.");
     }
     throw new Error(`Task 추가 실패: ${error.message}`);
   }

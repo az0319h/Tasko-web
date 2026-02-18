@@ -789,7 +789,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
             toast.warning(
-              `주말 제외 및 일정 사정으로 "청구항 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말 제외 및 일정 사정으로 "청구항 및 도면" 업무가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -798,7 +798,7 @@ export default function MemberDashboardPage() {
           } else {
             // 일정이 가득 차서 다른 날짜에 배정된 경우
             toast.warning(
-              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "청구항 및 도면" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "청구항 및 도면" 업무가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -812,7 +812,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             const scheduleDateFormatted = formatDateKorean(result1.scheduleDate);
             toast.info(
-              `주말을 제외하여 "청구항 및 도면" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말을 제외하여 "청구항 및 도면" 업무가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 6000,
@@ -836,7 +836,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             // 주말 제외 및 일정 사정으로 늦게 배정된 경우 (통합 메시지)
             toast.warning(
-              `주말 제외 및 일정 사정으로 "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말 제외 및 일정 사정으로 "초안 작성" 업무가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -845,7 +845,7 @@ export default function MemberDashboardPage() {
           } else {
             // 일정이 가득 차서 다른 날짜에 배정된 경우
             toast.warning(
-              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "초안 작성" Task가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `담당자의 퇴근시간이 임박했거나 일정이 가득 차 있어 "초안 작성" 업무가 마감일(${dueDateFormatted})보다 늦은 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 8000,
@@ -859,7 +859,7 @@ export default function MemberDashboardPage() {
           if (hasWeekend) {
             const scheduleDateFormatted = formatDateKorean(result2.scheduleDate);
             toast.info(
-              `주말을 제외하여 "초안 작성" Task가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
+              `주말을 제외하여 "초안 작성" 업무가 ${scheduleDateFormatted}에 일정이 배정되었습니다.`,
               {
                 position: "bottom-right",
                 duration: 6000,
@@ -888,12 +888,12 @@ export default function MemberDashboardPage() {
         toast.info("첫 번째 Task 상세 페이지를 새 탭에서 열 수 없습니다. 직접 이동해주세요.");
       }
       if (!tab2 || tab2.closed || typeof tab2.closed === "undefined") {
-        toast.info("두 번째 Task 상세 페이지를 새 탭에서 열 수 없습니다. 직접 이동해주세요.");
+        toast.info("두 번째 업무 상세 페이지를 새 탭에서 열 수 없습니다. 직접 이동해주세요.");
       }
 
-      toast.success("명세서 Task 2개가 생성되었습니다.");
+      toast.success("명세서 업무 2개가 생성되었습니다.");
     } catch (error: any) {
-      toast.error(`명세서 Task 생성 중 오류가 발생했습니다: ${error.message}`);
+      toast.error(`명세서 업무 생성 중 오류가 발생했습니다: ${error.message}`);
     }
   };
 
@@ -1518,7 +1518,7 @@ export default function MemberDashboardPage() {
               className="h-9"
             >
               <Plus className="mr-2 h-4 w-4" />
-              개인 Task 생성
+              개인 업무 생성
             </Button>
           ) : (
             <>
@@ -1609,7 +1609,7 @@ export default function MemberDashboardPage() {
                 className="h-9"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Task 생성
+                업무 생성
               </Button>
             </>
           )}
@@ -1632,9 +1632,9 @@ export default function MemberDashboardPage() {
         {/* 담당 업무 / 참조된 업무 / 승인된 태스크 / 개인 태스크 탭 */}
         <TabsList className="mt-4">
           <TabsTrigger value="my-tasks">담당 업무</TabsTrigger>
-          <TabsTrigger value="reference-tasks">참조된 업무</TabsTrigger>
-          <TabsTrigger value="all-tasks">승인된 태스크</TabsTrigger>
-          <TabsTrigger value="self-tasks">개인 태스크</TabsTrigger>
+          <TabsTrigger value="reference-tasks">참조 업무</TabsTrigger>
+          <TabsTrigger value="all-tasks">승인 업무</TabsTrigger>
+          <TabsTrigger value="self-tasks">개인 업무</TabsTrigger>
         </TabsList>
 
         {/* 담당 업무 탭 */}

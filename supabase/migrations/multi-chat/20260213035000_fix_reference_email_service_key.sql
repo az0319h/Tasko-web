@@ -18,8 +18,8 @@ DECLARE
   v_function_url TEXT;
   v_service_role_key TEXT;
 BEGIN
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
-  v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
+  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o';
+  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
 
   FOR v_task_id IN (
     SELECT DISTINCT task_id FROM inserted_references
@@ -82,8 +82,8 @@ DECLARE
   v_changer_name TEXT;
   v_changer_id UUID;
 BEGIN
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
-  v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
+  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o';
+  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
 
   IF OLD.task_status = NEW.task_status THEN RETURN NEW; END IF;
   IF NEW.is_self_task = true THEN RETURN NEW; END IF;

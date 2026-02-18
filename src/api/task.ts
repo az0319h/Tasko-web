@@ -194,7 +194,7 @@ export async function createTask(
       .single();
 
     if (error) {
-      throw new Error(`Task 생성 실패: ${error.message}`);
+      throw new Error(`업무 생성 실패: ${error.message}`);
     }
 
     // 참조자 추가 (bulk insert)
@@ -257,7 +257,7 @@ export async function createTask(
     .single();
 
   if (error) {
-    throw new Error(`Task 생성 실패: ${error.message}`);
+    throw new Error(`업무 생성 실패: ${error.message}`);
   }
 
   // 참조자 추가 (bulk insert)
@@ -318,7 +318,7 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     } else {
       // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
       if (task.assigner_id !== userId) {
-        throw new Error("Task 수정은 지시자만 가능합니다.");
+        throw new Error("업무 수정은 지시자만 가능합니다.");
       }
     }
   }
@@ -329,7 +329,7 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   }
 
   if (updates.task_status !== undefined) {
-    throw new Error("Task 상태는 수정할 수 없습니다. 상태 변경은 별도의 워크플로우를 사용하세요.");
+    throw new Error("업무 상태는 수정할 수 없습니다. 상태 변경은 별도의 워크플로우를 사용하세요.");
   }
 
   // 허용된 필드만 명시적으로 포함 (whitelist 방식)
@@ -403,11 +403,11 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     console.error("[updateTask] Error message:", updateError.message);
     console.error("[updateTask] Error details:", updateError.details);
     console.error("[updateTask] Error hint:", updateError.hint);
-    throw new Error(`Task 수정 실패: ${updateError.message} (코드: ${updateError.code})`);
+    throw new Error(`업무 수정 실패: ${updateError.message} (코드: ${updateError.code})`);
   }
 
   if (!updatedTask) {
-    throw new Error("Task 수정 후 데이터를 받지 못했습니다.");
+    throw new Error("업무 수정 후 데이터를 받지 못했습니다.");
   }
 
   console.log("[updateTask] Update successful:", updatedTask);
@@ -421,7 +421,7 @@ export async function deleteTask(id: string): Promise<void> {
   const { error } = await supabase.from("tasks").delete().eq("id", id);
 
   if (error) {
-    throw new Error(`Task 삭제 실패: ${error.message}`);
+    throw new Error(`업무 삭제 실패: ${error.message}`);
   }
 }
 
@@ -693,7 +693,7 @@ export async function updateTaskStatus(
       if (task.task_status === "IN_PROGRESS" && newStatus === "APPROVED") {
         // 자기 할당 Task는 본인만 상태 변경 가능
         if (task.assigner_id !== userId) {
-          throw new Error("자기 할당 Task는 본인만 상태를 변경할 수 있습니다.");
+          throw new Error("자기 할당 업무는 본인만 상태를 변경할 수 있습니다.");
         }
         // 직접 전환 허용 (검증 통과)
       } else {
@@ -756,7 +756,7 @@ export async function updateTaskStatus(
   if (updateError) {
     // RLS 정책 차단 시 더 명확한 에러 메시지 제공
     if (updateError.code === "42501" || updateError.message.includes("permission denied") || updateError.message.includes("policy")) {
-      throw new Error("상태 변경 권한이 없습니다. 이 Task의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
+      throw new Error("상태 변경 권한이 없습니다. 이 업무의 지시자 또는 담당자만 상태를 변경할 수 있습니다.");
     }
     // 기타 에러는 원본 메시지 사용
     throw new Error(`상태 변경 실패: ${updateError.message}${updateError.code ? ` (코드: ${updateError.code})` : ""}`);

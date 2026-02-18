@@ -33,8 +33,15 @@ function getReferenceEmailTemplate(
   data: ReferenceEmailRequest,
   referenceName: string,
 ): { subject: string; html: string } {
-  const appUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:5173";
+  const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
+  console.log("[send-task-reference-email] FRONTEND_URL environment variable:", {
+    exists: !!frontendUrlEnv,
+    value: frontendUrlEnv || "NOT SET",
+    type: typeof frontendUrlEnv,
+  });
+  const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
+  console.log("[send-task-reference-email] Generated task link:", taskLink);
 
   const assignerName = data.assignerName || "할당자";
   const assigneeName = data.assigneeName || "담당자";
@@ -130,8 +137,15 @@ function getStatusChangedEmailTemplate(
   data: ReferenceEmailRequest,
   referenceName: string,
 ): { subject: string; html: string } {
-  const appUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:5173";
+  const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
+  console.log("[send-task-reference-email] FRONTEND_URL environment variable (status changed):", {
+    exists: !!frontendUrlEnv,
+    value: frontendUrlEnv || "NOT SET",
+    type: typeof frontendUrlEnv,
+  });
+  const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
+  console.log("[send-task-reference-email] Generated task link (status changed):", taskLink);
 
   const statusLabels: Record<string, string> = {
     ASSIGNED: "할당됨",

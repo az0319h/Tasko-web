@@ -96,7 +96,7 @@ BEGIN
     -- Edge Function URL (하드코딩 - 환경에 맞게 수정 필요)
     -- 로컬: http://127.0.0.1:54321/functions/v1/send-task-reference-email
     -- 프로덕션: https://[project-ref].supabase.co/functions/v1/send-task-reference-email
-    v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
+    v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
     
     -- Service Role Key (하드코딩 - 보안상 주의)
     -- 프로덕션 환경에서는 Supabase Secrets에 저장하고 참조하는 것이 좋음

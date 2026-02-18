@@ -99,7 +99,7 @@ BEGIN
     'referenceEmails', v_reference_emails
   );
 
-  v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
+  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
   v_service_role_key := current_setting('app.supabase_service_role_key', true);
 
   BEGIN
