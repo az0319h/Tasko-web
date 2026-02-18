@@ -36,8 +36,15 @@ function getEmailTemplate(
   data: EmailRequest,
   recipientRole: "assigner" | "assignee",
 ): { subject: string; html: string } {
-  const appUrl = Deno.env.get("FRONTEND_URL") || "http://localhost:5173";
+  const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
+  console.log("[send-task-email] FRONTEND_URL environment variable:", {
+    exists: !!frontendUrlEnv,
+    value: frontendUrlEnv || "NOT SET",
+    type: typeof frontendUrlEnv,
+  });
+  const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
+  console.log("[send-task-email] Generated task link:", taskLink);
 
   const statusLabels: Record<string, string> = {
     ASSIGNED: "할당됨",

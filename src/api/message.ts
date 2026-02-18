@@ -208,7 +208,7 @@ export async function getMessageLogsByTaskId(taskId: string): Promise<MessageLog
 
 /**
  * 메시지 생성
- * 지시자 또는 담당자만 메시지 작성 가능
+ * 지시자, 담당자, 참조자만 메시지 작성 가능
  */
 export async function createMessage(message: MessageInsert): Promise<Message> {
   const { data: session } = await supabase.auth.getSession();
@@ -226,12 +226,26 @@ export async function createMessage(message: MessageInsert): Promise<Message> {
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
-  // 지시자 또는 담당자만 작성 가능
-  if (userId !== task.assigner_id && userId !== task.assignee_id) {
-    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  // 참조자 여부 확인
+  const { data: referenceData, error: refError } = await supabase
+    .from("task_references")
+    .select("user_id")
+    .eq("task_id", message.task_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (refError) {
+    console.error("참조자 확인 실패:", refError);
+  }
+
+  const isReference = !!referenceData;
+
+  // 지시자, 담당자, 참조자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id && !isReference) {
+    throw new Error("지시자, 담당자, 참조자만 메시지를 작성할 수 있습니다.");
   }
 
   const { data, error } = await supabase
@@ -254,7 +268,7 @@ export async function createMessage(message: MessageInsert): Promise<Message> {
 /**
  * 파일 메시지 생성
  * Supabase Storage에 업로드된 파일의 URL을 포함하여 메시지 생성
- * 지시자 또는 담당자만 메시지 작성 가능
+ * 지시자, 담당자, 참조자만 메시지 작성 가능
  */
 export async function createFileMessage(
   taskId: string,
@@ -270,7 +284,7 @@ export async function createFileMessage(
 
   const userId = session.session.user.id;
 
-  // Task 조회하여 지시자/담당자 확인
+  // Task 조회하여 지시자/담당자/참조자 확인
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select("assigner_id, assignee_id")
@@ -278,12 +292,21 @@ export async function createFileMessage(
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
-  // 지시자 또는 담당자만 작성 가능
-  if (userId !== task.assigner_id && userId !== task.assignee_id) {
-    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  const { data: referenceData } = await supabase
+    .from("task_references")
+    .select("user_id")
+    .eq("task_id", taskId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const isReference = !!referenceData;
+
+  // 지시자, 담당자, 참조자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id && !isReference) {
+    throw new Error("지시자, 담당자, 참조자만 메시지를 작성할 수 있습니다.");
   }
 
   const { data, error } = await supabase
@@ -313,7 +336,7 @@ export async function createFileMessage(
  * 텍스트와 파일을 함께 포함한 메시지 생성
  * 텍스트가 있으면 텍스트 메시지로, 파일이 있으면 파일 메시지로 각각 생성
  * 파일이 포함된 경우 bundle_id를 생성하고, 마지막 파일 메시지에 is_log_anchor=true 설정
- * 지시자 또는 담당자만 메시지 작성 가능
+ * 지시자, 담당자, 참조자만 메시지 작성 가능
  */
 export async function createMessageWithFiles(
   taskId: string,
@@ -328,7 +351,7 @@ export async function createMessageWithFiles(
 
   const userId = session.session.user.id;
 
-  // Task 조회하여 지시자/담당자 확인
+  // Task 조회하여 지시자/담당자/참조자 확인
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select("assigner_id, assignee_id")
@@ -336,12 +359,21 @@ export async function createMessageWithFiles(
     .single();
 
   if (taskError || !task) {
-    throw new Error("Task를 찾을 수 없습니다.");
+    throw new Error("업무를 찾을 수 없습니다.");
   }
 
-  // 지시자 또는 담당자만 작성 가능
-  if (userId !== task.assigner_id && userId !== task.assignee_id) {
-    throw new Error("지시자 또는 담당자만 메시지를 작성할 수 있습니다.");
+  const { data: referenceData } = await supabase
+    .from("task_references")
+    .select("user_id")
+    .eq("task_id", taskId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const isReference = !!referenceData;
+
+  // 지시자, 담당자, 참조자만 작성 가능
+  if (userId !== task.assigner_id && userId !== task.assignee_id && !isReference) {
+    throw new Error("지시자, 담당자, 참조자만 메시지를 작성할 수 있습니다.");
   }
 
   // 파일이 포함된 경우 bundle_id 생성 (프론트엔드에서 전달하지 않은 경우)
@@ -439,12 +471,61 @@ export async function markTaskMessagesAsRead(taskId: string): Promise<void> {
 
   const { error } = await supabase.rpc("mark_task_messages_as_read", {
     task_id_param: taskId,
-    reader_id_param: session.session.user.id,
-  } as any);
+    reader_id: session.session.user.id,
+  });
 
   if (error) {
     throw new Error(`메시지 읽음 처리 실패: ${error.message}`);
   }
+}
+
+/**
+ * read_by 값을 안전하게 파싱하여 읽은 인원 수 반환
+ * Supabase Json 타입/직렬화 이슈 대응
+ */
+function getReadByCount(readBy: unknown): number {
+  if (Array.isArray(readBy)) {
+    return new Set(readBy.filter((v): v is string => typeof v === "string")).size;
+  }
+  if (readBy != null && typeof readBy === "string") {
+    try {
+      const parsed = JSON.parse(readBy) as unknown;
+      return Array.isArray(parsed)
+        ? new Set(parsed.filter((v): v is string => typeof v === "string")).size
+        : 0;
+    } catch {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+/**
+ * 메시지의 미읽음 인원 수 계산 (동기, 클라이언트)
+ * 카카오톡 스타일: 총 참여자(지시자, 담당자, 참조자) - 1(작성자) - read_by.length = 미읽음 수
+ * 참조자 포함 모든 참여자의 읽음 상태 반영
+ *
+ * @param message 메시지 정보 (read_by 포함)
+ * @param task Task 정보 (assigner_id, assignee_id, references 포함)
+ * @returns 미읽음 인원 수 (0이면 모두 읽음)
+ */
+export function getUnreadCountForMessageFromData(
+  message: { user_id: string; read_by?: unknown },
+  task: { assigner_id: string; assignee_id: string | null; references?: Array<{ id?: string; user_id?: string }> }
+): number {
+  // 실제 참여자 수 (중복 제외: 자기 할당 Task 시 assigner=assignee)
+  const participantIds = new Set<string>();
+  if (task.assigner_id) participantIds.add(task.assigner_id);
+  if (task.assignee_id) participantIds.add(task.assignee_id);
+  (task.references ?? []).forEach((ref) => {
+    const id = ref?.id ?? ref?.user_id;
+    if (id) participantIds.add(id);
+  });
+  const totalParticipants = participantIds.size;
+  if (totalParticipants <= 1) return 0;
+  const readCount = getReadByCount(message.read_by);
+  const unreadCount = totalParticipants - 1 - readCount; // -1: 작성자(본인)
+  return Math.max(0, unreadCount);
 }
 
 /**
@@ -601,5 +682,63 @@ export async function deleteMessage(messageId: string): Promise<void> {
       console.error("Storage 파일 삭제 실패:", error);
     }
   }
+}
+
+/**
+ * 특정 메시지의 미읽음 사용자 수 조회
+ * 총 참여자(지시자, 담당자, 참조자) - 1(작성자) - read_by.length = 미읽음 수
+ * 
+ * @param messageId 메시지 ID
+ * @returns 미읽음 사용자 수
+ */
+export async function getUnreadCountForMessage(messageId: string): Promise<number> {
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session) {
+    throw new Error("인증이 필요합니다.");
+  }
+
+  // 메시지 조회
+  const { data: message, error: messageError } = await supabase
+    .from("messages")
+    .select("task_id, user_id, read_by")
+    .eq("id", messageId)
+    .is("deleted_at", null)
+    .single();
+
+  if (messageError || !message) {
+    return 0;
+  }
+
+  // Task 조회 (지시자, 담당자 정보)
+  const { data: task, error: taskError } = await supabase
+    .from("tasks")
+    .select("assigner_id, assignee_id")
+    .eq("id", message.task_id)
+    .single();
+
+  if (taskError || !task) {
+    return 0;
+  }
+
+  // 참조자 수 조회
+  const { count: referenceCount, error: refError } = await supabase
+    .from("task_references")
+    .select("*", { count: "exact", head: true })
+    .eq("task_id", message.task_id);
+
+  if (refError) {
+    console.error("참조자 수 조회 실패:", refError);
+  }
+
+  // 총 참여자 수 = 지시자(1) + 담당자(1) + 참조자(n)
+  const totalParticipants = 2 + (referenceCount || 0);
+
+  // read_by 배열 길이
+  const readCount = Array.isArray(message.read_by) ? message.read_by.length : 0;
+
+  // 미읽음 수 = 총 참여자 - 1(작성자) - 읽은 사람 수
+  const unreadCount = totalParticipants - 1 - readCount;
+
+  return Math.max(0, unreadCount); // 음수 방지
 }
 

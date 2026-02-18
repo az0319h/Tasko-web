@@ -9,9 +9,6 @@ import { Mail} from 'lucide-react';
 import kakaoLogo from '@/assets/kakao.png';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useIsAdmin } from "@/hooks";
-import { useUpdateTask } from "@/hooks";
 import { toast } from "sonner";
 import type { Tables } from "@/database.type";
 
@@ -102,9 +99,6 @@ export function TaskShareDialog({
   onOpenChange,
 }: TaskShareDialogProps) {
   const [shareLink, setShareLink] = useState("");
-  const [isPublic, setIsPublic] = useState(task?.is_public ?? false);
-  const { data: isAdmin = false } = useIsAdmin();
-  const updateTask = useUpdateTask();
 
   // 공유 링크 생성 (절대 경로, HTTPS 보장)
   useEffect(() => {
@@ -142,11 +136,6 @@ export function TaskShareDialog({
     }
   }, []);
 
-  // is_public 상태 동기화
-  useEffect(() => {
-    setIsPublic(task?.is_public ?? false);
-  }, [task?.is_public]);
-
   // 링크 복사 기능
   const handleCopyLink = async () => {
     try {
@@ -159,17 +148,49 @@ export function TaskShareDialog({
 
   // 이메일 공유 기능
   const handleEmailShare = () => {
-    const subject = encodeURIComponent("업무 공유의 건");
-    // URL을 인코딩하지 않고 그대로 넣어서 이메일 클라이언트가 자동으로 링크로 인식하도록 함
-    // URL 앞뒤에 공백과 줄바꿈을 넣어서 명확하게 구분
-    const bodyText = `아래와 같이 업무를 공유드립니다:
+    // 공유 링크 검증
+    if (!shareLink || shareLink.trim() === "") {
+      toast.error("공유 링크가 아직 생성되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    // 링크가 유효한 URL인지 확인
+    if (!shareLink.startsWith('http://') && !shareLink.startsWith('https://')) {
+      toast.error("공유 링크가 올바르지 않습니다.");
+      return;
+    }
+
+    try {
+      const subject = encodeURIComponent("업무 공유의 건");
+      // URL을 인코딩하지 않고 그대로 넣어서 이메일 클라이언트가 자동으로 링크로 인식하도록 함
+      // URL 앞뒤에 공백과 줄바꿈을 넣어서 명확하게 구분
+      const bodyText = `아래와 같이 업무를 공유드립니다:
 
 ${shareLink}
 
 위 링크를 클릭하여 Task를 확인하실 수 있습니다.
 만약 링크가 클릭되지 않는다면, 위 주소를 복사하여 브라우저 주소창에 붙여넣어주세요.`;
-    const body = encodeURIComponent(bodyText);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      const body = encodeURIComponent(bodyText);
+      
+      // mailto: URL 생성
+      const mailtoUrl = `mailto:?subject=${subject}&body=${body}`;
+      
+      // URL 길이 제한 확인 (일부 브라우저는 2000자 제한)
+      if (mailtoUrl.length > 2000) {
+        toast.warning("이메일 본문이 너무 깁니다. 링크 복사 기능을 사용해주세요.");
+        // 링크만 포함한 간단한 버전으로 재시도
+        const simpleBodyText = `업무 공유 링크:\n\n${shareLink}`;
+        const simpleBody = encodeURIComponent(simpleBodyText);
+        const simpleMailtoUrl = `mailto:?subject=${subject}&body=${simpleBody}`;
+        window.location.href = simpleMailtoUrl;
+        return;
+      }
+      
+      window.location.href = mailtoUrl;
+    } catch (error) {
+      console.error("이메일 공유 실패:", error);
+      toast.error("이메일 공유에 실패했습니다. 링크 복사 기능을 사용해주세요.");
+    }
   };
 
   // 카카오톡 공유 기능 (피드 템플릿 - 링크 카드 형태)
@@ -302,23 +323,6 @@ ${shareLink}
     checkKakaoSDK();
   };
 
-  // 공개 설정 변경
-  const handlePublicToggle = async (checked: boolean) => {
-    if (!isAdmin) return;
-
-    try {
-      await updateTask.mutateAsync({
-        id: task.id,
-        updates: {
-          is_public: checked,
-        },
-      });
-      setIsPublic(checked);
-    } catch (error) {
-      // 에러는 useUpdateTask의 기본 onError에서 처리됨
-    }
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton>
@@ -361,32 +365,6 @@ ${shareLink}
                 </Button>
               </div>
             </div>
-          </div>
-
-          {/* 공개 설정 섹션 (모든 사용자에게 표시, 관리자만 변경 가능) */}
-          <div className="space-y-4 border-t pt-4">
-            <h3 className="text-sm font-semibold">공개 설정</h3>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is-public"
-                checked={isPublic}
-                disabled={!isAdmin}
-                onCheckedChange={(checked) =>
-                  handlePublicToggle(checked === true)
-                }
-              />
-              <label
-                htmlFor="is-public"
-                className={`text-sm font-medium ${
-                  isAdmin ? "cursor-pointer" : "cursor-not-allowed opacity-70"
-                }`}
-              >
-                Task 공개
-              </label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              공개된 Task는 모든 인증된 사용자가 읽기 전용으로 접근할 수 있습니다.
-            </p>
           </div>
         </div>
       </DialogContent>

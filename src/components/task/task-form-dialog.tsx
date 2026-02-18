@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { File, X, Upload } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { File, X, Upload, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,9 @@ export function TaskFormDialog({
   const { data: profiles = [] } = useProfiles();
   const isEditMode = !!task;
   const isSelfTaskMode = defaultSelfTask && !isEditMode; // 자기 할당 Task 모드
+  
+  // 참조자 선택 상태 관리
+  const [referenceIds, setReferenceIds] = useState<string[]>([]);
   
   // 파일 상태 관리 (생성 모드에서만 사용)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -281,6 +285,8 @@ export function TaskFormDialog({
       setAttachedFiles([]);
       // 특이사항 초기화
       setNotes("");
+      // 참조자 초기화
+      setReferenceIds([]);
       // 사용자 수정 플래그 리셋
       setUserModifiedDueDate(false);
     }
@@ -289,6 +295,14 @@ export function TaskFormDialog({
   // 사용 가능한 담당자 목록 (현재 사용자 제외, 활성 상태인 사용자만)
   const availableAssignees = profiles.filter(
     (profile) => profile.id !== currentProfile?.id && profile.is_active === true
+  );
+  
+  // 사용 가능한 참조자 목록 (현재 사용자, 담당자 제외, 활성 상태인 사용자만)
+  const availableReferencers = profiles.filter(
+    (profile) => 
+      profile.id !== currentProfile?.id && 
+      profile.id !== assigneeId && 
+      profile.is_active === true
   );
 
   // 마감일 검증: 오늘 이전 날짜 선택 불가
@@ -362,12 +376,21 @@ export function TaskFormDialog({
   };
 
   const onFormSubmit = async (data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData) => {
-    // 생성 모드일 때만 파일과 특이사항 전달
-    await onSubmit(data as TaskCreateFormData | TaskCreateSelfTaskFormData | TaskUpdateFormData, !isEditMode ? attachedFiles : undefined, !isEditMode ? notes : undefined);
+    // 생성 모드일 때만 파일과 특이사항 전달, reference_ids 추가
+    // 담당자는 참조자 불가: assignee_id 제외, 개인 task는 참조자 없음
+    const assigneeIdToExclude = isSelfTaskMode ? currentProfile?.id : (data as TaskCreateFormData).assignee_id;
+    const filteredReferenceIds = !assigneeIdToExclude 
+      ? referenceIds 
+      : referenceIds.filter((id) => id !== assigneeIdToExclude);
+    const submitData = !isEditMode 
+      ? { ...data, reference_ids: isSelfTaskMode ? [] : filteredReferenceIds } 
+      : data;
+    await onSubmit(submitData as TaskCreateFormData | TaskCreateSelfTaskFormData | TaskUpdateFormData, !isEditMode ? attachedFiles : undefined, !isEditMode ? notes : undefined);
     if (!isEditMode) {
       reset();
       setAttachedFiles([]);
       setNotes("");
+      setReferenceIds([]);
     }
   };
 
@@ -384,11 +407,11 @@ export function TaskFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-          <DialogTitle>{isEditMode ? "Task 수정" : "Task 생성"}</DialogTitle>
+          <DialogTitle>{isEditMode ? "업무 수정" : "업무 생성"}</DialogTitle>
           <DialogDescription>
             {isEditMode
-              ? "Task 정보를 수정합니다. 지시자와 담당자는 변경할 수 없습니다."
-              : "새로운 Task를 생성합니다. 필요한 정보를 입력해주세요."}
+              ? "업무 정보를 수정합니다. 지시자와 담당자는 변경할 수 없습니다."
+              : "새로운 업무를 생성합니다. 필요한 정보를 입력해주세요."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
@@ -468,7 +491,13 @@ export function TaskFormDialog({
                   </Label>
                   <Select
                     value={assigneeId}
-                    onValueChange={(value) => setValue("assignee_id", value)}
+                    onValueChange={(value) => {
+                      setValue("assignee_id", value);
+                      // 담당자가 참조자일 수 없음: 담당자로 선택된 사람을 참조자에서 제거
+                      if (value) {
+                        setReferenceIds((prev) => prev.filter((id) => id !== value));
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="담당자를 선택하세요" />
@@ -506,6 +535,75 @@ export function TaskFormDialog({
                     자기 할당 Task는 본인이 담당자로 자동 설정됩니다.
                   </p>
                 </div>
+              )}
+
+              {/* 참조자 Multi Select - 개인 task(자기 할당)에서는 불필요하여 숨김 */}
+              {!isSelfTaskMode && (
+              <div className="space-y-2">
+                <Label htmlFor="reference_ids">
+                  참조자 (선택사항)
+                </Label>
+                <Select
+                  value=""
+                  onValueChange={(value) => {
+                    if (value && !referenceIds.includes(value)) {
+                      setReferenceIds([...referenceIds, value]);
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="참조자를 선택하세요" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableReferencers.filter(p => !referenceIds.includes(p.id)).length === 0 ? (
+                      <SelectItem value="no-referencers" disabled>
+                        선택 가능한 참조자가 없습니다
+                      </SelectItem>
+                    ) : (
+                      availableReferencers
+                        .filter(p => !referenceIds.includes(p.id))
+                        .map((profile) => {
+                          const displayName = profile.full_name 
+                            ? `${profile.full_name} (${profile.email})`
+                            : profile.email;
+                          return (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              {displayName}
+                            </SelectItem>
+                          );
+                        })
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  참조자는 업무를 조회하고 채팅에 참여할 수 있습니다.
+                </p>
+                {/* 선택된 참조자 목록 */}
+                {referenceIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2 p-2 bg-muted/30 rounded-lg">
+                    {referenceIds.map((refId) => {
+                      const profile = profiles.find(p => p.id === refId);
+                      if (!profile) return null;
+                      const displayName = profile.full_name 
+                        ? `${profile.full_name}`
+                        : profile.email;
+                      return (
+                        <Badge key={refId} variant="secondary" className="gap-1 pr-1">
+                          <UserPlus className="h-3 w-3" />
+                          {displayName}
+                          <button
+                            type="button"
+                            onClick={() => setReferenceIds(referenceIds.filter(id => id !== refId))}
+                            className="ml-1 p-0.5 hover:bg-muted rounded"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               )}
             </>
           )}

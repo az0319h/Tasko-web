@@ -95,7 +95,7 @@ export default function TaskListsPage() {
             <Folder className="mb-4 h-12 w-12 text-muted-foreground" />
             <h2 className="mb-2 text-lg font-semibold">목록이 없습니다</h2>
             <p className="mb-4 text-sm text-muted-foreground">
-              Task를 그룹으로 묶어 관리할 수 있는 목록을 만들어보세요.
+              업무를 그룹으로 묶어 관리할 수 있는 목록을 만들어보세요.
             </p>
             <Button className="hidden" onClick={() => setCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />

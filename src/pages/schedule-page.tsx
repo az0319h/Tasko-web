@@ -65,7 +65,7 @@ export default function SchedulePage() {
             <p className="text-muted-foreground mt-2">
               {isAllUsersMode
                 ? "일반 멤버들의 일정을 확인할 수 있습니다."
-                : "Task 기반 일정을 캘린더에서 확인하고 관리할 수 있습니다."}
+                : "업무 기반 일정을 캘린더에서 확인하고 관리할 수 있습니다."}
             </p>
           </div>
           

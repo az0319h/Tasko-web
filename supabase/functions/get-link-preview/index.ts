@@ -28,6 +28,55 @@ function getDomain(url: string): string {
 }
 
 /**
+ * YouTube URL인지 확인
+ */
+function isYouTubeUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    return (
+      urlObj.hostname.includes("youtube.com") ||
+      urlObj.hostname.includes("youtu.be")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * YouTube oEmbed API를 통해 미리보기 데이터 가져오기
+ */
+async function getYouTubePreview(url: string): Promise<LinkPreviewData> {
+  try {
+    // YouTube oEmbed API 엔드포인트
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    
+    const response = await fetch(oembedUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`YouTube oEmbed API 에러: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      url,
+      title: data.title || undefined,
+      description: data.author_name ? `채널: ${data.author_name}` : undefined,
+      image: data.thumbnail_url || data.thumbnail_url_high || data.thumbnail_url_medium || undefined,
+      siteName: "YouTube",
+    };
+  } catch (error) {
+    console.error(`[get-link-preview] YouTube oEmbed 에러:`, error);
+    throw error;
+  }
+}
+
+/**
  * 상대 경로를 절대 경로로 변환
  */
 function resolveUrl(baseUrl: string, relativeUrl: string): string {
@@ -204,7 +253,28 @@ serve(async (req) => {
 
     console.log(`[get-link-preview] URL 요청: ${url}, userId=${user.id}`);
 
-    // HTML 가져오기 (타임아웃: 10초)
+    // YouTube URL인 경우 oEmbed API 사용
+    if (isYouTubeUrl(url)) {
+      try {
+        const metadata = await getYouTubePreview(url);
+        
+        console.log(`[get-link-preview] YouTube oEmbed 데이터 추출 완료:`, {
+          url,
+          hasTitle: !!metadata.title,
+          hasDescription: !!metadata.description,
+          hasImage: !!metadata.image,
+        });
+
+        return new Response(JSON.stringify(metadata), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (youtubeError) {
+        console.error(`[get-link-preview] YouTube oEmbed 실패, 일반 파싱으로 폴백:`, youtubeError);
+        // YouTube oEmbed 실패 시 일반 HTML 파싱으로 폴백
+      }
+    }
+
+    // 일반 URL: HTML 가져오기 (타임아웃: 10초)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 

@@ -51,7 +51,7 @@ const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
   { value: "ALL", label: "전체" },
   { value: "MY_ASSIGNER", label: "내가 지시자" },
   { value: "MY_ASSIGNEE", label: "내가 담당자" },
-  { value: "MY_TASKS", label: "내가 관련된 Task" },
+  { value: "MY_TASKS", label: "내가 관련된 업무" },
 ];
 
 const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
@@ -80,7 +80,7 @@ export function KanbanBoard({
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("dueDateAsc");
 
-  // 1단계: 역할 필터 적용 (지시자/담당자)
+  // 1단계: 역할 필터 적용 (지시자/담당자/참조자)
   const roleFilteredTasks = useMemo(() => {
     if (!currentUserId || roleFilter === "ALL") return tasks;
 
@@ -91,7 +91,11 @@ export function KanbanBoard({
         case "MY_ASSIGNEE":
           return task.assignee_id === currentUserId;
         case "MY_TASKS":
-          return task.assigner_id === currentUserId || task.assignee_id === currentUserId;
+          // 지시자, 담당자, 또는 참조자인 경우
+          const isAssigner = task.assigner_id === currentUserId;
+          const isAssignee = task.assignee_id === currentUserId;
+          const isReference = task.references && task.references.some(ref => ref.id === currentUserId);
+          return isAssigner || isAssignee || isReference;
         default:
           return true;
       }
@@ -220,7 +224,7 @@ export function KanbanBoard({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Task 제목, 담당자명 또는 지시자명으로 검색..."
+            placeholder="업무 제목, 담당자명 또는 지시자명으로 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"

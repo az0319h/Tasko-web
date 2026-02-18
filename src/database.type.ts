@@ -509,6 +509,42 @@ export type Database = {
         }
         Relationships: []
       }
+      task_references: {
+        Row: {
+          created_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_references_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_references_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_schedules: {
         Row: {
           created_at: string
@@ -556,7 +592,6 @@ export type Database = {
           created_by: string | null
           due_date: string
           id: string
-          is_public: boolean
           is_self_task: boolean
           send_email_to_client: boolean
           task_category: Database["public"]["Enums"]["task_category"]
@@ -572,7 +607,6 @@ export type Database = {
           created_by?: string | null
           due_date: string
           id?: string
-          is_public?: boolean
           is_self_task?: boolean
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
@@ -588,7 +622,6 @@ export type Database = {
           created_by?: string | null
           due_date?: string
           id?: string
-          is_public?: boolean
           is_self_task?: boolean
           send_email_to_client?: boolean
           task_category?: Database["public"]["Enums"]["task_category"]
@@ -669,11 +702,11 @@ export type Database = {
       }
       is_admin: { Args: { user_id: string }; Returns: boolean }
       mark_message_as_read: {
-        Args: { message_id_param: string; reader_id_param: string }
+        Args: { message_id: string; reader_id: string }
         Returns: undefined
       }
       mark_task_messages_as_read: {
-        Args: { reader_id_param: string; task_id_param: string }
+        Args: { reader_id: string; task_id_param: string }
         Returns: undefined
       }
       search_profiles_for_invite: {
