@@ -751,9 +751,12 @@ export default function AdminDashboardPage() {
   const handleEmailSentToggle = async (task: TaskWithProfiles, e: React.MouseEvent) => {
     e.stopPropagation(); // 행 클릭 이벤트 차단
     
-    // 담당자 권한 확인
-    if (task.assignee_id !== currentProfile?.id) {
-      toast.error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+    // 담당자 또는 참조자 권한 확인
+    const isAssignee = task.assignee_id === currentProfile?.id;
+    const isReference = task.references?.some((ref) => ref.id === currentProfile?.id) ?? false;
+    
+    if (!isAssignee && !isReference) {
+      toast.error("고객에게 이메일 발송 완료 상태는 담당자 또는 참조자만 변경할 수 있습니다.");
       return;
     }
     
@@ -2823,27 +2826,34 @@ export default function AdminDashboardPage() {
                           )}
                         </td>
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
-                          <button
-                            onClick={(e) => handleEmailSentToggle(task, e)}
-                            disabled={task.assignee_id !== currentProfile?.id || updateTask.isPending}
-                            className={cn(
-                              "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
-                              "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
-                              task.assignee_id === currentProfile?.id && "cursor-pointer"
-                            )}
-                          >
-                            {task.send_email_to_client ? (
-                              <>
-                                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
-                                <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-xs sm:text-sm">미전송</span>
-                              </>
-                            )}
-                          </button>
+                          {(() => {
+                            const isAssignee = task.assignee_id === currentProfile?.id;
+                            const isReference = task.references?.some((ref) => ref.id === currentProfile?.id) ?? false;
+                            const canEdit = isAssignee || isReference;
+                            return (
+                              <button
+                                onClick={(e) => handleEmailSentToggle(task, e)}
+                                disabled={!canEdit || updateTask.isPending}
+                                className={cn(
+                                  "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
+                                  "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
+                                  canEdit && "cursor-pointer"
+                                )}
+                              >
+                                {task.send_email_to_client ? (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
+                                    <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-xs sm:text-sm">미전송</span>
+                                  </>
+                                )}
+                              </button>
+                            );
+                          })()}
                         </td>
                         <td className="px-2 py-3 text-center sm:px-4 sm:py-4">
                           {task.unread_message_count && task.unread_message_count > 0 ? (
@@ -3298,30 +3308,37 @@ export default function AdminDashboardPage() {
                           {task.task_status === "IN_PROGRESS" ? (
                             <span className="text-muted-foreground text-xs sm:text-sm">-</span>
                           ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEmailSentToggle(task, e);
-                              }}
-                              disabled={task.assignee_id !== currentProfile?.id || updateTask.isPending}
-                              className={cn(
-                                "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
-                                "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
-                                task.assignee_id === currentProfile?.id && "cursor-pointer"
-                              )}
-                            >
-                              {task.send_email_to_client ? (
-                                <>
-                                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
-                                  <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="h-4 w-4 text-muted-foreground" />
-                                  <span className="text-xs sm:text-sm">미전송</span>
-                                </>
-                              )}
-                            </button>
+                            (() => {
+                              const isAssignee = task.assignee_id === currentProfile?.id;
+                              const isReference = task.references?.some((ref) => ref.id === currentProfile?.id) ?? false;
+                              const canEdit = isAssignee || isReference;
+                              return (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEmailSentToggle(task, e);
+                                  }}
+                                  disabled={!canEdit || updateTask.isPending}
+                                  className={cn(
+                                    "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
+                                    "hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-50",
+                                    canEdit && "cursor-pointer"
+                                  )}
+                                >
+                                  {task.send_email_to_client ? (
+                                    <>
+                                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-500" />
+                                      <span className="text-xs sm:text-sm whitespace-nowrap">전송 완료</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <XCircle className="h-4 w-4 text-muted-foreground" />
+                                      <span className="text-xs sm:text-sm">미전송</span>
+                                    </>
+                                  )}
+                                </button>
+                              );
+                            })()
                           )}
                         </td>
                       </tr>
