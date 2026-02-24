@@ -308,18 +308,56 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error(`Task를 찾을 수 없습니다: ${fetchError?.message || "알 수 없는 오류"}`);
   }
 
+  // 참조자 목록 조회 (참조자 권한 확인용)
+  const { data: referenceData, error: refError } = await supabase
+    .from("task_references")
+    .select("user_id")
+    .eq("task_id", id);
+
+  if (refError) {
+    console.error("참조자 조회 실패:", refError);
+    // 참조자 조회 실패해도 계속 진행 (기존 동작 유지)
+  }
+
+  const referenceIds = referenceData?.map((ref) => ref.user_id) || [];
+  const isReference = referenceIds.includes(userId);
+
   // 관리자가 아닌 경우: 역할별 권한 검증
   if (!isAdmin) {
-    // send_email_to_client 필드는 담당자(assignee)만 변경 가능
+    // 참조자는 오직 send_email_to_client 필드만 수정 가능
+    // (참조자이면서 담당자나 지시자가 아닌 경우)
+    if (isReference && task.assignee_id !== userId && task.assigner_id !== userId) {
+      // 참조자가 send_email_to_client 외의 필드를 수정하려고 하면 차단
+      const hasOtherFields = 
+        updates.title !== undefined ||
+        updates.client_name !== undefined ||
+        updates.due_date !== undefined;
+      
+      if (hasOtherFields) {
+        throw new Error("참조자는 오직 '전송완료/미전송' 상태만 수정할 수 있습니다.");
+      }
+      
+      // 참조자가 send_email_to_client를 수정하는 경우만 허용
+      if (updates.send_email_to_client === undefined) {
+        throw new Error("참조자는 오직 '전송완료/미전송' 상태만 수정할 수 있습니다.");
+      }
+    }
+    
+    // send_email_to_client 필드는 담당자(assignee) 또는 참조자만 변경 가능
     if (updates.send_email_to_client !== undefined) {
-      if (task.assignee_id !== userId) {
-        throw new Error("고객에게 이메일 발송 완료 상태는 담당자만 변경할 수 있습니다.");
+      if (task.assignee_id !== userId && !isReference) {
+        throw new Error("고객에게 이메일 발송 완료 상태는 담당자 또는 참조자만 변경할 수 있습니다.");
       }
-    } else {
-      // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
-      if (task.assigner_id !== userId) {
-        throw new Error("업무 수정은 지시자만 가능합니다.");
-      }
+    }
+    
+    // send_email_to_client 외의 필드는 지시자(assigner)만 수정 가능
+    const hasGeneralFields = 
+      updates.title !== undefined ||
+      updates.client_name !== undefined ||
+      updates.due_date !== undefined;
+    
+    if (hasGeneralFields && task.assigner_id !== userId) {
+      throw new Error("업무 수정은 지시자만 가능합니다.");
     }
   }
 
@@ -338,8 +376,9 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
   // 관리자: title, client_name, due_date, send_email_to_client 수정 가능
   // 지시자: title, client_name, due_date 수정 가능
   // 담당자: send_email_to_client 수정 가능
+  // 참조자: send_email_to_client 수정 가능 (업무에 참조자가 포함된 경우)
   const canEditGeneralFields = isAdmin || task.assigner_id === userId;
-  const canEditSendEmail = isAdmin || task.assignee_id === userId;
+  const canEditSendEmail = isAdmin || task.assignee_id === userId || isReference;
   
   // title 수정 허용 (관리자 또는 지시자)
   if (updates.title !== undefined && updates.title !== null) {
@@ -365,10 +404,10 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     allowedUpdates.due_date = updates.due_date;
   }
   
-  // send_email_to_client 수정 허용 (관리자 또는 담당자)
+  // send_email_to_client 수정 허용 (관리자 또는 담당자 또는 참조자)
   if (updates.send_email_to_client !== undefined) {
     if (!canEditSendEmail) {
-      throw new Error("고객에게 이메일 발송 완료 상태는 담당자 또는 관리자만 변경할 수 있습니다.");
+      throw new Error("고객에게 이메일 발송 완료 상태는 담당자, 참조자 또는 관리자만 변경할 수 있습니다.");
     }
     (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
   }

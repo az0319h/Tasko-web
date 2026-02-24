@@ -49,6 +49,8 @@ export function TaskDetailDialog({
 }: TaskDetailDialogProps) {
   // 담당자(assignee)인지 확인
   const isAssignee = currentUserId === task.assignee_id;
+  // 참조자인지 확인
+  const isReference = task.references?.some((ref) => ref.id === currentUserId) ?? false;
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "미정";
     return new Date(dateString).toLocaleDateString("ko-KR", {
@@ -183,7 +185,7 @@ export function TaskDetailDialog({
                 <Switch
                   id="send-email-to-client"
                   checked={task.send_email_to_client || false}
-                  disabled={!isAssignee || !onSendEmailToClientChange}
+                  disabled={(!isAssignee && !isReference) || !onSendEmailToClientChange}
                   onCheckedChange={(checked) => {
                     if (onSendEmailToClientChange) {
                       onSendEmailToClientChange(checked);
@@ -191,9 +193,9 @@ export function TaskDetailDialog({
                   }}
                 />
               </div>
-              {!isAssignee && (
+              {!isAssignee && !isReference && (
                 <p className="text-xs text-muted-foreground">
-                  담당자만 변경할 수 있습니다.
+                  담당자 또는 참조자만 변경할 수 있습니다.
                 </p>
               )}
             </div>
