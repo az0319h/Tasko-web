@@ -1669,13 +1669,10 @@ export default function MemberDashboardPage() {
                       SPECIFICATION: "명세서",
                       APPLICATION: "출원",
                     };
-                    const dbStatus = statusMap[status];
-                    const filteredByStatus = dbStatus === null 
-                      ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
-                      : searchedMyTasks.filter((task) => task.task_status === dbStatus);
+                    // 카테고리 필터는 기준이므로 상태 필터 및 검색어의 영향을 받지 않음
                     const count = categoryValue === "all"
-                      ? filteredByStatus.length
-                      : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                      ? myTasks.filter((task) => task.task_status !== "APPROVED").length
+                      : myTasks.filter((task) => task.task_status !== "APPROVED" && task.task_category === categoryValue).length;
                     return (
                       <SelectItem key={categoryValue} value={categoryValue}>
                         {categoryLabels[categoryValue]} ({count}개)
@@ -1735,13 +1732,10 @@ export default function MemberDashboardPage() {
                     SPECIFICATION: "명세서",
                     APPLICATION: "출원",
                   };
-                  const dbStatus = statusMap[status];
-                  const filteredByStatus = dbStatus === null 
-                    ? searchedMyTasks.filter((task) => task.task_status !== "APPROVED")
-                    : searchedMyTasks.filter((task) => task.task_status === dbStatus);
+                  // 카테고리 필터는 기준이므로 상태 필터 및 검색어의 영향을 받지 않음
                   const count = categoryValue === "all"
-                    ? filteredByStatus.length
-                    : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                    ? myTasks.filter((task) => task.task_status !== "APPROVED").length
+                    : myTasks.filter((task) => task.task_status !== "APPROVED" && task.task_category === categoryValue).length;
                   
                   return (
                     <Button
@@ -1996,14 +1990,10 @@ export default function MemberDashboardPage() {
                       SPECIFICATION: "명세서",
                       APPLICATION: "출원",
                     };
-                    const filteredByEmailSent = emailSent === "all"
-                      ? searchedAllTasks
-                      : emailSent === "sent"
-                      ? searchedAllTasks.filter((task) => task.send_email_to_client === true)
-                      : searchedAllTasks.filter((task) => task.send_email_to_client === false);
+                    // 카테고리 필터는 기준이므로 이메일 발송 필터 및 검색어의 영향을 받지 않음
                     const count = categoryValue === "all"
-                      ? filteredByEmailSent.length
-                      : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                      ? allMyTasks.length
+                      : allMyTasks.filter((task) => task.task_category === categoryValue).length;
                     return (
                       <SelectItem key={categoryValue} value={categoryValue}>
                         {categoryLabels[categoryValue]} ({count}개)
@@ -2059,14 +2049,10 @@ export default function MemberDashboardPage() {
                     SPECIFICATION: "명세서",
                     APPLICATION: "출원",
                   };
-                  const filteredByEmailSent = emailSent === "all"
-                    ? searchedAllTasks
-                    : emailSent === "sent"
-                    ? searchedAllTasks.filter((task) => task.send_email_to_client === true)
-                    : searchedAllTasks.filter((task) => task.send_email_to_client === false);
+                  // 카테고리 필터는 기준이므로 이메일 발송 필터 및 검색어의 영향을 받지 않음
                   const count = categoryValue === "all"
-                    ? filteredByEmailSent.length
-                    : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                    ? allMyTasks.length
+                    : allMyTasks.filter((task) => task.task_category === categoryValue).length;
                   
                   return (
                     <Button
@@ -2352,19 +2338,13 @@ export default function MemberDashboardPage() {
                           rejected: "REJECTED",
                           approved: "APPROVED",
                         };
-                        const dbStatus = statusMap[status];
-                        return dbStatus === null
-                          ? searchedSelfTasks
-                          : searchedSelfTasks.filter((task) => task.task_status === dbStatus);
+                        // 카테고리 필터는 기준이므로 상태/이메일 필터 및 검색어의 영향을 받지 않음
+                        return selfTasks;
                       })();
-                  const filteredByEmailSent = emailSent === "all"
-                    ? filteredByStatus
-                    : emailSent === "sent"
-                    ? filteredByStatus.filter((task) => task.send_email_to_client === true)
-                    : filteredByStatus.filter((task) => task.send_email_to_client === false);
+                  // 카테고리 필터는 기준이므로 상태/이메일 필터 및 검색어의 영향을 받지 않음
                   const count = categoryValue === "all"
-                    ? filteredByEmailSent.length
-                    : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                    ? selfTasks.length
+                    : selfTasks.filter((task) => task.task_category === categoryValue).length;
                     return (
                       <SelectItem key={categoryValue} value={categoryValue}>
                         {categoryLabels[categoryValue]} ({count}개)
@@ -2484,30 +2464,10 @@ export default function MemberDashboardPage() {
                     SPECIFICATION: "명세서",
                     APPLICATION: "출원",
                   };
-                  const filteredByStatus = status === "all"
-                    ? searchedSelfTasks
-                    : (() => {
-                        const statusMap: Record<StatusParam, TaskStatus | null> = {
-                          all: null,
-                          assigned: "ASSIGNED",
-                          in_progress: "IN_PROGRESS",
-                          waiting_confirm: "WAITING_CONFIRM",
-                          rejected: "REJECTED",
-                          approved: "APPROVED",
-                        };
-                        const dbStatus = statusMap[status];
-                        return dbStatus === null
-                          ? searchedSelfTasks
-                          : searchedSelfTasks.filter((task) => task.task_status === dbStatus);
-                      })();
-                  const filteredByEmailSent = emailSent === "all"
-                    ? filteredByStatus
-                    : emailSent === "sent"
-                    ? filteredByStatus.filter((task) => task.send_email_to_client === true)
-                    : filteredByStatus.filter((task) => task.send_email_to_client === false);
+                  // 카테고리 필터는 기준이므로 상태/이메일 필터 및 검색어의 영향을 받지 않음
                   const count = categoryValue === "all"
-                    ? filteredByEmailSent.length
-                    : filteredByEmailSent.filter((task) => task.task_category === categoryValue).length;
+                    ? selfTasks.length
+                    : selfTasks.filter((task) => task.task_category === categoryValue).length;
                   return (
                     <Button
                       key={categoryValue}
@@ -2836,15 +2796,11 @@ export default function MemberDashboardPage() {
                           SPECIFICATION: "명세서",
                           APPLICATION: "출원",
                         };
-                        const dbStatus = statusMap[referenceStatus];
-                        const filteredByStatus =
-                          dbStatus === null
-                            ? searchedReferenceTasks.filter((task) => task.task_status !== "APPROVED")
-                            : searchedReferenceTasks.filter((task) => task.task_status === dbStatus);
+                        // 카테고리 필터는 기준이므로 상태 필터 및 검색어의 영향을 받지 않음
                         const count =
                           categoryValue === "all"
-                            ? filteredByStatus.length
-                            : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                            ? referenceTasks.filter((task) => task.task_status !== "APPROVED").length
+                            : referenceTasks.filter((task) => task.task_status !== "APPROVED" && task.task_category === categoryValue).length;
                         return (
                           <SelectItem key={categoryValue} value={categoryValue}>
                             {categoryLabels[categoryValue]} ({count}개)
@@ -2910,15 +2866,11 @@ export default function MemberDashboardPage() {
                         SPECIFICATION: "명세서",
                         APPLICATION: "출원",
                       };
-                      const dbStatus = statusMap[referenceStatus];
-                      const filteredByStatus =
-                        dbStatus === null
-                          ? searchedReferenceTasks.filter((task) => task.task_status !== "APPROVED")
-                          : searchedReferenceTasks.filter((task) => task.task_status === dbStatus);
+                      // 카테고리 필터는 기준이므로 상태 필터 및 검색어의 영향을 받지 않음
                       const count =
                         categoryValue === "all"
-                          ? filteredByStatus.length
-                          : filteredByStatus.filter((task) => task.task_category === categoryValue).length;
+                          ? referenceTasks.filter((task) => task.task_status !== "APPROVED").length
+                          : referenceTasks.filter((task) => task.task_status !== "APPROVED" && task.task_category === categoryValue).length;
                       return (
                         <Button
                           key={categoryValue}
