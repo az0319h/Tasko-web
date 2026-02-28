@@ -184,6 +184,7 @@ type SortDueParam = "asc" | "desc";
 type SortEmailSentParam = "asc" | "desc";
 type EmailSentParam = "all" | "sent" | "not_sent";
 type CategoryParam = "all" | "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION";
+type MessageFilterParam = "all" | "not-read";
 
 /**
  * Admin 대시보드 페이지
@@ -297,6 +298,12 @@ export default function AdminDashboardPage() {
   const status: StatusParam =
     statusParam && currentValidStatusParams.includes(statusParam) ? statusParam : "all";
 
+  // 안 읽은 메시지 필터 파라미터 (개인 태스크 탭 제외)
+  const messageFilterParam = searchParams.get("message") as MessageFilterParam | null;
+  const validMessageFilterParams: MessageFilterParam[] = ["all", "not-read"];
+  const messageFilter: MessageFilterParam =
+    messageFilterParam && validMessageFilterParams.includes(messageFilterParam) ? messageFilterParam : "all";
+
   // 다이얼로그 상태
   const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false);
   const [statusChangeDialogOpen, setStatusChangeDialogOpen] = useState(false);
@@ -384,6 +391,7 @@ export default function AdminDashboardPage() {
       sortDue: SortDueParam;
       category: CategoryParam;
       status: StatusParam;
+      message?: MessageFilterParam;
       keyword?: string;
       allTasksPage?: number;
     }>,
@@ -397,6 +405,7 @@ export default function AdminDashboardPage() {
     const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
     const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const messageToSet = updates?.message !== undefined ? updates.message : messageFilter;
     const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const allTasksPageToSet = updates?.allTasksPage !== undefined ? updates.allTasksPage : allTasksCurrentPage;
 
@@ -413,6 +422,11 @@ export default function AdminDashboardPage() {
     // status 설정
     if (statusToSet !== "all") {
       newParams.set("status", statusToSet);
+    }
+
+    // message 설정
+    if (messageToSet !== "all") {
+      newParams.set("message", messageToSet);
     }
 
     // keyword 설정
@@ -434,6 +448,7 @@ export default function AdminDashboardPage() {
       sortDue: SortDueParam;
       category: CategoryParam;
       status: StatusParam;
+      message?: MessageFilterParam;
       keyword?: string;
       myTasksPage?: number;
     }>,
@@ -447,6 +462,7 @@ export default function AdminDashboardPage() {
     const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
     const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const statusToSet = updates?.status !== undefined ? updates.status : status;
+    const messageToSet = updates?.message !== undefined ? updates.message : messageFilter;
     const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const myTasksPageToSet = updates?.myTasksPage !== undefined ? updates.myTasksPage : myTasksCurrentPage;
 
@@ -463,6 +479,11 @@ export default function AdminDashboardPage() {
     // status 설정
     if (statusToSet !== "all") {
       newParams.set("status", statusToSet);
+    }
+
+    // message 설정
+    if (messageToSet !== "all") {
+      newParams.set("message", messageToSet);
     }
 
     // keyword 설정
@@ -542,6 +563,7 @@ export default function AdminDashboardPage() {
       sortEmailSent: SortEmailSentParam;
       category: CategoryParam;
       emailSent: EmailSentParam;
+      message?: MessageFilterParam;
       keyword?: string;
       approvedTasksPage?: number;
     }>,
@@ -556,6 +578,7 @@ export default function AdminDashboardPage() {
     const sortEmailSentToSet = updates?.sortEmailSent !== undefined ? updates.sortEmailSent : sortEmailSent;
     const categoryToSet = updates?.category !== undefined ? updates.category : category;
     const emailSentToSet = updates?.emailSent !== undefined ? updates.emailSent : emailSent;
+    const messageToSet = updates?.message !== undefined ? updates.message : messageFilter;
     const keywordToSet = updates?.keyword !== undefined ? updates.keyword : searchQuery;
     const approvedTasksPageToSet = updates?.approvedTasksPage !== undefined ? updates.approvedTasksPage : approvedTasksCurrentPage;
 
@@ -579,6 +602,11 @@ export default function AdminDashboardPage() {
       newParams.set("emailSent", emailSentToSet);
     }
 
+    // message 설정
+    if (messageToSet !== "all") {
+      newParams.set("message", messageToSet);
+    }
+
     // keyword 설정
     if (keywordToSet && keywordToSet.trim()) {
       newParams.set("keyword", keywordToSet);
@@ -600,6 +628,7 @@ export default function AdminDashboardPage() {
       sortDue?: SortDueParam;
       referenceCategory?: CategoryParam;
       referenceStatus?: StatusParam;
+      message?: MessageFilterParam;
     }>,
   ) => {
     const newParams = new URLSearchParams();
@@ -609,6 +638,7 @@ export default function AdminDashboardPage() {
     const sortDueToSet = updates?.sortDue !== undefined ? updates.sortDue : sortDue;
     const referenceCategoryToSet = updates?.referenceCategory !== undefined ? updates.referenceCategory : referenceCategory;
     const referenceStatusToSet = updates?.referenceStatus !== undefined ? updates.referenceStatus : referenceStatus;
+    const messageToSet = updates?.message !== undefined ? updates.message : messageFilter;
     if (keywordToSet && keywordToSet.trim()) {
       newParams.set("keyword", keywordToSet);
     }
@@ -623,6 +653,9 @@ export default function AdminDashboardPage() {
     }
     if (referenceStatusToSet !== "all") {
       newParams.set("referenceStatus", referenceStatusToSet);
+    }
+    if (messageToSet !== "all") {
+      newParams.set("message", messageToSet);
     }
     setSearchParams(newParams, { replace: true });
   };
@@ -642,6 +675,20 @@ export default function AdminDashboardPage() {
     } else {
       updateMyTasksUrlParams({ keyword: value });
     }
+  };
+
+  // 안 읽은 메시지 필터 변경 핸들러
+  const handleMessageFilterChange = (newMessageFilter: MessageFilterParam) => {
+    if (activeTab === "all-tasks") {
+      updateAllTasksUrlParams({ message: newMessageFilter, allTasksPage: 1 });
+    } else if (activeTab === "approved-tasks") {
+      updateApprovedTasksUrlParams({ message: newMessageFilter, approvedTasksPage: 1 });
+    } else if (activeTab === "reference-tasks") {
+      updateReferenceTasksUrlParams({ message: newMessageFilter, referenceTasksPage: 1 });
+    } else if (activeTab === "my-tasks") {
+      updateMyTasksUrlParams({ message: newMessageFilter, myTasksPage: 1 });
+    }
+    // self-tasks는 제외
   };
 
   // 정렬 변경 핸들러 (전체 태스크 탭용)
@@ -1222,9 +1269,19 @@ export default function AdminDashboardPage() {
     return categoryFilteredAllTasks.filter((task) => task.task_status === dbStatus);
   }, [categoryFilteredAllTasks, status, statusMap]);
 
+  // 전체 태스크 탭: 안 읽은 메시지 필터링
+  const unreadFilteredAllTasks = useMemo(() => {
+    if (messageFilter === "all") {
+      return statusFilteredAllTasks;
+    }
+    return statusFilteredAllTasks.filter(
+      (task) => task.unread_message_count && task.unread_message_count > 0
+    );
+  }, [statusFilteredAllTasks, messageFilter]);
+
   // 전체 태스크 탭: 정렬
   const sortedAllTasks = useMemo(() => {
-    const sorted = [...statusFilteredAllTasks];
+    const sorted = [...unreadFilteredAllTasks];
 
     sorted.sort((a, b) => {
       if (sortDue === "asc") {
@@ -1243,7 +1300,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [statusFilteredAllTasks, sortDue]);
+  }, [unreadFilteredAllTasks, sortDue]);
 
   // 전체 태스크 탭: 페이지네이션
   const paginatedAllTasks = useMemo(() => {
@@ -1290,9 +1347,19 @@ export default function AdminDashboardPage() {
     return categoryFilteredMyTasks.filter((task) => task.task_status === dbStatus);
   }, [categoryFilteredMyTasks, status, statusMap]);
 
+  // 담당 업무 탭: 안 읽은 메시지 필터링
+  const unreadFilteredMyTasks = useMemo(() => {
+    if (messageFilter === "all") {
+      return statusFilteredMyTasks;
+    }
+    return statusFilteredMyTasks.filter(
+      (task) => task.unread_message_count && task.unread_message_count > 0
+    );
+  }, [statusFilteredMyTasks, messageFilter]);
+
   // 담당 업무 탭: 정렬
   const sortedMyTasks = useMemo(() => {
-    const sorted = [...statusFilteredMyTasks];
+    const sorted = [...unreadFilteredMyTasks];
 
     sorted.sort((a, b) => {
       if (sortDue === "asc") {
@@ -1311,7 +1378,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [statusFilteredMyTasks, sortDue]);
+  }, [unreadFilteredMyTasks, sortDue]);
 
   // 담당 업무 탭: 페이지네이션
   const paginatedMyTasks = useMemo(() => {
@@ -1361,9 +1428,19 @@ export default function AdminDashboardPage() {
     }
   }, [categoryFilteredApprovedTasks, emailSent]);
 
+  // 승인된 태스크 탭: 안 읽은 메시지 필터링
+  const unreadFilteredApprovedTasks = useMemo(() => {
+    if (messageFilter === "all") {
+      return emailSentFilteredApprovedTasks;
+    }
+    return emailSentFilteredApprovedTasks.filter(
+      (task) => task.unread_message_count && task.unread_message_count > 0
+    );
+  }, [emailSentFilteredApprovedTasks, messageFilter]);
+
   // 승인된 태스크 탭: 정렬 (생성일 기준)
   const sortedApprovedTasks = useMemo(() => {
-    const sorted = [...emailSentFilteredApprovedTasks];
+    const sorted = [...unreadFilteredApprovedTasks];
 
     sorted.sort((a, b) => {
       if (sortDue === "asc") {
@@ -1380,7 +1457,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [emailSentFilteredApprovedTasks, sortDue]);
+  }, [unreadFilteredApprovedTasks, sortDue]);
 
   // 승인된 태스크 탭: 페이지네이션
   const paginatedApprovedTasks = useMemo(() => {
@@ -1512,9 +1589,19 @@ export default function AdminDashboardPage() {
     return categoryFilteredReferenceTasks.filter((task) => task.task_status === dbStatus);
   }, [categoryFilteredReferenceTasks, referenceStatus]);
 
+  // 참조된 업무 탭: 안 읽은 메시지 필터링
+  const unreadFilteredReferenceTasks = useMemo(() => {
+    if (messageFilter === "all") {
+      return statusFilteredReferenceTasks;
+    }
+    return statusFilteredReferenceTasks.filter(
+      (task) => task.unread_message_count && task.unread_message_count > 0
+    );
+  }, [statusFilteredReferenceTasks, messageFilter]);
+
   // 참조된 업무 탭: 마감일 정렬
   const sortedReferenceTasks = useMemo(() => {
-    const sorted = [...statusFilteredReferenceTasks];
+    const sorted = [...unreadFilteredReferenceTasks];
     sorted.sort((a, b) => {
       if (sortDue === "asc") {
         if (!a.due_date && !b.due_date) return 0;
@@ -1529,7 +1616,7 @@ export default function AdminDashboardPage() {
       }
     });
     return sorted;
-  }, [statusFilteredReferenceTasks, sortDue]);
+  }, [unreadFilteredReferenceTasks, sortDue]);
 
   // 참조된 업무 탭: 페이지네이션
   const paginatedReferenceTasks = useMemo(() => {
@@ -1544,40 +1631,31 @@ export default function AdminDashboardPage() {
   // 현재 표시 중인 Task ID 목록 추출 (실시간 구독용)
   // sortedMyTasks/sortedAllTasks/sortedApprovedTasks를 사용하여 필터링/정렬이 완료된 Task ID를 추출
   // 페이지네이션된 Task만 구독하여 성능 최적화
+  // 실시간 구독을 위한 현재 Task ID 목록 수집
+  // 모든 Task에 대해 구독하여 필터 변경 시에도 실시간 업데이트가 가능하도록 함
   const currentTaskIds = useMemo(() => {
     const taskIds = new Set<string>();
     
-    // 현재 활성 탭에 따라 표시 중인 Task ID 수집
-    // activeTab을 사용하여 탭 구분 (category는 카테고리 필터이므로 사용하지 않음)
-    // paginatedMyTasks/paginatedAllTasks/paginatedApprovedTasks 대신 sorted*에서 페이지네이션 범위만 추출
+    // 현재 활성 탭에 따라 전체 Task ID 수집 (필터링/페이지네이션 전)
+    // 이렇게 하면 필터 변경 시에도 실시간 업데이트가 가능함
     if (activeTab === "my-tasks") {
-      const startIndex = (myTasksCurrentPage - 1) * myTasksItemsPerPage;
-      const endIndex = startIndex + myTasksItemsPerPage;
-      sortedMyTasks.slice(startIndex, endIndex).forEach((task) => {
+      myTasks.forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
     } else if (activeTab === "all-tasks") {
-      const startIndex = (allTasksCurrentPage - 1) * allTasksItemsPerPage;
-      const endIndex = startIndex + allTasksItemsPerPage;
-      sortedAllTasks.slice(startIndex, endIndex).forEach((task) => {
+      allTasks.forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
     } else if (activeTab === "approved-tasks") {
-      const startIndex = (approvedTasksCurrentPage - 1) * approvedTasksItemsPerPage;
-      const endIndex = startIndex + approvedTasksItemsPerPage;
-      sortedApprovedTasks.slice(startIndex, endIndex).forEach((task) => {
+      approvedTasks.forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
     } else if (activeTab === "self-tasks") {
-      const startIndex = (selfTasksCurrentPage - 1) * selfTasksItemsPerPage;
-      const endIndex = startIndex + selfTasksItemsPerPage;
-      sortedSelfTasks.slice(startIndex, endIndex).forEach((task) => {
+      selfTasks.forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
     } else if (activeTab === "reference-tasks") {
-      const startIndex = (referenceTasksCurrentPage - 1) * referenceTasksItemsPerPage;
-      const endIndex = startIndex + referenceTasksItemsPerPage;
-      sortedReferenceTasks.slice(startIndex, endIndex).forEach((task) => {
+      referenceTasks.forEach((task) => {
         if (task.id) taskIds.add(task.id);
       });
     }
@@ -1585,25 +1663,17 @@ export default function AdminDashboardPage() {
     const result = Array.from(taskIds);
     console.log(`[Admin Dashboard] 📋 Current task IDs for subscription:`, {
       activeTab,
-      category,
       count: result.length,
       taskIds: result,
-      sortedMyTasksCount: sortedMyTasks.length,
-      sortedAllTasksCount: sortedAllTasks.length,
-      sortedApprovedTasksCount: sortedApprovedTasks.length,
-      sortedSelfTasksCount: sortedSelfTasks.length,
-      paginatedMyTasksCount: paginatedMyTasks.length,
-      paginatedAllTasksCount: paginatedAllTasks.length,
-      paginatedApprovedTasksCount: paginatedApprovedTasks.length,
-      paginatedSelfTasksCount: paginatedSelfTasks.length,
-      myTasksCurrentPage,
-      allTasksCurrentPage,
-      approvedTasksCurrentPage,
-      selfTasksCurrentPage,
+      myTasksCount: myTasks.length,
+      allTasksCount: allTasks.length,
+      approvedTasksCount: approvedTasks.length,
+      selfTasksCount: selfTasks.length,
+      referenceTasksCount: referenceTasks.length,
     });
     
     return result;
-  }, [activeTab, category, sortedMyTasks, sortedAllTasks, sortedApprovedTasks, sortedSelfTasks, sortedReferenceTasks, myTasksCurrentPage, allTasksCurrentPage, approvedTasksCurrentPage, selfTasksCurrentPage, referenceTasksCurrentPage, myTasksItemsPerPage, allTasksItemsPerPage, approvedTasksItemsPerPage, selfTasksItemsPerPage, referenceTasksItemsPerPage]);
+  }, [activeTab, myTasks, allTasks, approvedTasks, selfTasks, referenceTasks]);
 
   // 실시간 구독 활성화
   console.log(`[Admin Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
@@ -2047,9 +2117,9 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
-          {/* 검색창 */}
-          <div className="w-full">
-            <div className="relative">
+          {/* 검색창 및 안 읽은 메시지 필터 */}
+          <div className="flex gap-2 w-full">
+            <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
@@ -2058,6 +2128,17 @@ export default function AdminDashboardPage() {
                 className="pl-9"
               />
             </div>
+            <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
+              <SelectTrigger className="w-fit">
+                <SelectValue>
+                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 업무</SelectItem>
+                <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {/* Task 테이블 */}
           <div className="overflow-x-scroll">
@@ -2368,9 +2449,9 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </div>
-          {/* 검색창 */}
-          <div className="w-full">
-            <div className="relative">
+          {/* 검색창 및 안 읽은 메시지 필터 */}
+          <div className="flex gap-2 w-full">
+            <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
@@ -2379,6 +2460,17 @@ export default function AdminDashboardPage() {
                 className="pl-9"
               />
             </div>
+            <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
+              <SelectTrigger className="w-fit">
+                <SelectValue>
+                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 업무</SelectItem>
+                <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {/* Task 테이블 */}
           <div className="overflow-x-scroll">
@@ -2676,14 +2768,14 @@ export default function AdminDashboardPage() {
                     >
                       {emailSentLabels[emailSentValue]} ({count}개)
                     </Button>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           </div>
-          {/* 검색창 */}
-          <div className="w-full">
-            <div className="relative">
+          {/* 검색창 및 안 읽은 메시지 필터 */}
+          <div className="flex gap-2 w-full">
+            <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
               <Input
                 placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
@@ -2692,6 +2784,17 @@ export default function AdminDashboardPage() {
                 className="pl-9"
               />
             </div>
+            <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
+              <SelectTrigger className="w-fit">
+                <SelectValue>
+                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 업무</SelectItem>
+                <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {/* Task 테이블 */}
           <div className="overflow-x-scroll">
@@ -3494,9 +3597,9 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               </div>
-              {/* 검색창 */}
-              <div className="w-full">
-                <div className="relative">
+              {/* 검색창 및 안 읽은 메시지 필터 */}
+              <div className="flex gap-2 w-full">
+                <div className="relative flex-1">
                   <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                   <Input
                     placeholder="고유 ID, 고객명, 지시사항, 지시자/담당자명으로 검색하세요..."
@@ -3505,6 +3608,17 @@ export default function AdminDashboardPage() {
                     className="pl-9"
                   />
                 </div>
+                <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
+                  <SelectTrigger className="w-fit">
+                    <SelectValue>
+                      {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 업무</SelectItem>
+                    <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {/* Task 테이블 */}
               <div className="overflow-x-scroll">
