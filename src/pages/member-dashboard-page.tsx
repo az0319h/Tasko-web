@@ -1873,13 +1873,13 @@ export default function MemberDashboardPage() {
               />
             </div>
             <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
-              <SelectTrigger className="w-fit">
+              <SelectTrigger className="min-w-45">
                 <SelectValue>
-                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">전체 업무</SelectItem>
+                <SelectItem value="all">전체</SelectItem>
                 <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
               </SelectContent>
             </Select>
@@ -2199,13 +2199,13 @@ export default function MemberDashboardPage() {
               />
             </div>
             <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
-              <SelectTrigger className="w-fit">
+              <SelectTrigger className="min-w-45">
                 <SelectValue>
-                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                  {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체"}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">전체 업무</SelectItem>
+                <SelectItem value="all">전체</SelectItem>
                 <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
               </SelectContent>
             </Select>
@@ -3028,13 +3028,13 @@ export default function MemberDashboardPage() {
                   />
                 </div>
                 <Select value={messageFilter} onValueChange={(value) => handleMessageFilterChange(value as MessageFilterParam)}>
-                  <SelectTrigger className="w-fit">
+                  <SelectTrigger className="min-w-45">
                     <SelectValue>
-                      {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체 업무"}
+                      {messageFilter === "not-read" ? "메시지를 읽지 않은 업무" : "전체"}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">전체 업무</SelectItem>
+                    <SelectItem value="all">전체</SelectItem>
                     <SelectItem value="not-read">메시지를 읽지 않은 업무</SelectItem>
                   </SelectContent>
                 </Select>
