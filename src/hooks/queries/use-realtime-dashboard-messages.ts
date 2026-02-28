@@ -106,12 +106,16 @@ export function useRealtimeDashboardMessages(
               fullPayload: payload,
             });
             
-            // 메시지 변경 시 대시보드 쿼리 무효화
-            console.log(`[Realtime Dashboard] 🔄 Invalidating queries for task ${taskId}`);
+            // 메시지 변경 시 대시보드 쿼리 무효화 및 즉시 refetch
+            console.log(`[Realtime Dashboard] 🔄 Invalidating and refetching queries for task ${taskId}`);
             queryClient.invalidateQueries({ queryKey: ["tasks", "member"] });
             queryClient.invalidateQueries({ queryKey: ["tasks", "admin"] });
             queryClient.invalidateQueries({ queryKey: ["tasks", "reference"] });
-            console.log(`[Realtime Dashboard] ✅ Queries invalidated for task ${taskId}`);
+            // 즉시 refetch하여 필터 변경 시에도 실시간 업데이트가 반영되도록 함
+            queryClient.refetchQueries({ queryKey: ["tasks", "member"] });
+            queryClient.refetchQueries({ queryKey: ["tasks", "admin"] });
+            queryClient.refetchQueries({ queryKey: ["tasks", "reference"] });
+            console.log(`[Realtime Dashboard] ✅ Queries invalidated and refetched for task ${taskId}`);
           }
         )
         .subscribe((status) => {
