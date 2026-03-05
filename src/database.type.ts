@@ -159,6 +159,62 @@ export type Database = {
         }
         Relationships: []
       }
+      email_template_types: {
+        Row: {
+          code: string
+          display_order: number | null
+          id: string
+          label: string
+        }
+        Insert: {
+          code: string
+          display_order?: number | null
+          id?: string
+          label: string
+        }
+        Update: {
+          code?: string
+          display_order?: number | null
+          id?: string
+          label?: string
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body_template: string
+          created_at: string
+          id: string
+          subject_template: string
+          type_code: string
+          updated_at: string
+        }
+        Insert: {
+          body_template: string
+          created_at?: string
+          id?: string
+          subject_template: string
+          type_code: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          created_at?: string
+          id?: string
+          subject_template?: string
+          type_code?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_type_code_fkey"
+            columns: ["type_code"]
+            isOneToOne: false
+            referencedRelation: "email_template_types"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           created_at: string
@@ -588,6 +644,7 @@ export type Database = {
           assignee_id: string | null
           assigner_id: string | null
           client_name: string | null
+          confirm_email_sent_at: string | null
           created_at: string
           created_by: string | null
           due_date: string
@@ -603,6 +660,7 @@ export type Database = {
           assignee_id?: string | null
           assigner_id?: string | null
           client_name?: string | null
+          confirm_email_sent_at?: string | null
           created_at?: string
           created_by?: string | null
           due_date: string
@@ -618,6 +676,7 @@ export type Database = {
           assignee_id?: string | null
           assigner_id?: string | null
           client_name?: string | null
+          confirm_email_sent_at?: string | null
           created_at?: string
           created_by?: string | null
           due_date?: string
@@ -718,6 +777,15 @@ export type Database = {
           id: string
           role: string
         }[]
+      }
+      send_confirm_email_rpc: {
+        Args: {
+          p_task_id: string
+          p_subject: string
+          p_html_body: string
+          p_attachment?: Json | null
+        }
+        Returns: Json
       }
     }
     Enums: {
