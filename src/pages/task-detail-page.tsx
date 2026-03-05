@@ -22,6 +22,7 @@ import {
   Share2,
   ListFilterPlus,
   HeartPlus,
+  Mail,
 } from "lucide-react";
 import {
   useTask,
@@ -62,6 +63,7 @@ import { AddToListDialog } from "@/components/task-list/add-to-list-dialog";
 import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { LinkPreviewCard } from "@/components/message/link-preview-card";
 import { TaskShareDialog } from "@/components/task/task-share-dialog";
+import { ConfirmEmailDialog } from "@/components/dialog/confirm-email-dialog";
 import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
 import type { MessageWithProfile } from "@/api/message";
@@ -110,6 +112,7 @@ export default function TaskDetailPage() {
   const [openMenuMessageId, setOpenMenuMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [addToListDialogOpen, setAddToListDialogOpen] = useState(false);
+  const [confirmEmailDialogOpen, setConfirmEmailDialogOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1772,6 +1775,20 @@ export default function TaskDetailPage() {
             >
                   <HeartPlus className="h-5 w-5"/>
             </Button>
+            {/* 컨펌 이메일 전송 버튼: 검토+승인+담당자 */}
+            {task.task_category === "REVIEW" &&
+              task.task_status === "APPROVED" &&
+              isAssignee && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setConfirmEmailDialogOpen(true)}
+                className="h-9 w-9 shrink-0"
+                title="컨펌 이메일 전송"
+              >
+                <Mail className="h-5 w-5" />
+              </Button>
+            )}
             {/* 공유 버튼 */}
             <Button
               variant="ghost"
@@ -2152,6 +2169,16 @@ export default function TaskDetailPage() {
           task={task}
           open={shareDialogOpen}
           onOpenChange={setShareDialogOpen}
+        />
+      )}
+
+      {/* 컨펌 이메일 전송 Dialog */}
+      {task && taskId && (
+        <ConfirmEmailDialog
+          open={confirmEmailDialogOpen}
+          onOpenChange={setConfirmEmailDialogOpen}
+          taskId={taskId}
+          taskTitle={task.title}
         />
       )}
     </div>
