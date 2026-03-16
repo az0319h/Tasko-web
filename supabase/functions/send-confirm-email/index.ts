@@ -4,6 +4,7 @@
  * ## 개요
  * 검토·승인 업무의 담당자가 관리자 전원 + 담당자(assignee)에게 컨펌 이메일을 발송합니다.
  * DOCX 첨부 시 ConvertAPI로 PDF 변환 후 발송합니다.
+ * 첨부 URL은 SSRF 방어를 위해 HTTPS + Supabase 도메인만 허용합니다.
  *
  * ## 호출 방식
  * - HTTP POST (프론트엔드에서 직접 호출)
@@ -36,6 +37,34 @@ function toPdfAttachmentFileName(docxFileName: string): string {
   const withoutExt = docxFileName.replace(/\.docx?$/i, "");
   const withoutSuffix = withoutExt.replace(/_초\d+$/, "");
   return `${withoutSuffix}.pdf`;
+}
+
+/**
+ * 첨부 URL SSRF 방어: HTTPS + Supabase 도메인만 허용
+ * - 프로덕션(SUPABASE_URL=https): HTTPS만 허용
+ * - 로컬(SUPABASE_URL=http): http 허용 (로컬 Storage 대응)
+ * @param rawUrl 검증할 URL
+ * @param supabaseUrl 프로젝트 SUPABASE_URL (허용할 호스트 추출용)
+ * @throws Error 프로토콜 또는 도메인이 허용 목록에 없을 때
+ */
+function assertAllowedAttachmentUrl(rawUrl: string, supabaseUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("첨부 URL 형식이 올바르지 않습니다.");
+  }
+  const supabaseParsed = new URL(supabaseUrl);
+  const allowHttp = supabaseParsed.protocol === "http:";
+  if (parsed.protocol !== "https:" && !(allowHttp && parsed.protocol === "http:")) {
+    throw new Error("첨부 URL은 HTTPS만 허용됩니다.");
+  }
+  const supabaseHost = supabaseParsed.hostname;
+  const allowedHosts = new Set([supabaseHost]);
+  if (!allowedHosts.has(parsed.hostname)) {
+    throw new Error("허용되지 않은 첨부 URL 도메인입니다.");
+  }
+  return parsed.toString();
 }
 
 async function convertDocxToPdfViaConvertAPI(
@@ -239,6 +268,17 @@ Deno.serve(async (req: Request) => {
 
     // --- DOCX → PDF 변환 (ConvertAPI, .docx 첨부 시) ---
     let finalAttachment: AttachmentInput | undefined = attachment;
+    if (attachment?.url) {
+      try {
+        attachment.url = assertAllowedAttachmentUrl(attachment.url, supabaseUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "첨부 URL 검증 실패";
+        return new Response(
+          JSON.stringify({ error: "Invalid attachment URL", message: msg }),
+          { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+    }
     if (attachment?.url && attachment?.fileName && /\.docx$/i.test(attachment.fileName)) {
       try {
         const converted = await convertDocxToPdfViaConvertAPI(attachment.url, attachment.fileName);
