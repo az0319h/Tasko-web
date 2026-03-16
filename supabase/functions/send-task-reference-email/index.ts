@@ -1,6 +1,26 @@
-// Supabase Edge Function: Send Task Reference Email
-// This function sends email notifications when a user is added as a reference to a task
-// Called automatically by database trigger when task_references rows are inserted
+/**
+ * send-task-reference-email
+ *
+ * ## 개요
+ * 업무에 참조자로 추가되거나 참조 중인 업무의 상태가 변경될 때 참조자에게 이메일을 발송합니다.
+ *
+ * ## 호출 방식
+ * - DB 트리거 (task_references insert 등) 또는 HTTP POST
+ *
+ * ## 이벤트
+ * - REFERENCE_ADDED: 참조자 추가 시
+ * - STATUS_CHANGED: 업무 상태 변경 시
+ *
+ * ## 필수 환경 변수
+ * - SMTP_USER, SMTP_PASS, FRONTEND_URL
+ * - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * ## 요청 (Request)
+ * - Body: { eventType?, taskId, taskTitle, referenceEmails, ... }
+ *
+ * ## 응답 (Response)
+ * - 200/207: { success, message, results }
+ */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -295,7 +315,7 @@ Deno.serve(async (req: Request) => {
       }),
     });
 
-    // Validate required fields
+    // --- 요청 검증 ---
     if (
       !emailData.taskId ||
       !emailData.taskTitle ||
@@ -314,7 +334,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get SMTP credentials from environment variables
+    // --- SMTP/Supabase 클라이언트 설정 ---
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPass = Deno.env.get("SMTP_PASS");
 
@@ -360,7 +380,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Send emails to each reference user
+    // --- 참조자별 이메일 발송 및 email_logs 기록 ---
     const results = await Promise.all(
       emailData.referenceEmails.map(async (reference) => {
         const { subject, html } =

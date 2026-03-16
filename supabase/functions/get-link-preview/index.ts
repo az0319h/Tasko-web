@@ -1,3 +1,28 @@
+/**
+ * get-link-preview
+ *
+ * ## 개요
+ * URL에서 제목, 설명, 이미지 등 메타데이터를 추출하여 채팅 링크 미리보기에 사용합니다.
+ * YouTube URL은 oEmbed API로 처리하고, 일반 URL은 HTML의 Open Graph/메타 태그를 파싱합니다.
+ *
+ * ## 호출 방식
+ * - HTTP POST: 프론트엔드에서 직접 호출
+ *
+ * ## 필수 환경 변수
+ * - SUPABASE_URL: Supabase 프로젝트 URL
+ * - SUPABASE_ANON_KEY: 익명 키 (인증용)
+ *
+ * ## 요청 (Request)
+ * - Method: POST
+ * - Body: { url: string } (HTTP/HTTPS URL)
+ *
+ * ## 응답 (Response)
+ * - 200: { url, title?, description?, image?, siteName? }
+ * - 400: URL 누락 또는 비HTTP(S) URL
+ * - 401: 인증 토큰 없음
+ * - 408: 타임아웃 (10초)
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -7,6 +32,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+/** 링크 미리보기 메타데이터 */
 interface LinkPreviewData {
   url: string;
   title?: string;
@@ -124,6 +150,7 @@ function decodeHtmlEntities(text: string): string {
 
 /**
  * HTML에서 메타데이터 추출
+ * 우선순위: Open Graph(og:) → 일반 meta → title 태그 → 첫 img 태그
  */
 function extractMetadata(html: string, url: string): LinkPreviewData {
   const result: LinkPreviewData = { url };
@@ -182,13 +209,13 @@ function extractMetadata(html: string, url: string): LinkPreviewData {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // --- CORS preflight ---
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
+    // --- 인증 확인 ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -227,7 +254,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
+    // --- 요청 검증 ---
     const { url } = await req.json();
 
     if (!url || typeof url !== "string") {
@@ -253,7 +280,7 @@ serve(async (req) => {
 
     console.log(`[get-link-preview] URL 요청: ${url}, userId=${user.id}`);
 
-    // YouTube URL인 경우 oEmbed API 사용
+    // --- YouTube oEmbed 처리 (youtube.com, youtu.be) ---
     if (isYouTubeUrl(url)) {
       try {
         const metadata = await getYouTubePreview(url);
@@ -274,7 +301,7 @@ serve(async (req) => {
       }
     }
 
-    // 일반 URL: HTML 가져오기 (타임아웃: 10초)
+    // --- 일반 URL: HTML 파싱 (타임아웃 10초) ---
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
