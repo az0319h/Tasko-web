@@ -1,9 +1,22 @@
+/**
+ * check-due-date-exceeded-notification
+ *
+ * ## 개요
+ * 마감일이 지났고 아직 APPROVED가 아닌 Task에 대해 담당자에게 알림을 생성합니다.
+ * Task당 1회만 알림 생성 (중복 방지).
+ *
+ * ## 호출 방식
+ * - pg_cron 등 스케줄러에서 매일 호출 (또는 HTTP)
+ *
+ * ## 필수 환경 변수
+ * - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * ## 응답 (Response)
+ * - 200: { message, processed, notifications_created, errors? }
+ */
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-// Supabase Edge Function: Check Due Date Exceeded Notification
-// This function checks tasks with exceeded due dates that are not approved
-// Called daily by pg_cron scheduler
 
 interface TaskWithDueDate {
   id: string;
@@ -15,7 +28,7 @@ interface TaskWithDueDate {
 
 Deno.serve(async (req: Request) => {
   try {
-    // Service Role Key를 사용하여 RLS 우회
+    // --- 환경 변수 및 Supabase 클라이언트 ---
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -34,7 +47,7 @@ Deno.serve(async (req: Request) => {
 
     console.log("[check-due-date-exceeded-notification] 마감일 초과 알림 체크 시작");
 
-    // 오늘 날짜 (날짜만 비교)
+    // --- 마감일 초과 Task 조회 (due_date < 오늘, task_status != APPROVED) ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -89,7 +102,7 @@ Deno.serve(async (req: Request) => {
           (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
         );
 
-        // 중복 체크: 같은 Task에 대한 마감일 초과 알림이 이미 있는지 확인
+        // --- 중복 알림 방지 (같은 Task에 대한 TASK_DUE_DATE_EXCEEDED 1회만) ---
         const { data: existingNotification, error: checkError } = await supabase
           .from("notifications")
           .select("id")
@@ -114,7 +127,7 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // 알림 생성
+        // --- 알림 생성 (create_notification RPC) ---
         const title = "Task 마감일이 초과되었습니다";
         const message = `${task.title} Task의 마감일이 지났습니다. 아직 승인되지 않았습니다.`;
 

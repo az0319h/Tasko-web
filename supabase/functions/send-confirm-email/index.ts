@@ -1,6 +1,24 @@
-// Supabase Edge Function: Send Confirm Email
-// 검토+승인 업무의 담당자가 관리자 전원 + 담당자(assignee)에게 컨펌 이메일 발송
-// DOCX 첨부 시 ConvertAPI로 PDF 변환 후 발송
+/**
+ * send-confirm-email
+ *
+ * ## 개요
+ * 검토·승인 업무의 담당자가 관리자 전원 + 담당자(assignee)에게 컨펌 이메일을 발송합니다.
+ * DOCX 첨부 시 ConvertAPI로 PDF 변환 후 발송합니다.
+ * 첨부 URL은 SSRF 방어를 위해 HTTPS + Supabase 도메인만 허용합니다.
+ *
+ * ## 호출 방식
+ * - HTTP POST (프론트엔드에서 직접 호출)
+ *
+ * ## 필수 환경 변수
+ * - SMTP_USER, SMTP_PASS, CONVERTAPI_SECRET (DOCX 첨부 시)
+ * - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * ## 요청 (Request)
+ * - Body: { taskId, subject, htmlBody, attachment?: { url, fileName, outputFileName? } }
+ *
+ * ## 응답 (Response)
+ * - 200/207: { success, message, sentCount, totalCount }
+ */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -19,6 +37,34 @@ function toPdfAttachmentFileName(docxFileName: string): string {
   const withoutExt = docxFileName.replace(/\.docx?$/i, "");
   const withoutSuffix = withoutExt.replace(/_초\d+$/, "");
   return `${withoutSuffix}.pdf`;
+}
+
+/**
+ * 첨부 URL SSRF 방어: HTTPS + Supabase 도메인만 허용
+ * - 프로덕션(SUPABASE_URL=https): HTTPS만 허용
+ * - 로컬(SUPABASE_URL=http): http 허용 (로컬 Storage 대응)
+ * @param rawUrl 검증할 URL
+ * @param supabaseUrl 프로젝트 SUPABASE_URL (허용할 호스트 추출용)
+ * @throws Error 프로토콜 또는 도메인이 허용 목록에 없을 때
+ */
+function assertAllowedAttachmentUrl(rawUrl: string, supabaseUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error("첨부 URL 형식이 올바르지 않습니다.");
+  }
+  const supabaseParsed = new URL(supabaseUrl);
+  const allowHttp = supabaseParsed.protocol === "http:";
+  if (parsed.protocol !== "https:" && !(allowHttp && parsed.protocol === "http:")) {
+    throw new Error("첨부 URL은 HTTPS만 허용됩니다.");
+  }
+  const supabaseHost = supabaseParsed.hostname;
+  const allowedHosts = new Set([supabaseHost]);
+  if (!allowedHosts.has(parsed.hostname)) {
+    throw new Error("허용되지 않은 첨부 URL 도메인입니다.");
+  }
+  return parsed.toString();
 }
 
 async function convertDocxToPdfViaConvertAPI(
@@ -118,18 +164,44 @@ async function sendEmail(
   return { success: false, error: lastError?.message || "Unknown error" };
 }
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // POST만 허용 (405 Method Not Allowed)
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method Not Allowed" }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
-    });
+    );
   }
 
   try {
+    // Authorization 헤더 검증 (service_role 호출만 허용)
+    const authHeader = req.headers.get("Authorization");
+    const expectedKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const expectedBearer = expectedKey ? `Bearer ${expectedKey}` : null;
+
+    if (!authHeader || !expectedBearer || authHeader !== expectedBearer) {
+      return new Response(
+        JSON.stringify({ error: "인증 토큰이 필요하거나 유효하지 않습니다." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const body: ConfirmEmailRequest = await req.json();
     const { taskId, subject, htmlBody, attachment } = body;
 
@@ -160,7 +232,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1) 업무 조회 → 담당자(assignee) 이메일
+    // --- 업무·담당자 조회 ---
     const { data: task, error: taskError } = await supabase
       .from("tasks")
       .select("assignee_id")
@@ -185,7 +257,7 @@ Deno.serve(async (req: Request) => {
       if (assignee?.email) assigneeEmail = assignee.email;
     }
 
-    // 2) 관리자 전원
+    // --- 관리자 목록 조회 ---
     const { data: admins, error: adminsError } = await supabase
       .from("profiles")
       .select("id, email, full_name")
@@ -220,8 +292,19 @@ Deno.serve(async (req: Request) => {
     // 템플릿에서 작성한 본문 그대로 전송 (추가 래핑/서식 없음)
     const html = htmlBody;
 
-    // DOCX → PDF: .docx면 ConvertAPI로 변환
+    // --- DOCX → PDF 변환 (ConvertAPI, .docx 첨부 시) ---
     let finalAttachment: AttachmentInput | undefined = attachment;
+    if (attachment?.url) {
+      try {
+        attachment.url = assertAllowedAttachmentUrl(attachment.url, supabaseUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "첨부 URL 검증 실패";
+        return new Response(
+          JSON.stringify({ error: "Invalid attachment URL", message: msg }),
+          { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+    }
     if (attachment?.url && attachment?.fileName && /\.docx$/i.test(attachment.fileName)) {
       try {
         const converted = await convertDocxToPdfViaConvertAPI(attachment.url, attachment.fileName);
@@ -241,6 +324,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // --- 이메일 발송 및 confirm_email_sent_at 업데이트 ---
     const results = await Promise.all(
       recipientEmails.map((email) =>
         sendEmail(transporter, email, subject, html, finalAttachment).then((r) => ({ email, ...r })),

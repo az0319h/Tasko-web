@@ -1,3 +1,29 @@
+/**
+ * check-due-date-exceeded
+ *
+ * ## 개요
+ * 지시자(assigner)가 "일정 시작일이 마감일을 초과했는지" 확인합니다.
+ * 담당자 일정 자동 배정 시, 가능한 첫 일정이 마감일보다 늦으면 exceeded=true 를 반환합니다.
+ *
+ * ## 호출 방식
+ * - HTTP POST: 프론트엔드에서 직접 호출 (일정 선택 UI 등)
+ *
+ * ## 권한
+ * - 해당 task의 assigner_id 만 호출 가능
+ *
+ * ## 필수 환경 변수
+ * - SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+ *   (Service Role: RLS 우회로 task_schedules 조회, 지시자는 RLS 정책상 일정 조회 불가)
+ *
+ * ## 요청 (Request)
+ * - Body: { taskId: string, dueDate: string } (dueDate: YYYY-MM-DD)
+ *
+ * ## 응답 (Response)
+ * - 200: { exceeded: boolean, scheduleDate?, dueDate?, ... }
+ *   exceeded=true: 일정 시작일 > 마감일
+ *   reason="no_schedule": 담당자 일정이 30일 내 없음(배정 실패)
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -8,13 +34,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // --- CORS preflight ---
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
+    // --- 인증 확인 ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -53,7 +79,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
+    // --- 요청 검증 ---
     const { taskId, dueDate } = await req.json();
 
     console.log(`[check-due-date-exceeded] 요청 받음: taskId=${taskId}, dueDate=${dueDate}, userId=${user.id}`);
@@ -69,7 +95,7 @@ serve(async (req) => {
       );
     }
 
-    // Task 조회하여 지시자(assigner) 확인
+    // --- 권한 확인 (지시자만 허용) ---
     const { data: task, error: taskError } = await supabaseClient
       .from("tasks")
       .select("id, assigner_id, assignee_id")
@@ -99,8 +125,7 @@ serve(async (req) => {
       );
     }
 
-    // Service Role Key를 사용하여 RLS 우회 (일정 조회)
-    // 지시자는 RLS 정책에 의해 일정을 조회할 수 없으므로 Service Role Key 사용
+    // --- 일정 조회 (재시도: DB 트리거 비동기로 일정 생성까지 대기) ---
     const supabaseServiceClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -166,8 +191,7 @@ serve(async (req) => {
       );
     }
 
-    // 마감일과 일정 시작일 비교 (날짜만 비교)
-    // dueDate는 "YYYY-MM-DD" 형식 문자열
+    // --- 마감일 vs 일정 시작일 비교 (날짜만) ---
     const dueDateObj = new Date(dueDate);
     dueDateObj.setHours(0, 0, 0, 0);
 

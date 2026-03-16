@@ -1,3 +1,29 @@
+/**
+ * invite-user
+ *
+ * ## 개요
+ * 관리자(admin)가 이메일 주소로 새 사용자를 초대합니다.
+ * Supabase Auth의 inviteUserByEmail을 호출하고, profiles 테이블에 기본 레코드를 생성합니다.
+ *
+ * ## 호출 방식
+ * - HTTP POST: 관리자 대시보드 등에서 직접 호출
+ *
+ * ## 권한
+ * - profiles.role === "admin" 만 호출 가능
+ *
+ * ## 필수 환경 변수
+ * - SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+ * - VITE_FRONTEND_URL 또는 SITE_URL: 초대 후 리다이렉트 URL (미설정 시 localhost:5173)
+ *
+ * ## 요청 (Request)
+ * - Body: { email: string, redirectTo?: string }
+ *
+ * ## 응답 (Response)
+ * - 200: { success: true, message }
+ * - 400: 이메일 누락 또는 초대 실패
+ * - 401: 인증 없음 / 403: 관리자 아님
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -8,13 +34,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // --- CORS preflight ---
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get the authorization header
+    // --- 인증 및 권한 검사 (admin만 허용) ---
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -70,7 +96,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse request body
+    // --- 요청 검증 ---
     const { email, redirectTo } = await req.json();
 
     if (!email) {
@@ -83,7 +109,7 @@ serve(async (req) => {
       );
     }
 
-    // Create admin client for inviting users
+    // --- 초대 이메일 발송 (Service Role Key로 admin API 호출) ---
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -113,7 +139,7 @@ serve(async (req) => {
       );
     }
 
-    // Create profile for invited user automatically
+    // --- profiles 레코드 생성 (초대된 사용자 기본 프로필) ---
     if (inviteData?.user) {
       const profileData = {
         id: inviteData.user.id,

@@ -1,6 +1,27 @@
-// Supabase Edge Function: Send Task Email
-// This function sends email notifications when task is created or status changes
-// Called automatically by database trigger or manually via HTTP
+/**
+ * send-task-email
+ *
+ * ## 개요
+ * Task 생성 또는 상태 변경 시 할당자/담당자에게 이메일을 발송합니다.
+ * recipients 배열로 수신자를 지정 (assigner, assignee).
+ *
+ * ## 호출 방식
+ * - DB 트리거 또는 HTTP POST
+ *
+ * ## 이벤트
+ * - TASK_CREATED: 업무 할당 시
+ * - STATUS_CHANGED: 상태 변경 시 (케이스 1, 5는 발송 스킵)
+ *
+ * ## 필수 환경 변수
+ * - SMTP_USER, SMTP_PASS, FRONTEND_URL
+ * - SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * ## 요청 (Request)
+ * - Body: { eventType, taskId, assignerEmail, assigneeEmail, taskTitle, recipients, ... }
+ *
+ * ## 응답 (Response)
+ * - 200/207: { success, message, results }
+ */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -401,7 +422,7 @@ Deno.serve(async (req: Request) => {
       assigneeEmail: emailData.assigneeEmail,
     });
 
-    // Validate required fields
+    // --- 요청 검증 ---
     if (
       !emailData.taskId ||
       !emailData.eventType ||
@@ -493,7 +514,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if email should be skipped (케이스 1번, 5번 제외)
+    // --- 발송 스킵 조건 (케이스 1: ASSIGNED→IN_PROGRESS, 케이스 5: REJECTED→IN_PROGRESS) ---
     const shouldSkipEmail =
       emailData.eventType === "STATUS_CHANGED" &&
       emailData.oldStatus &&
@@ -507,7 +528,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Determine recipients based on recipients array
+    // --- 수신자별 이메일 발송 및 email_logs 기록 ---
     const recipientList: Array<{ role: "assigner" | "assignee"; email: string; name: string }> = [];
 
     if (emailData.recipients.includes("assigner")) {
