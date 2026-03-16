@@ -77,3 +77,10 @@ EXCEPTION
     RAISE EXCEPTION 'Edge Function 호출 실패: %', SQLERRM;
 END;
 $$;
+
+COMMENT ON FUNCTION public.send_confirm_email_rpc(UUID, TEXT, TEXT, JSONB) IS
+  'send-confirm-email Edge Function을 net.http_post로 호출. 브라우저 fetch 실패(FunctionsFetchError) 회피. send-task-reference-email 패턴.';
+
+-- RLS: authenticated 사용자만 호출 가능 (함수 내부에서 담당자 여부 검사)
+GRANT EXECUTE ON FUNCTION public.send_confirm_email_rpc(UUID, TEXT, TEXT, JSONB) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.send_confirm_email_rpc(UUID, TEXT, TEXT, JSONB) TO service_role;
