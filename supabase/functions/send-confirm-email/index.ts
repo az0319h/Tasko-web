@@ -164,18 +164,44 @@ async function sendEmail(
   return { success: false, error: lastError?.message || "Unknown error" };
 }
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // POST만 허용 (405 Method Not Allowed)
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method Not Allowed" }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
-    });
+    );
   }
 
   try {
+    // Authorization 헤더 검증 (service_role 호출만 허용)
+    const authHeader = req.headers.get("Authorization");
+    const expectedKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const expectedBearer = expectedKey ? `Bearer ${expectedKey}` : null;
+
+    if (!authHeader || !expectedBearer || authHeader !== expectedBearer) {
+      return new Response(
+        JSON.stringify({ error: "인증 토큰이 필요하거나 유효하지 않습니다." }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const body: ConfirmEmailRequest = await req.json();
     const { taskId, subject, htmlBody, attachment } = body;
 

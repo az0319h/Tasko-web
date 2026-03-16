@@ -214,6 +214,17 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // --- POST만 허용 (405 Method Not Allowed) ---
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method Not Allowed" }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+
   try {
     // --- 인증 확인 ---
     const authHeader = req.headers.get("Authorization");
