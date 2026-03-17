@@ -1,3 +1,4 @@
+import "./sentry.client";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { BrowserRouter } from "react-router";
