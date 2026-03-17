@@ -535,7 +535,7 @@ export async function deleteAnnouncementFile(fileUrl: string): Promise<void> {
     const { error } = await supabase.storage.from("announcements").remove([path]);
 
     if (error) throw error;
-  } catch (err: any) {
+  } catch (err: unknown) {
     // URL 파싱 실패 시 기존 방식으로 시도
     const urlParts = fileUrl.split("/");
     const pathIndex = urlParts.findIndex((part) => part === "announcements");

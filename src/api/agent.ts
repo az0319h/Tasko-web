@@ -1,6 +1,6 @@
 import supabase from "@/lib/supabase";
 import { uploadAgentSiteMedia, deleteAgentSiteMedia } from "@/api/storage";
-import type { Agent, AgentWithMedia, CreateAgentInput, UpdateAgentInput } from "@/types/agent";
+import type { Agent, AgentWithMedia, CreateAgentInput, UpdateAgentInput } from "@/types/domain/agent";
 
 /**
  * 에이전트 목록 조회

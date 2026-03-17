@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import supabase from "@/lib/supabase";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+
+type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 
 /**
  * 대시보드용 메시지 실시간 구독 훅
@@ -16,7 +19,7 @@ export function useRealtimeDashboardMessages(
   enabled: boolean = true
 ) {
   const queryClient = useQueryClient();
-  const channelsRef = useRef<Map<string, any>>(new Map());
+  const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   const retryTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const retryCountsRef = useRef<Map<string, number>>(new Map());
 
@@ -95,14 +98,14 @@ export function useRealtimeDashboardMessages(
             table: "messages",
             filter: filter,
           },
-          (payload: RealtimePostgresChangesPayload<any>) => {
-            const newRecord = payload.new as { id?: string; user_id?: string; task_id?: string } | null;
-            const oldRecord = payload.old as { id?: string; user_id?: string; task_id?: string } | null;
+          (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            const newRecord = payload.new as Partial<MessageRow> | null;
+            const oldRecord = payload.old as Partial<MessageRow> | null;
             console.log(`[Realtime Dashboard] 📨 Message change detected for task ${taskId}:`, {
               eventType: payload.eventType,
-              messageId: newRecord?.id || oldRecord?.id,
-              userId: newRecord?.user_id || oldRecord?.user_id,
-              taskId: newRecord?.task_id || oldRecord?.task_id,
+              messageId: newRecord?.id ?? oldRecord?.id,
+              userId: newRecord?.user_id ?? oldRecord?.user_id,
+              taskId: newRecord?.task_id ?? oldRecord?.task_id,
               fullPayload: payload,
             });
             

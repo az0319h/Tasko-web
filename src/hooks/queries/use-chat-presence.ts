@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import supabase from "@/lib/supabase";
 import { useCurrentProfile } from "@/hooks";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /**
  * Chat Presence 훅
@@ -14,7 +15,7 @@ export function useChatPresence(taskId: string | undefined, enabled: boolean = t
   const [activeUsers, setActiveUsers] = useState<Map<string, { userId: string; userName: string; lastSeen: number }>>(
     new Map()
   ); // userId -> { userId, userName, lastSeen }
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastPresenceTimeRef = useRef<Map<string, number>>(new Map()); // userId -> timestamp
   const isPresentRef = useRef(false); // ref로 최신 상태 추적

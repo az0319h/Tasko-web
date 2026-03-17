@@ -1,5 +1,5 @@
 /**
- * 에이전트 타입 정의
+ * 에이전트 도메인 타입 정의
  */
 
 export interface Agent {

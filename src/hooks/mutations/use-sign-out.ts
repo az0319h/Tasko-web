@@ -1,5 +1,5 @@
 import { signOut } from "@/api/auth";
-import type { UseMutationCallback } from "@/types/types";
+import type { UseMutationCallback } from "@/types/common";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export function useSignOut(callbacks?: UseMutationCallback<void, void>) {

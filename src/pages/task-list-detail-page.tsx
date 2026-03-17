@@ -46,7 +46,11 @@ import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/lib/task-status";
 import { getUnreadMessageCounts } from "@/api/message";
 import supabase from "@/lib/supabase";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+import type { TaskWithProfiles } from "@/api/task";
+
+type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 
 /**
  * 마감일 포맷팅 (대시보드 로직 재사용)
@@ -131,7 +135,7 @@ interface SortableRowProps {
     task_id: string;
     created_at: string;
     display_order: number;
-    task: any;
+    task: TaskWithProfiles;
   };
   unreadCount: number;
   onRemove: (taskId: string, e: React.MouseEvent) => void;
@@ -282,7 +286,7 @@ export default function TaskListDetailPage() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
-  const channelsRef = useRef<Map<string, any>>(new Map());
+  const channelsRef = useRef<Map<string, RealtimeChannel>>(new Map());
   
   // 드래그 앤 드롭 센서 설정
   const sensors = useSensors(
@@ -397,12 +401,12 @@ export default function TaskListDetailPage() {
             table: "messages",
             filter: filter,
           },
-          (payload: RealtimePostgresChangesPayload<any>) => {
-            const newRecord = payload.new as { id?: string; user_id?: string; task_id?: string } | null;
-            const oldRecord = payload.old as { id?: string; user_id?: string; task_id?: string } | null;
+          (payload: RealtimePostgresChangesPayload<MessageRow>) => {
+            const newRecord = payload.new as Partial<MessageRow> | null;
+            const oldRecord = payload.old as Partial<MessageRow> | null;
             console.log(`[Task List Detail] 📨 Message change detected for task ${taskId}:`, {
               eventType: payload.eventType,
-              messageId: newRecord?.id || oldRecord?.id,
+              messageId: newRecord?.id ?? oldRecord?.id,
             });
 
             // 메시지 변경 시 읽지 않은 메시지 수를 즉시 다시 조회
@@ -452,7 +456,7 @@ export default function TaskListDetailPage() {
     task_id: string;
     created_at: string;
     display_order: number;
-    task: any;
+    task: TaskWithProfiles;
   }> | null>(null);
   
   // taskList가 변경되면 로컬 상태 동기화

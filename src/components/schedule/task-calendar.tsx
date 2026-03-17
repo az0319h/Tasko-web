@@ -13,8 +13,7 @@ import { convertToFullCalendarEvents, getStatusIcon } from "@/utils/schedule";
 import DefaultSpinner from "../common/default-spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createRoot } from "react-dom/client";
-import type { TaskScheduleWithTask } from "@/types/schedule";
-import type { TaskCategory } from "@/types/schedule";
+import type { TaskScheduleWithTask, TaskCategory } from "@/types/domain/schedule";
 import { cn } from "@/lib/utils";
 // FullCalendar v6 automatically injects CSS, no manual import needed
 

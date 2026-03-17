@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import supabase from "@/lib/supabase";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+
+type AnnouncementRow = Database["public"]["Tables"]["announcements"]["Row"];
 
 /**
  * Supabase Realtime으로 공지사항 실시간 구독 훅
@@ -9,7 +12,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
  */
 export function useRealtimeAnnouncements(enabled: boolean = true) {
   const queryClient = useQueryClient();
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -49,7 +52,7 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
             schema: "public",
             table: "announcements",
           },
-          (payload: RealtimePostgresChangesPayload<any>) => {
+          (payload: RealtimePostgresChangesPayload<AnnouncementRow>) => {
             console.log(`[Realtime] Announcement change detected:`, payload.eventType, payload);
 
             // INSERT 이벤트: 새 공지사항이 생성됨

@@ -452,7 +452,7 @@ export async function markMessageAsRead(messageId: string): Promise<void> {
   const { error } = await supabase.rpc("mark_message_as_read", {
     message_id: messageId,
     reader_id: session.session.user.id,
-  } as any);
+  });
 
   if (error) {
     throw new Error(`메시지 읽음 처리 실패: ${error.message}`);

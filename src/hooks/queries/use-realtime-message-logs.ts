@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import supabase from "@/lib/supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /**
  * 메시지 로그(그룹) 리얼타임 구독 훅
  */
 export function useRealtimeMessageLogs(taskId: string | undefined) {
   const queryClient = useQueryClient();
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (!taskId) return;

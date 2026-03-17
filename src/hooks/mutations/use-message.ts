@@ -7,6 +7,7 @@ import {
   markTaskMessagesAsRead,
   deleteMessage,
   type MessageInsert,
+  type MessageWithProfile,
 } from "@/api/message";
 import { toast } from "sonner";
 
@@ -26,9 +27,9 @@ export function useCreateMessage() {
       const previousMessages = queryClient.getQueryData(["messages", newMessage.task_id]);
 
       // Optimistic update
-      queryClient.setQueryData(["messages", newMessage.task_id], (old: any) => {
+      queryClient.setQueryData<MessageWithProfile[]>(["messages", newMessage.task_id], (old) => {
         if (!old) return old;
-        const optimisticMessage = {
+        const optimisticMessage: MessageWithProfile = {
           id: `temp-${Date.now()}`,
           ...newMessage,
           user_id: "", // 실제 user_id는 서버에서 설정됨
@@ -38,8 +39,9 @@ export function useCreateMessage() {
             id: "",
             full_name: null,
             email: "",
+            avatar_url: null,
           },
-        };
+        } as MessageWithProfile;
         return [...old, optimisticMessage];
       });
 
@@ -209,9 +211,9 @@ export function useDeleteMessage() {
 
       // Optimistic update: 메시지 목록에서 제거
       messageQueries.forEach((query) => {
-        queryClient.setQueryData(query.queryKey, (old: any) => {
+        queryClient.setQueryData<MessageWithProfile[] | undefined>(query.queryKey, (old) => {
           if (!old || !Array.isArray(old)) return old;
-          return old.filter((msg: any) => msg.id !== messageId);
+          return old.filter((msg) => msg.id !== messageId);
         });
       });
 

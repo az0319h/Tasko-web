@@ -4,7 +4,7 @@ import {
   updateAgent,
   deleteAgent,
 } from "@/api/agent";
-import type { Agent, CreateAgentInput, UpdateAgentInput } from "@/types/agent";
+import type { Agent, CreateAgentInput, UpdateAgentInput } from "@/types/domain/agent";
 import { toast } from "sonner";
 
 /**

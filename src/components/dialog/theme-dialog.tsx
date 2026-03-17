@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import { useState, useEffect } from "react";
 import { ThemeSelector } from "../select/theme-selector";
-import type { Theme } from "@/types/types";
+import type { Theme } from "@/types/common";
 import { getSavedThemeMode } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 

@@ -100,7 +100,8 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
   }
 
   // 참조자 목록 매핑 (profiles가 객체로 반환됨)
-  const references = referenceData?.map((ref: any) => ref.profiles).filter(Boolean) || [];
+  type RefRow = { profiles: { id: string; full_name: string | null; email: string; avatar_url: string | null } | null };
+  const references = (referenceData as RefRow[] | null)?.map((ref) => ref.profiles).filter(Boolean) || [];
 
   // Admin 권한 확인
   const { data: profile } = await supabase
@@ -112,7 +113,7 @@ export async function getTaskById(id: string): Promise<TaskWithProfiles | null> 
   const isAdmin = profile?.role === "admin";
   const isAssigner = data.assigner_id === userId;
   const isAssignee = data.assignee_id === userId;
-  const isReference = references.some((ref: any) => ref.id === userId);
+  const isReference = references.some((ref) => ref?.id === userId);
 
   // 권한 검증: Admin, assigner, assignee, 참조자만 접근 가능
   if (data.is_self_task && !isAssigner) {
@@ -167,29 +168,23 @@ export async function createTask(
   if (isSelfTask) {
     // 자기 할당 Task: assignee_id 자동 설정, task_status 자동 설정
     // reference_ids는 tasks 테이블에 없으므로 제거 (별도 task_references에 insert)
-    const { reference_ids: _refIdsSelf, ...taskWithoutRefsSelf } = task as any;
-    const taskWithAssigner: any = {
+    const { reference_ids: _refIdsSelf, ...taskWithoutRefsSelf } = task;
+    const built = {
       ...taskWithoutRefsSelf,
       assigner_id: currentUserId,
       assignee_id: currentUserId, // 자기 자신으로 자동 설정
-      task_status: "IN_PROGRESS", // 자동으로 진행중 상태 설정
+      task_status: "IN_PROGRESS" as const,
       is_self_task: true,
       created_by: currentUserId,
-    };
-    
-    // project_id 제거 (프로젝트 구조 제거)
-    if (taskWithAssigner.project_id !== undefined) {
-      delete taskWithAssigner.project_id;
-    }
-    
-    // description이 null이거나 undefined이면 객체에서 제거
-    if (taskWithAssigner.description === null || taskWithAssigner.description === undefined) {
-      delete taskWithAssigner.description;
-    }
+    } as Record<string, unknown>;
+    delete built.project_id;
+    delete built.description;
+    delete built.reference_ids;
+    const taskWithAssigner = built as TaskInsert;
 
     const { data, error } = await supabase
       .from("tasks")
-      .insert(taskWithAssigner as any)
+      .insert(taskWithAssigner)
       .select()
       .single();
 
@@ -232,27 +227,21 @@ export async function createTask(
   // created_by도 현재 사용자로 설정 (프로젝트 구조 제거 후)
   // description이 null이거나 undefined일 때는 객체에서 제거 (스키마 캐시 문제 방지)
   // reference_ids는 tasks 테이블에 없으므로 제거 (별도 task_references에 insert)
-  const { reference_ids: _refIds, ...taskWithoutRefs } = task as any;
-  const taskWithAssigner: any = {
+  const { reference_ids: _refIds, ...taskWithoutRefs } = task;
+  const built = {
     ...taskWithoutRefs,
     assigner_id: currentUserId,
     is_self_task: false, // 명시적으로 false 설정
     created_by: currentUserId,
-  };
-  
-  // project_id 제거 (프로젝트 구조 제거)
-  if (taskWithAssigner.project_id !== undefined) {
-    delete taskWithAssigner.project_id;
-  }
-  
-  // description이 null이거나 undefined이면 객체에서 제거
-  if (taskWithAssigner.description === null || taskWithAssigner.description === undefined) {
-    delete taskWithAssigner.description;
-  }
+  } as Record<string, unknown>;
+  delete built.project_id;
+  delete built.description;
+  delete built.reference_ids;
+  const taskWithAssigner = built as TaskInsert;
 
   const { data, error } = await supabase
     .from("tasks")
-    .insert(taskWithAssigner as any)
+    .insert(taskWithAssigner)
     .select()
     .single();
 
@@ -409,7 +398,7 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     if (!canEditSendEmail) {
       throw new Error("고객에게 이메일 발송 완료 상태는 담당자, 참조자 또는 관리자만 변경할 수 있습니다.");
     }
-    (allowedUpdates as any).send_email_to_client = updates.send_email_to_client;
+    allowedUpdates.send_email_to_client = updates.send_email_to_client;
   }
   
   // assigner_id, assignee_id, task_status는 이미 위에서 차단됨
@@ -482,13 +471,14 @@ async function fetchReferencesForTasks(
     return new Map();
   }
 
+  type RefRow = { task_id: string; profiles: { id: string; full_name: string | null; email: string; avatar_url: string | null } | null };
   const map = new Map<string, Array<{ id: string; full_name: string | null; email: string; avatar_url: string | null }>>();
-  for (const row of data || []) {
-    const ref = (row as any).profiles;
+  for (const row of (data || []) as RefRow[]) {
+    const ref = row.profiles;
     if (!ref?.id) continue;
-    const list = map.get((row as any).task_id) || [];
+    const list = map.get(row.task_id) || [];
     list.push(ref);
-    map.set((row as any).task_id, list);
+    map.set(row.task_id, list);
   }
   return map;
 }

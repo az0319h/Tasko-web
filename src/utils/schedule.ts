@@ -1,4 +1,4 @@
-import type { TaskScheduleWithTask, FullCalendarEvent, TaskStatus, TaskCategory } from "@/types/schedule";
+import type { TaskScheduleWithTask, FullCalendarEvent, TaskStatus, TaskCategory } from "@/types/domain/schedule";
 import {
   FileText,
   Loader2,
