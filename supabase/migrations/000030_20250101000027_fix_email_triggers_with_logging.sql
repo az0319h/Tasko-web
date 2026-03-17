@@ -1,9 +1,10 @@
--- Fix Email Triggers: 하드코딩 통일, 로깅 추가, 올바른 net.http_post 시그니처 사용
--- net.http_post 시그니처: (url text, body jsonb, params jsonb, headers jsonb)
--- 이 마이그레이션은 20250101000027을 대체하며 최종 수정 버전입니다.
+-- Fix Email Triggers with Enhanced Logging and Error Handling
+-- This migration adds logging to track trigger execution and fixes net.http_post calls
+-- Based on Supabase pg_net documentation, the correct signature is:
+-- net.http_post(url text, headers jsonb, body text)
 
 -- ============================================================================
--- 1. Fix send_task_created_email function
+-- 1. Fix send_task_created_email function with logging
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.send_task_created_email()
 RETURNS TRIGGER AS $$
@@ -16,9 +17,22 @@ DECLARE
   request_body JSONB;
   function_url TEXT;
   http_response_id BIGINT;
+  v_service_role_key TEXT;
+  v_base_url TEXT;
 BEGIN
-  -- 로깅: 트리거 실행 확인
-  RAISE NOTICE '[EMAIL_TRIGGER] Task created: %', NEW.id;
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+
+  -- Log trigger execution
+  RAISE NOTICE '[send_task_created_email] Trigger executed for task: %', NEW.id;
 
   -- Get assigner and assignee emails and names from profiles
   SELECT email, COALESCE(full_name, email) INTO assigner_email, assigner_name
@@ -31,7 +45,7 @@ BEGIN
 
   -- Validate email addresses
   IF assigner_email IS NULL OR assignee_email IS NULL THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Missing email addresses: assigner=%, assignee=%', assigner_email, assignee_email;
+    RAISE WARNING '[send_task_created_email] Missing email addresses: assigner=%, assignee=%', assigner_email, assignee_email;
     RETURN NEW;
   END IF;
 
@@ -41,7 +55,7 @@ BEGIN
   WHERE id = NEW.project_id;
 
   IF project_title IS NULL THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Project not found: %', NEW.project_id;
+    RAISE WARNING '[send_task_created_email] Project not found: %', NEW.project_id;
     RETURN NEW;
   END IF;
 
@@ -61,37 +75,36 @@ BEGIN
     'recipients', ARRAY['assigner', 'assignee']
   );
 
-  -- Hardcoded Edge Function URL
-  function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-email';
+  function_url := rtrim(v_base_url, '/') || '/send-task-email';
 
-  RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
-  RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;
+  RAISE NOTICE '[send_task_created_email] Calling Edge Function: %', function_url;
+  RAISE NOTICE '[send_task_created_email] Request body: %', request_body;
 
   -- Call Edge Function via HTTP (non-blocking)
-  -- 올바른 시그니처: net.http_post(url text, body jsonb, params jsonb, headers jsonb)
+  -- Correct signature: net.http_post(url text, headers jsonb, body text)
+  -- Using named parameters for clarity
   SELECT net.http_post(
     url := function_url,
-    body := request_body,
-    params := '{}'::jsonb,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o'
-    )
+      'Authorization', 'Bearer ' || v_service_role_key
+    ),
+    body := request_body::text
   ) INTO http_response_id;
 
-  RAISE NOTICE '[EMAIL_TRIGGER] HTTP request submitted with ID: %', http_response_id;
+  RAISE NOTICE '[send_task_created_email] HTTP request submitted with ID: %', http_response_id;
 
   RETURN NEW;
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Failed to send task creation email notification: %', SQLERRM;
-    RAISE WARNING '[EMAIL_TRIGGER] Error details: %', SQLSTATE;
+    RAISE WARNING '[send_task_created_email] Failed to send email notification: %', SQLERRM;
+    RAISE WARNING '[send_task_created_email] Error details: %', SQLSTATE;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================================
--- 2. Fix send_task_status_change_email function
+-- 2. Fix send_task_status_change_email function with logging
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.send_task_status_change_email()
 RETURNS TRIGGER AS $$
@@ -107,14 +120,27 @@ DECLARE
   request_body JSONB;
   function_url TEXT;
   http_response_id BIGINT;
+  v_service_role_key TEXT;
+  v_base_url TEXT;
 BEGIN
-  -- 로깅: 트리거 실행 확인
-  RAISE NOTICE '[EMAIL_TRIGGER] Status changed: % -> % (task: %)', 
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+
+  -- Log trigger execution
+  RAISE NOTICE '[send_task_status_change_email] Trigger executed: % -> % (task: %)', 
     OLD.task_status, NEW.task_status, NEW.id;
 
   -- Only trigger for specific status transitions
   IF OLD.task_status = NEW.task_status THEN
-    RAISE NOTICE '[EMAIL_TRIGGER] Status unchanged, skipping';
+    RAISE NOTICE '[send_task_status_change_email] Status unchanged, skipping';
     RETURN NEW;
   END IF;
 
@@ -125,7 +151,7 @@ BEGIN
     (NEW.task_status IN ('APPROVED', 'REJECTED') AND OLD.task_status = 'WAITING_CONFIRM') OR
     (OLD.task_status = 'REJECTED' AND NEW.task_status = 'IN_PROGRESS')
   ) THEN
-    RAISE NOTICE '[EMAIL_TRIGGER] Status transition not eligible for email: % -> %', 
+    RAISE NOTICE '[send_task_status_change_email] Status transition not eligible for email: % -> %', 
       OLD.task_status, NEW.task_status;
     RETURN NEW;
   END IF;
@@ -141,7 +167,7 @@ BEGIN
 
   -- Validate email addresses
   IF assigner_email IS NULL OR assignee_email IS NULL THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Missing email addresses: assigner=%, assignee=%', 
+    RAISE WARNING '[send_task_status_change_email] Missing email addresses: assigner=%, assignee=%', 
       assigner_email, assignee_email;
     RETURN NEW;
   END IF;
@@ -176,7 +202,7 @@ BEGIN
   WHERE id = NEW.project_id;
 
   IF project_title IS NULL THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Project not found: %', NEW.project_id;
+    RAISE WARNING '[send_task_status_change_email] Project not found: %', NEW.project_id;
     RETURN NEW;
   END IF;
 
@@ -193,7 +219,7 @@ BEGIN
     recipients_array := ARRAY['assigner', 'assignee'];
   END IF;
 
-  RAISE NOTICE '[EMAIL_TRIGGER] Recipients: %', recipients_array;
+  RAISE NOTICE '[send_task_status_change_email] Recipients: %', recipients_array;
 
   -- Build request body for Edge Function
   request_body := jsonb_build_object(
@@ -215,31 +241,29 @@ BEGIN
     'recipients', recipients_array
   );
 
-  -- Hardcoded Edge Function URL
-  function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-email';
+  function_url := rtrim(v_base_url, '/') || '/send-task-email';
 
-  RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
-  RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;
+  RAISE NOTICE '[send_task_status_change_email] Calling Edge Function: %', function_url;
+  RAISE NOTICE '[send_task_status_change_email] Request body: %', request_body;
 
   -- Call Edge Function via HTTP (non-blocking)
-  -- 올바른 시그니처: net.http_post(url text, body jsonb, params jsonb, headers jsonb)
+  -- Correct signature: net.http_post(url text, headers jsonb, body text)
   SELECT net.http_post(
     url := function_url,
-    body := request_body,
-    params := '{}'::jsonb,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o'
-    )
+      'Authorization', 'Bearer ' || v_service_role_key
+    ),
+    body := request_body::text
   ) INTO http_response_id;
 
-  RAISE NOTICE '[EMAIL_TRIGGER] HTTP request submitted with ID: %', http_response_id;
+  RAISE NOTICE '[send_task_status_change_email] HTTP request submitted with ID: %', http_response_id;
 
   RETURN NEW;
 EXCEPTION
   WHEN OTHERS THEN
-    RAISE WARNING '[EMAIL_TRIGGER] Failed to send email notification: %', SQLERRM;
-    RAISE WARNING '[EMAIL_TRIGGER] Error details: %', SQLSTATE;
+    RAISE WARNING '[send_task_status_change_email] Failed to send email notification: %', SQLERRM;
+    RAISE WARNING '[send_task_status_change_email] Error details: %', SQLSTATE;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

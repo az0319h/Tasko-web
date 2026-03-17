@@ -18,7 +18,15 @@ DECLARE
   v_function_url TEXT;
   v_service_role_key TEXT;
   v_http_response INTEGER;
+  v_base_url TEXT;
 BEGIN
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
+  v_function_url := rtrim(v_base_url, '/') || '/send-task-reference-email';
+
   FOR v_task_id IN (
     SELECT DISTINCT task_id
     FROM inserted_references
@@ -70,8 +78,6 @@ BEGIN
       'assigneeEmail', v_assignee_profile.email,
       'referenceEmails', v_reference_emails
     );
-    
-    v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
     
     v_service_role_key := current_setting('app.supabase_service_role_key', true);
     

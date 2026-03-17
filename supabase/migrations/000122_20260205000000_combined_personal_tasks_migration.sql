@@ -1,10 +1,11 @@
 -- =====================================================
--- 나의 태스크 기능 구현 마이그레이션
+-- 개인 태스크 기능 구현 통합 마이그레이션
 -- 1. is_self_task 컬럼 추가
 -- 2. 제약조건 수정
 -- 3. RLS 정책 수정
 -- 4. 인덱스 추가
 -- 5. 이메일/캘린더 트리거 함수 수정
+-- 6. 알림 트리거 함수 수정
 -- =====================================================
 
 -- 1. is_self_task 컬럼 추가
@@ -141,11 +142,19 @@ BEGIN
     'recipients', ARRAY['assigner', 'assignee']
   );
 
-  -- Edge Function URL 설정
-  function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-email';
+  -- Edge Function URL: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_function_base_url = 'https://your-project.supabase.co/functions/v1';)
+  function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-email';
+  IF function_url IS NULL OR function_url = '' OR left(function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
-  -- Service Role Key 설정
-  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  -- Service Role Key: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_service_role_key = 'your-key';)
+  service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF service_role_key IS NULL OR service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
   RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;
@@ -295,11 +304,19 @@ BEGIN
     'recipients', recipients_array
   );
 
-  -- Edge Function URL 설정
-  function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-email';
+  -- Edge Function URL: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_function_base_url = 'https://your-project.supabase.co/functions/v1';)
+  function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-email';
+  IF function_url IS NULL OR function_url = '' OR left(function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
-  -- Service Role Key 설정
-  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  -- Service Role Key: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_service_role_key = 'your-key';)
+  service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF service_role_key IS NULL OR service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
   RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;
@@ -421,5 +438,185 @@ EXCEPTION
   WHEN OTHERS THEN
     RAISE WARNING 'Failed to create task schedule: %', SQLERRM;
     RETURN NEW;
+END;
+$function$;
+
+-- 6. 알림 트리거 함수 수정
+
+-- 6.1 create_task_created_notification: is_self_task = true일 때 early return
+CREATE OR REPLACE FUNCTION public.create_task_created_notification()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_assignee_name TEXT;
+  v_task_title TEXT;
+BEGIN
+  -- 자기 할당 Task는 알림 생성하지 않음
+  IF NEW.is_self_task = true THEN
+    RETURN NEW;
+  END IF;
+
+  -- 담당자가 없는 경우 알림 생성하지 않음
+  IF NEW.assignee_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- 담당자 이름 조회
+  SELECT COALESCE(full_name, email) INTO v_assignee_name
+  FROM public.profiles
+  WHERE id = NEW.assignee_id;
+
+  -- Task 제목
+  v_task_title := NEW.title;
+
+  -- 담당자에게 Task 생성 알림 생성
+  PERFORM public.create_notification(
+    p_user_id := NEW.assignee_id,
+    p_notification_type := 'TASK_CREATED',
+    p_title := '새 Task가 배정되었습니다',
+    p_message := format('%s Task가 배정되었습니다.', v_task_title),
+    p_task_id := NEW.id,
+    p_metadata := jsonb_build_object(
+      'task_title', v_task_title,
+      'assigner_id', NEW.assigner_id
+    )
+  );
+
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- 알림 생성 실패해도 Task 생성은 성공해야 함
+    RAISE WARNING 'Failed to create task created notification: %', SQLERRM;
+    RETURN NEW;
+END;
+$function$;
+
+-- 6.2 create_task_status_changed_notification: is_self_task = true일 때 early return
+CREATE OR REPLACE FUNCTION public.create_task_status_changed_notification()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_assigner_name TEXT;
+  v_assignee_name TEXT;
+  v_task_title TEXT;
+  v_status_label TEXT;
+BEGIN
+  -- 자기 할당 Task는 알림 생성하지 않음
+  IF NEW.is_self_task = true THEN
+    RETURN NEW;
+  END IF;
+
+  -- 상태가 변경되지 않은 경우 알림 생성하지 않음
+  IF OLD.task_status = NEW.task_status THEN
+    RETURN NEW;
+  END IF;
+
+  -- 담당자가 없는 경우 알림 생성하지 않음
+  IF NEW.assignee_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- 상태 라벨 매핑
+  v_status_label := CASE NEW.task_status
+    WHEN 'ASSIGNED' THEN '할당됨'
+    WHEN 'IN_PROGRESS' THEN '진행중'
+    WHEN 'WAITING_CONFIRM' THEN '확인대기'
+    WHEN 'APPROVED' THEN '승인됨'
+    WHEN 'REJECTED' THEN '거부됨'
+    ELSE NEW.task_status::TEXT
+  END;
+
+  -- 지시자 이름 조회
+  SELECT COALESCE(full_name, email) INTO v_assigner_name
+  FROM public.profiles
+  WHERE id = NEW.assigner_id;
+
+  -- 담당자 이름 조회
+  SELECT COALESCE(full_name, email) INTO v_assignee_name
+  FROM public.profiles
+  WHERE id = NEW.assignee_id;
+
+  -- Task 제목
+  v_task_title := NEW.title;
+
+  -- 상태 변경 알림 생성 (담당자에게)
+  PERFORM public.create_notification(
+    p_user_id := NEW.assignee_id,
+    p_notification_type := 'TASK_STATUS_CHANGED',
+    p_title := format('Task 상태가 변경되었습니다 (%s)', v_status_label),
+    p_message := format('%s Task의 상태가 %s로 변경되었습니다.', v_task_title, v_status_label),
+    p_task_id := NEW.id,
+    p_metadata := jsonb_build_object(
+      'task_title', v_task_title,
+      'old_status', OLD.task_status,
+      'new_status', NEW.task_status,
+      'assigner_id', NEW.assigner_id
+    )
+  );
+
+  RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- 알림 생성 실패해도 Task 상태 변경은 성공해야 함
+    RAISE WARNING 'Failed to create task status changed notification: %', SQLERRM;
+    RETURN NEW;
+END;
+$function$;
+
+-- 6.3 create_task_deleted_notification: is_self_task = true일 때 early return
+CREATE OR REPLACE FUNCTION public.create_task_deleted_notification()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_assignee_name TEXT;
+  v_task_title TEXT;
+BEGIN
+  -- 자기 할당 Task는 알림 생성하지 않음
+  IF OLD.is_self_task = true THEN
+    RETURN OLD;
+  END IF;
+
+  -- 담당자가 없는 경우 알림 생성하지 않음
+  IF OLD.assignee_id IS NULL THEN
+    RETURN OLD;
+  END IF;
+
+  -- 담당자 이름 조회 (Task 생성 알림과 동일한 패턴)
+  SELECT COALESCE(full_name, email) INTO v_assignee_name
+  FROM public.profiles
+  WHERE id = OLD.assignee_id;
+
+  -- Task 제목
+  v_task_title := OLD.title;
+
+  -- 담당자에게 Task 삭제 알림 생성
+  PERFORM public.create_notification(
+    p_user_id := OLD.assignee_id,
+    p_notification_type := 'TASK_DELETED',
+    p_title := 'Task가 삭제되었습니다',
+    p_message := format('%s Task가 삭제되었습니다.', v_task_title),
+    p_task_id := NULL,
+    p_metadata := jsonb_build_object(
+      'task_title', v_task_title,
+      'task_id', OLD.id,
+      'assigner_id', OLD.assigner_id
+    )
+  );
+
+  RETURN OLD;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- 알림 생성 실패해도 Task 삭제는 성공해야 함
+    RAISE WARNING 'Failed to create task deleted notification: %', SQLERRM;
+    RETURN OLD;
 END;
 $function$;

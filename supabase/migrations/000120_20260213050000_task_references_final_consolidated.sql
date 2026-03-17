@@ -15,7 +15,7 @@
 -- 1. SUPABASE 프로젝트 URL (2곳)
 --    - send_task_reference_email() 함수 내
 --    - send_task_reference_email_on_status_change() 함수 내
---    현재값: https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email
+--    현재값: https://[YOUR_PROJECT_REF].supabase.co/functions/v1/send-task-reference-email
 --    수정:   https://[YOUR_PROJECT_REF].supabase.co/functions/v1/send-task-reference-email
 --    로컬:   http://127.0.0.1:54321/functions/v1/send-task-reference-email
 --
@@ -428,9 +428,16 @@ DECLARE
   v_function_url TEXT;
   v_service_role_key TEXT;
 BEGIN
-  -- ⚠️ 하드코딩: 프로젝트 URL 및 Service Role Key (배포 전 수정)
-  v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
+  v_function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-reference-email';
+  IF v_function_url IS NULL OR v_function_url = '' OR left(v_function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
 
   FOR v_task_id IN (SELECT DISTINCT task_id FROM inserted_references) LOOP
     SELECT id, title, client_name, due_date, assigner_id, assignee_id
@@ -501,9 +508,16 @@ DECLARE
   v_changer_name TEXT;
   v_changer_id UUID;
 BEGIN
-  -- ⚠️ 하드코딩: 프로젝트 URL 및 Service Role Key (배포 전 수정)
-  v_function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-reference-email';
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-reference-email';
+  IF v_function_url IS NULL OR v_function_url = '' OR left(v_function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   IF OLD.task_status = NEW.task_status THEN RETURN NEW; END IF;
   IF NEW.is_self_task = true THEN RETURN NEW; END IF;

@@ -31,7 +31,15 @@ DECLARE
   v_function_url TEXT;
   v_service_role_key TEXT;
   v_http_response INTEGER;
+  v_base_url TEXT;
 BEGIN
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
+  v_function_url := rtrim(v_base_url, '/') || '/send-task-reference-email';
+
   -- Transition table을 사용하여 INSERT된 모든 참조자를 한 번에 처리
   -- Task별로 그룹화하여 중복 이메일 발송 방지
   
@@ -93,12 +101,7 @@ BEGIN
       'referenceEmails', v_reference_emails
     );
     
-    -- Edge Function URL (하드코딩 - 환경에 맞게 수정 필요)
-    -- 로컬: http://127.0.0.1:54321/functions/v1/send-task-reference-email
-    -- 프로덕션: https://[project-ref].supabase.co/functions/v1/send-task-reference-email
-    v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
-    
-    -- Service Role Key (하드코딩 - 보안상 주의)
+    -- Service Role Key
     -- 프로덕션 환경에서는 Supabase Secrets에 저장하고 참조하는 것이 좋음
     v_service_role_key := current_setting('app.supabase_service_role_key', true);
     

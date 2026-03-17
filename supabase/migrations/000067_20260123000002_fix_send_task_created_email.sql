@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- send_task_created_email ?⑥닔 ?섏젙: project_id ?쒓굅, client_name ?ъ슜
 -- ============================================================================
 -- 紐⑹쟻: Task ?앹꽦 ???대찓??諛쒖넚 ?⑥닔瑜??꾨줈?앺듃 援ъ“ ?쒓굅??留욊쾶 ?섏젙
@@ -74,13 +74,19 @@ BEGIN
   -- ?좑툘 二쇱쓽: Edge Function URL怨?Service Role Key???섎뱶肄붾뵫?섏뼱 ?덉뒿?덈떎.
   -- ?ㅻⅨ ?곗씠?곕쿋?댁뒪(媛쒕컻/?ㅽ뀒?댁쭠/?꾨줈?뺤뀡)???곸슜???뚮뒗 ?꾨옒 媛믩뱾???대떦 ?섍꼍??留욊쾶 蹂寃쏀빐???⑸땲??
   
-  -- Edge Function URL ?ㅼ젙
-  -- TODO: ?곗씠?곕쿋?댁뒪 ?섍꼍???곕씪 蹂寃??꾩슂 (?? 媛쒕컻/?ㅽ뀒?댁쭠/?꾨줈?뺤뀡)
-  function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-email';
+  -- Edge Function URL: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_function_base_url = 'https://your-project.supabase.co/functions/v1';)
+  function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-email';
+  IF function_url IS NULL OR function_url = '' OR left(function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
-  -- Service Role Key ?ㅼ젙
-  -- TODO: ?곗씠?곕쿋?댁뒪 ?섍꼍???곕씪 蹂寃??꾩슂 (Supabase Dashboard > Settings > API > service_role key?먯꽌 ?뺤씤)
-  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  -- Service Role Key: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_service_role_key = 'your-key';)
+  service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF service_role_key IS NULL OR service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
   RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;

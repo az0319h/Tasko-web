@@ -1,5 +1,5 @@
--- send-confirm-email Edge Function을 RPC로 호출 (send-task-reference-email 패턴)
--- 브라우저 fetch 대신 Postgres net.http_post 사용 → FunctionsFetchError 회피
+-- send_confirm_email_rpc: 하드코딩된 service_role 키 제거 → current_setting 사용
+-- 기존 20250304000005에서 이미 적용된 경우, 이 마이그레이션은 idempotent하게 동일 로직 적용
 
 CREATE OR REPLACE FUNCTION public.send_confirm_email_rpc(
   p_task_id UUID,
@@ -14,15 +14,21 @@ SET search_path = public
 AS $$
 DECLARE
   v_task RECORD;
-  v_function_url TEXT := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-confirm-email';
+  v_function_url TEXT;
   v_service_role_key TEXT;
+  v_base_url TEXT;
   v_request_body JSONB;
   v_request_id BIGINT;
 BEGIN
-  -- service_role key: 20250316000001 마이그레이션에서 current_setting으로 변경됨 (보안)
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE EXCEPTION 'app.supabase_function_base_url가 설정되지 않았습니다. ALTER DATABASE postgres SET app.supabase_function_base_url = ''https://your-project.supabase.co/functions/v1''; 로 설정하세요.';
+  END IF;
+  v_function_url := rtrim(v_base_url, '/') || '/send-confirm-email';
+
   v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
   IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
-    RAISE EXCEPTION 'app.supabase_service_role_key가 설정되지 않았습니다. ALTER DATABASE postgres SET app.supabase_service_role_key = ''your-key''; 로 설정하세요.';
+    RAISE EXCEPTION 'app.supabase_service_role_key가 설정되지 않았습니다. Supabase Dashboard > Settings > API > service_role key를 ALTER DATABASE postgres SET app.supabase_service_role_key = ''your-key''; 로 설정하세요.';
   END IF;
 
   -- 업무 조회 및 권한 확인 (담당자만 호출 가능)
