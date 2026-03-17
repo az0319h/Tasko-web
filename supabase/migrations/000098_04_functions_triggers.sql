@@ -143,16 +143,19 @@ BEGIN
     'recipients', recipients_array
   );
 
-  -- ⚠️ 주의: Edge Function URL과 Service Role Key는 하드코딩되어 있습니다.
-  -- 다른 데이터베이스(개발/스테이징/프로덕션)에 적용할 때는 아래 값들을 해당 환경에 맞게 변경해야 합니다.
-  
-  -- Edge Function URL 설정
-  -- TODO: 데이터베이스 환경에 따라 변경 필요 (예: 개발/스테이징/프로덕션)
-  function_url := 'https://mbwmxowoyvaxmtnigjwa.supabase.co/functions/v1/send-task-email';
+  -- Edge Function URL: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_function_base_url = 'https://your-project.supabase.co/functions/v1';)
+  function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-email';
+  IF function_url IS NULL OR function_url = '' OR left(function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
-  -- Service Role Key 설정
-  -- TODO: 데이터베이스 환경에 따라 변경 필요 (Supabase Dashboard > Settings > API > service_role key에서 확인)
-  service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1id214b3dveXZheG10bmlnandhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTA2MDEwOCwiZXhwIjoyMDg0NjM2MTA4fQ.mpNrIaj4h111w0Ck_CR2nCnnhg-p7JnyPIlN3xXvou0';
+  -- Service Role Key: DB 설정에서 로드 (ALTER DATABASE postgres SET app.supabase_service_role_key = 'your-key';)
+  service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF service_role_key IS NULL OR service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   RAISE NOTICE '[EMAIL_TRIGGER] Calling Edge Function: %', function_url;
   RAISE NOTICE '[EMAIL_TRIGGER] Request body: %', request_body;

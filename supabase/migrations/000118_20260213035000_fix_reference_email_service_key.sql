@@ -18,8 +18,16 @@ DECLARE
   v_function_url TEXT;
   v_service_role_key TEXT;
 BEGIN
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o';
-  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
+  v_function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-reference-email';
+  IF v_function_url IS NULL OR v_function_url = '' OR left(v_function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NULL;
+  END IF;
 
   FOR v_task_id IN (
     SELECT DISTINCT task_id FROM inserted_references
@@ -82,8 +90,16 @@ DECLARE
   v_changer_name TEXT;
   v_changer_id UUID;
 BEGIN
-  v_service_role_key := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o';
-  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_function_url := rtrim(NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), ''), '/') || '/send-task-reference-email';
+  IF v_function_url IS NULL OR v_function_url = '' OR left(v_function_url, 4) != 'http' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
 
   IF OLD.task_status = NEW.task_status THEN RETURN NEW; END IF;
   IF NEW.is_self_task = true THEN RETURN NEW; END IF;

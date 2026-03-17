@@ -12,7 +12,20 @@ DECLARE
   project_title TEXT;
   request_body JSONB;
   function_url TEXT;
+  v_service_role_key TEXT;
+  v_base_url TEXT;
 BEGIN
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_service_role_key := NULLIF(TRIM(current_setting('app.supabase_service_role_key', true)), '');
+  IF v_service_role_key IS NULL OR v_service_role_key = '' THEN
+    RAISE WARNING 'app.supabase_service_role_key가 설정되지 않았습니다. 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+
   -- Get assigner and assignee emails and names from profiles
   SELECT email, COALESCE(full_name, email) INTO assigner_email, assigner_name
   FROM public.profiles
@@ -44,8 +57,7 @@ BEGIN
     'recipients', ARRAY['assigner', 'assignee']
   );
 
-  -- Hardcoded Edge Function URL (same as status change trigger)
-  function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-email';
+  function_url := rtrim(v_base_url, '/') || '/send-task-email';
 
   -- Call Edge Function via HTTP (non-blocking)
   -- Correct function signature: net.http_post(url, body, params, headers)
@@ -55,7 +67,7 @@ BEGIN
     params := '{}'::jsonb,
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjb3ZqeG1ycW9tdXV3Y2dpd2llIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjAwNjMyNywiZXhwIjoyMDgxNTgyMzI3fQ.0nK3qmclkR2urRsAytgRthpdb-OwaX6rJLLiOIsQH1o'
+      'Authorization', 'Bearer ' || v_service_role_key
     )
   );
 

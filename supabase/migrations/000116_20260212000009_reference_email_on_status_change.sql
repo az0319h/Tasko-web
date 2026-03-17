@@ -19,7 +19,15 @@ DECLARE
   v_assignee_name TEXT;
   v_changer_name TEXT;
   v_changer_id UUID;
+  v_base_url TEXT;
 BEGIN
+  v_base_url := NULLIF(TRIM(current_setting('app.supabase_function_base_url', true)), '');
+  IF v_base_url IS NULL OR v_base_url = '' THEN
+    RAISE WARNING 'app.supabase_function_base_url가 설정되지 않았습니다. 참조자 이메일 발송을 건너뜁니다.';
+    RETURN NEW;
+  END IF;
+  v_function_url := rtrim(v_base_url, '/') || '/send-task-reference-email';
+
   -- 상태가 변경되지 않으면 스킵
   IF OLD.task_status = NEW.task_status THEN
     RETURN NEW;
@@ -99,7 +107,6 @@ BEGIN
     'referenceEmails', v_reference_emails
   );
 
-  v_function_url := 'https://dcovjxmrqomuuwcgiwie.supabase.co/functions/v1/send-task-reference-email';
   v_service_role_key := current_setting('app.supabase_service_role_key', true);
 
   BEGIN
