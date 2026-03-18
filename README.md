@@ -83,7 +83,7 @@ npm start
 
 ## 프로젝트 구조
 
-```
+```text
 src/
 ├── api/          # API 호출 모듈
 ├── components/   # UI 컴포넌트
