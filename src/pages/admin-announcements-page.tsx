@@ -11,7 +11,7 @@ import { AnnouncementCreateDialog } from "@/components/dialog/announcement-creat
 import { AnnouncementEditDialog } from "@/components/dialog/announcement-edit-dialog";
 import type { AnnouncementWithDetails } from "@/api/announcement";
 
-export default function AdminAnnouncementListPage() {
+export default function AdminAnnouncementsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isActiveFilter, setIsActiveFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"created_at" | "updated_at">("created_at");
@@ -55,7 +55,7 @@ export default function AdminAnnouncementListPage() {
     filtered.sort((a, b) => {
       const aValue = sortBy === "created_at" ? a.created_at : a.updated_at;
       const bValue = sortBy === "created_at" ? b.created_at : b.updated_at;
-      
+
       if (sortOrder === "asc") {
         return aValue.localeCompare(bValue);
       } else {
@@ -120,9 +120,7 @@ export default function AdminAnnouncementListPage() {
         <div className="mb-6 sm:mb-8 flex items-start justify-between gap-4">
           <div>
             <h1 className="mb-2 text-2xl font-bold sm:text-3xl">공지사항 관리</h1>
-            <p className="text-muted-foreground text-sm sm:text-base">
-              공지사항을 관리하세요
-            </p>
+            <p className="text-muted-foreground text-sm sm:text-base">공지사항을 관리하세요</p>
           </div>
           <Button onClick={() => setCreateDialogOpen(true)} className="shrink-0">
             <Plus className="mr-2 size-4" />
@@ -149,8 +147,8 @@ export default function AdminAnnouncementListPage() {
           <>
             <div className="space-y-4">
               {paginatedAnnouncements.map((announcement) => (
-                <AnnouncementListItem 
-                  key={announcement.id} 
+                <AnnouncementListItem
+                  key={announcement.id}
                   announcement={announcement}
                   onEdit={handleEdit}
                 />
@@ -179,13 +177,13 @@ export default function AdminAnnouncementListPage() {
         )}
       </div>
 
-      {/* 생성 모달 */}
+      {/* 생성 다이얼로그 */}
       <AnnouncementCreateDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />
 
-      {/* 수정 모달 */}
+      {/* 수정 다이얼로그 */}
       <AnnouncementEditDialog
         open={editDialogOpen}
         onOpenChange={handleEditDialogClose}

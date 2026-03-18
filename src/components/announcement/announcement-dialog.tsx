@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label";
 import { useDismissAnnouncement } from "@/hooks/mutations/use-announcement";
 import type { AnnouncementWithDetails } from "@/api/announcement";
 import { X, FileText, Download } from "lucide-react";
-type AnnouncementModalProps = {
+type AnnouncementDialogProps = {
   announcement: AnnouncementWithDetails;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
 
-export function AnnouncementModal({ announcement, open, onOpenChange }: AnnouncementModalProps) {
+export function AnnouncementDialog({ announcement, open, onOpenChange }: AnnouncementDialogProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const { mutate: dismissAnnouncement, isPending } = useDismissAnnouncement();
 
@@ -95,7 +95,7 @@ export function AnnouncementModal({ announcement, open, onOpenChange }: Announce
                     onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      
+
                       if (!attachment.file_url || !attachment.file_name) return;
 
                       try {
@@ -124,7 +124,7 @@ export function AnnouncementModal({ announcement, open, onOpenChange }: Announce
                         alert("파일 다운로드에 실패했습니다.");
                       }
                     }}
-                    className="flex w-full items-center gap-2 rounded-md border p-3 hover:bg-accent transition-colors text-left"
+                    className="w-full flex items-center gap-2 rounded-md border p-3 hover:bg-accent transition-colors text-left"
                   >
                     <FileText className="size-4 text-muted-foreground" />
                     <span className="flex-1 text-sm">{attachment.file_name}</span>

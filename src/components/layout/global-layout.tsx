@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useResolvedThemeMode } from "@/hooks";
 import logo_dark from "@/assets/logo_dark.png";
 import logo_light from "@/assets/logo_light.png";
-import { AnnouncementModal } from "../announcement/announcement-modal";
+import { AnnouncementDialog } from "../announcement/announcement-dialog";
 import { useAnnouncements } from "@/hooks/queries/use-announcements";
 import { useRealtimeAnnouncements } from "@/hooks/queries/use-realtime-announcements";
 import { useEffect, useState, useLayoutEffect, useRef } from "react";
@@ -15,7 +15,7 @@ export default function GlobalLayout() {
   const mode = useResolvedThemeMode();
   const { data: announcements } = useAnnouncements();
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { pathname } = useLocation();
   const navType = useNavigationType();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -72,20 +72,20 @@ export default function GlobalLayout() {
     prevPathRef.current = pathname;
   }, [pathname, navType]);
 
-  // 활성 공지사항이 있으면 모달 표시
+  // 활성 공지사항이 있으면 다이얼로그 표시
   useEffect(() => {
     if (announcements && announcements.length > 0) {
       setCurrentAnnouncementIndex(0);
-      setIsModalOpen(true);
+      setIsDialogOpen(true);
     }
   }, [announcements]);
 
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    // 다음 공지사항이 있으면 표시
-    if (announcements && currentAnnouncementIndex < announcements.length - 1) {
+  const handleDialogClose = (open: boolean) => {
+    setIsDialogOpen(open);
+    // 닫을 때 다음 공지사항이 있으면 표시
+    if (!open && announcements && currentAnnouncementIndex < announcements.length - 1) {
       setCurrentAnnouncementIndex((prev) => prev + 1);
-      setIsModalOpen(true);
+      setIsDialogOpen(true);
     }
   };
 
@@ -114,10 +114,10 @@ export default function GlobalLayout() {
         </div>
       </div>
       {currentAnnouncement && (
-        <AnnouncementModal
+        <AnnouncementDialog
           announcement={currentAnnouncement}
-          open={isModalOpen}
-          onOpenChange={handleModalClose}
+          open={isDialogOpen}
+          onOpenChange={handleDialogClose}
         />
       )}
     </SidebarProvider>
