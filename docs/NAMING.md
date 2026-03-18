@@ -10,8 +10,8 @@
 |------|------|
 | `{기능}-page.tsx` | `sign-in-page.tsx`, `profile-page.tsx` |
 | `{도메인}-{기능}-page.tsx` | `task-detail-page.tsx`, `task-list-detail-page.tsx` |
-| Admin 목록 | `admin-{리소스}s-page.tsx` (복수형) | `admin-users-page.tsx`, `admin-announcements-page.tsx` |
-| Admin 상세/폼 | `admin-{리소스}-{액션}-page.tsx` | (필요 시) |
+| Admin 목록: `admin-{리소스}s-page.tsx` (복수형) | `admin-users-page.tsx`, `admin-announcements-page.tsx` |
+| Admin 상세/폼: `admin-{리소스}-{액션}-page.tsx` | (필요 시) |
 
 ---
 
