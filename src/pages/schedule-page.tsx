@@ -32,21 +32,21 @@ export default function SchedulePage() {
   const { data: users, isLoading: usersLoading } = useUsers();
   const { data: currentProfile } = useCurrentProfile();
 
-  // viewMode를 searchParams로 관리 (기본값: "me")
+  // viewMode를 searchParams로 관리: "me" | userId (기본값: "me")
   const viewMode = viewModeParam || "me";
-  const isAllUsersMode = viewMode === "all";
+  const isOtherUserMode = viewMode !== "me";
 
-  // 필터링된 사용자 목록: 일반 멤버만 표시 (관리자 및 현재 사용자 제외)
-  const filteredUsers = useMemo(() => {
+  // 구성원 목록: 일반 멤버만, 현재 사용자 제외 (내 일정은 별도 옵션)
+  const memberUsers = useMemo(() => {
     if (!users || !currentProfile) return [];
     return users.filter((user: Profile) => {
-      // 관리자 제외
       if (user.role === "admin") return false;
-      // 현재 사용자 제외
       if (user.id === currentProfile.id) return false;
       return true;
     });
   }, [users, currentProfile]);
+
+  const selectedUser = isOtherUserMode ? users?.find((u) => u.id === viewMode) : null;
 
   if (isAdminLoading || usersLoading) {
     return (
@@ -63,8 +63,8 @@ export default function SchedulePage() {
           <div>
             <h1 className="text-2xl font-bold">캘린더</h1>
             <p className="text-muted-foreground mt-2">
-              {isAllUsersMode
-                ? "일반 멤버들의 일정을 확인할 수 있습니다."
+              {isOtherUserMode && selectedUser
+                ? `${selectedUser.full_name || selectedUser.email || "사용자"}님의 일정을 확인할 수 있습니다.`
                 : "업무 기반 일정을 캘린더에서 확인하고 관리할 수 있습니다."}
             </p>
           </div>
@@ -89,7 +89,9 @@ export default function SchedulePage() {
               >
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="일정 조회 선택">
-                    {isAllUsersMode ? "전체 사용자 일정" : "내 일정"}
+                    {viewMode === "me"
+                      ? "내 일정"
+                      : selectedUser?.full_name || selectedUser?.email || "사용자"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -103,9 +105,18 @@ export default function SchedulePage() {
                       <span>내 일정</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="all">
-                    <span>전체 사용자 일정</span>
-                  </SelectItem>
+                  {memberUsers.map((user: Profile) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <div className="flex items-center gap-2">
+                        <ProfileAvatar 
+                          avatarUrl={user.avatar_url} 
+                          size={20}
+                          alt={user.full_name || user.email || "사용자"}
+                        />
+                        <span>{user.full_name || user.email || "사용자"}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -113,47 +124,14 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* 전체 사용자 일정 모드: 필터링된 일반 멤버들의 일정만 표시 */}
-      {isAllUsersMode && isAdmin ? (
-        <div className="space-y-8">
-          {filteredUsers.length > 0 ? (
-            filteredUsers.map((user: Profile) => (
-              <div key={user.id} className="bg-card rounded-lg border p-4 md:p-6">
-                <div className="mb-4 flex items-center gap-2">
-                  <ProfileAvatar 
-                    avatarUrl={user.avatar_url} 
-                    size={24}
-                    alt={user.full_name || user.email || "사용자"}
-                  />
-                  <h2 className="text-lg font-semibold">
-                    {user.full_name || user.email || "사용자"}
-                  </h2>
-                </div>
-                <TaskCalendar 
-                  initialView={initialView} 
-                  selectedUserId={user.id}
-                  readOnly={true}
-                />
-              </div>
-            ))
-          ) : (
-            <div className="bg-card rounded-lg border p-4 md:p-6">
-              <p className="text-muted-foreground text-center">
-                표시할 일반 멤버 일정이 없습니다.
-              </p>
-            </div>
-          )}
-        </div>
-      ) : (
-        /* 내 일정 모드: 단일 캘린더 표시 */
-        <div className="bg-card rounded-lg border p-4 md:p-6">
-          <TaskCalendar 
-            initialView={initialView} 
-            selectedUserId={undefined}
-            readOnly={false}
-          />
-        </div>
-      )}
+      {/* 단일 캘린더: 내 일정 또는 선택한 구성원 일정 */}
+      <div className="bg-card rounded-lg border p-4 md:p-6">
+        <TaskCalendar 
+          initialView={initialView} 
+          selectedUserId={viewMode === "me" ? undefined : viewMode}
+          readOnly={isOtherUserMode}
+        />
+      </div>
     </div>
   );
 }
