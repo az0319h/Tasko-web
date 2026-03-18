@@ -32,9 +32,8 @@ export default function SchedulePage() {
   const { data: users, isLoading: usersLoading } = useUsers();
   const { data: currentProfile } = useCurrentProfile();
 
-  // viewMode를 searchParams로 관리: "me" | userId (기본값: "me")
-  const viewMode = viewModeParam || "me";
-  const isOtherUserMode = viewMode !== "me";
+  // URL에서 raw viewMode 읽기 (검증 전)
+  const rawViewMode = viewModeParam || "me";
 
   // 구성원 목록: 일반 멤버만, 현재 사용자 제외 (내 일정은 별도 옵션)
   const memberUsers = useMemo(() => {
@@ -45,6 +44,16 @@ export default function SchedulePage() {
       return true;
     });
   }, [users, currentProfile]);
+
+  // 권한 검증: 관리자이고, 요청한 userId가 memberUsers에 있을 때만 다른 사용자 일정 조회 허용
+  const canViewOtherUser =
+    rawViewMode !== "me" &&
+    !!isAdmin &&
+    memberUsers.some((u) => u.id === rawViewMode);
+
+  // 검증된 viewMode (비인가 시 "me"로 강제)
+  const viewMode = canViewOtherUser ? rawViewMode : "me";
+  const isOtherUserMode = viewMode !== "me";
 
   const selectedUser = isOtherUserMode ? users?.find((u) => u.id === viewMode) : null;
 
