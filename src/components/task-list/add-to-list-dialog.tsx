@@ -121,8 +121,9 @@ export function AddToListDialog({ open, onOpenChange, taskId }: AddToListDialogP
       }
 
       onOpenChange(false);
-    } catch (error: any) {
-      toast.error(error.message || "목록 업데이트에 실패했습니다.");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(msg || "목록 업데이트에 실패했습니다.");
     } finally {
       setIsProcessing(false);
     }

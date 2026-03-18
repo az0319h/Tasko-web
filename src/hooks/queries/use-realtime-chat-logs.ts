@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import supabase from "@/lib/supabase";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+
+type TaskChatLogRow = Database["public"]["Tables"]["task_chat_logs"]["Row"];
 
 /**
  * Supabase Realtime으로 채팅 로그 실시간 구독 훅
@@ -13,7 +16,7 @@ export function useRealtimeChatLogs(
   enabled: boolean = true
 ) {
   const queryClient = useQueryClient();
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -55,7 +58,7 @@ export function useRealtimeChatLogs(
             table: "task_chat_logs",
             filter: `task_id=eq.${taskId}`,
           },
-          (payload: RealtimePostgresChangesPayload<any>) => {
+          (payload: RealtimePostgresChangesPayload<TaskChatLogRow>) => {
             const newLog = payload.new;
             console.log(`[Realtime] 📋 Chat log inserted for task ${taskId}:`, newLog);
             

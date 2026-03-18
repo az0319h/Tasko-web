@@ -8,7 +8,7 @@ import { useUpdateTaskStatus, useCreateTask, useUpdateTask } from "@/hooks/mutat
 import { TaskFormDialog } from "@/components/task/task-form-dialog";
 import { useCreateMessageWithFiles } from "@/hooks/mutations/use-message";
 import { uploadTaskFile } from "@/api/storage";
-import type { TaskCreateFormData, TaskCreateSelfTaskFormData, TaskCreateSpecificationFormData } from "@/schemas/task/task-schema";
+import type { TaskCreateFormData, TaskCreateSelfTaskFormData, TaskCreateSpecificationFormData, TaskUpdateFormData } from "@/schemas/task/task-schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -796,8 +796,9 @@ export default function MemberDashboardPage() {
               try {
                 const fileInfo = await uploadTaskFile(file, taskId, assignerId);
                 uploadedFiles.push(fileInfo);
-              } catch (error: any) {
-                toast.error(`${file.name} 업로드 실패: ${error.message}`);
+              } catch (error: unknown) {
+                const msg = error instanceof Error ? error.message : String(error);
+                toast.error(`${file.name} 업로드 실패: ${msg}`);
               }
             }
           }
@@ -861,8 +862,9 @@ export default function MemberDashboardPage() {
             );
           }
         }
-      } catch (error: any) {
-        console.error("마감일 체크 실패 (Task 1):", error);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("마감일 체크 실패 (Task 1):", msg);
       }
 
       try {
@@ -908,8 +910,9 @@ export default function MemberDashboardPage() {
             );
           }
         }
-      } catch (error: any) {
-        console.error("마감일 체크 실패 (Task 2):", error);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("마감일 체크 실패 (Task 2):", msg);
       }
 
       setCreateTaskDialogOpen(false);
@@ -933,14 +936,15 @@ export default function MemberDashboardPage() {
       }
 
       toast.success("명세서 업무 2개가 생성되었습니다.");
-    } catch (error: any) {
-      toast.error(`명세서 업무 생성 중 오류가 발생했습니다: ${error.message}`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(`명세서 업무 생성 중 오류가 발생했습니다: ${msg}`);
     }
   };
 
   // 태스크 생성 핸들러
   const handleCreateTask = async (
-    data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | any,
+    data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData,
     files?: File[],
     notes?: string,
   ) => {
@@ -951,7 +955,7 @@ export default function MemberDashboardPage() {
 
     // 명세서 모드인 경우 별도 처리
     if (isSpecificationMode) {
-      const specificationData = data as any;
+      const specificationData = data as TaskCreateSpecificationFormData;
       if (!specificationData.client_name || specificationData.client_name.trim() === "") {
         toast.error("고객명을 입력해주세요.");
         return;
@@ -1010,8 +1014,9 @@ export default function MemberDashboardPage() {
               currentProfile.id,
             );
             uploadedFiles.push({ url, fileName, fileType, fileSize });
-          } catch (error: any) {
-            toast.error(`${file.name} 업로드 실패: ${error.message}`);
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(`${file.name} 업로드 실패: ${msg}`);
           }
         }
       }
@@ -1072,9 +1077,10 @@ export default function MemberDashboardPage() {
             );
           }
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 에러는 무시 (Task 생성 성공에 영향 없음)
-        console.error("마감일 체크 실패:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("마감일 체크 실패:", msg);
       }
 
       // 5. 다이얼로그 닫기 및 상태 초기화
@@ -1086,8 +1092,9 @@ export default function MemberDashboardPage() {
 
       // 6. 생성한 Task 상세 페이지로 이동 (동일 탭)
       navigate(`/tasks/${newTask.id}`);
-    } catch (error: any) {
-      toast.error(error.message || "태스크 생성에 실패했습니다.");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(msg || "태스크 생성에 실패했습니다.");
     } finally {
       setIsCreatingTask(false);
     }

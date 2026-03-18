@@ -1,5 +1,5 @@
 import { createProfile, createProfileAuto, updateProfile } from "@/api/profile";
-import type { UseMutationCallback } from "@/types/types";
+import type { UseMutationCallback } from "@/types/common";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Database, Tables, TablesInsert, TablesUpdate } from "@/database.type";
 

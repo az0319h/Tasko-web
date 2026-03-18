@@ -1,5 +1,5 @@
 import { signInWithPassword } from "@/api/auth";
-import type { UseMutationCallback } from "@/types/types";
+import type { UseMutationCallback } from "@/types/common";
 import { useMutation } from "@tanstack/react-query";
 import type { AuthError } from "@supabase/supabase-js";
 

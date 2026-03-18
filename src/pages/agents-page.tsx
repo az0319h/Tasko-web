@@ -6,7 +6,7 @@ import DefaultSpinner from "@/components/common/default-spinner";
 import { Plus, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Agent } from "@/types/agent";
+import type { Agent } from "@/types/domain/agent";
 import supabase from "@/lib/supabase";
 import { AgentFormDialog } from "@/components/agent/agent-form-dialog";
 

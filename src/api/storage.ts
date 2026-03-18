@@ -268,7 +268,7 @@ export async function deleteTaskFile(fileUrl: string): Promise<void> {
       .remove([path]);
 
     if (error) throw error;
-  } catch (err: any) {
+  } catch (err: unknown) {
     // URL 파싱 실패 시 기존 방식으로 시도
     const urlParts = fileUrl.split("/");
     const pathIndex = urlParts.findIndex((part) => part === TASK_FILES_BUCKET);
@@ -352,7 +352,7 @@ export async function deleteAgentSiteMedia(filePath: string): Promise<void> {
     if (error) {
       throw new Error(`미디어 삭제 실패: ${error.message}`);
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // URL 파싱 실패 시 기존 방식으로 시도
     if (!filePath.startsWith("http")) {
       // 이미 경로인 경우

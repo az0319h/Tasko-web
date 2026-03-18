@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldPath, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { taskCreateSchema, taskCreateSelfTaskSchema, taskCreateSpecificationSchema, taskUpdateSchema, type TaskCreateFormData, type TaskCreateSelfTaskFormData, type TaskCreateSpecificationFormData, type TaskUpdateFormData } from "@/schemas/task/task-schema";
 import { useCurrentProfile, useProfiles } from "@/hooks";
@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 interface TaskFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: TaskCreateFormData | TaskUpdateFormData, files?: File[], notes?: string) => Promise<void>;
+  onSubmit: (data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData, files?: File[], notes?: string) => Promise<void>;
   isLoading?: boolean;
   task?: TaskWithProfiles | null; // 수정 모드일 때 Task 데이터
   preSelectedCategory?: "REVIEW" | "REVISION" | "CONTRACT" | "SPECIFICATION" | "APPLICATION"; // 미리 선택된 카테고리
@@ -144,8 +144,8 @@ export function TaskFormDialog({
     setValue,
     watch,
   } = useForm<TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>({
-    resolver: zodResolver(formSchema) as any,
-    defaultValues: getDefaultValues() as any,
+    resolver: zodResolver(formSchema) as Resolver<TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData>,
+    defaultValues: getDefaultValues() as TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData,
   });
 
   // 생성 모드에서만 assignee_id, task_category watch
@@ -210,7 +210,7 @@ export function TaskFormDialog({
     if (!isEditMode && open && taskCategory && !userModifiedDueDate && !isSpecificationMode) {
       const defaultDueDate = getDefaultDueDate(taskCategory);
       if (defaultDueDate) {
-        setValue("due_date" as any, defaultDueDate);
+        setValue("due_date" as FieldPath<TaskCreateFormData | TaskCreateSelfTaskFormData | TaskUpdateFormData>, defaultDueDate);
       }
     }
   }, [taskCategory, isEditMode, open, isSpecificationMode, setValue, userModifiedDueDate]);
@@ -219,7 +219,7 @@ export function TaskFormDialog({
   useEffect(() => {
     if (!isEditMode && open && !isSpecificationMode) {
       const subscription = watch((value, { name }) => {
-        if (name === "due_date" && (value as any).due_date) {
+        if (name === "due_date" && value && typeof value === "object" && "due_date" in value && value.due_date) {
           setUserModifiedDueDate(true);
         }
       });
@@ -255,10 +255,10 @@ export function TaskFormDialog({
           client_name: "",
           due_date_claim_drawing: defaultDueDates.claimDrawing,
           due_date_draft: defaultDueDates.draft,
-        } as any);
+        } as TaskCreateSpecificationFormData);
         setValue("task_category", "SPECIFICATION");
-        setValue("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData, defaultDueDates.claimDrawing as any);
-        setValue("due_date_draft" as keyof TaskCreateSpecificationFormData, defaultDueDates.draft as any);
+        setValue("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData, defaultDueDates.claimDrawing);
+        setValue("due_date_draft" as keyof TaskCreateSpecificationFormData, defaultDueDates.draft);
       } else {
         // 일반 모드
         const defaultDueDate = getDefaultDueDate(initialCategory);
@@ -448,7 +448,7 @@ export function TaskFormDialog({
                 </Label>
                 <Select
                   value={taskCategory}
-                  onValueChange={(value) => setValue("task_category", value as any)}
+                  onValueChange={(value) => setValue("task_category", value as TaskCreateFormData["task_category"])}
                   disabled={!!autoFillMode}
                 >
                   <SelectTrigger>
@@ -476,10 +476,10 @@ export function TaskFormDialog({
                   {...register("client_name")}
                   placeholder="고객명을 입력하세요"
                   maxLength={100}
-                  aria-invalid={"client_name" in errors && (errors as any).client_name ? "true" : "false"}
+                  aria-invalid={"client_name" in errors && !!errors.client_name ? "true" : "false"}
                 />
-                {"client_name" in errors && (errors as any).client_name && (
-                  <p className="text-sm text-destructive">{(errors as any).client_name.message}</p>
+                {"client_name" in errors && errors.client_name && (
+                  <p className="text-sm text-destructive">{errors.client_name.message}</p>
                 )}
               </div>
 
@@ -630,10 +630,10 @@ export function TaskFormDialog({
                   {...register("client_name")}
                   placeholder="고객명을 입력하세요"
                   maxLength={100}
-                  aria-invalid={"client_name" in errors && (errors as any).client_name ? "true" : "false"}
+                  aria-invalid={"client_name" in errors && !!errors.client_name ? "true" : "false"}
                 />
-                {"client_name" in errors && (errors as any).client_name && (
-                  <p className="text-sm text-destructive">{(errors as any).client_name.message}</p>
+                {"client_name" in errors && errors.client_name && (
+                  <p className="text-sm text-destructive">{errors.client_name.message}</p>
                 )}
               </div>
               <div className="space-y-2">
@@ -664,11 +664,11 @@ export function TaskFormDialog({
                   id="due_date_claim_drawing"
                   type="date"
                   min={minDate}
-                  {...(register("due_date_claim_drawing" as keyof TaskCreateSpecificationFormData) as any)}
-                  aria-invalid={"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing ? "true" : "false"}
+                  {...register("due_date_claim_drawing" as FieldPath<TaskCreateSpecificationFormData>)}
+                  aria-invalid={"due_date_claim_drawing" in errors && !!errors.due_date_claim_drawing ? "true" : "false"}
                 />
-                {"due_date_claim_drawing" in errors && (errors as any).due_date_claim_drawing && (
-                  <p className="text-sm text-destructive">{(errors as any).due_date_claim_drawing.message}</p>
+                {"due_date_claim_drawing" in errors && errors.due_date_claim_drawing && (
+                  <p className="text-sm text-destructive">{errors.due_date_claim_drawing.message}</p>
                 )}
                 {dueDateClaimDrawing && dueDateClaimDrawing < minDate && (
                   <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
@@ -682,11 +682,11 @@ export function TaskFormDialog({
                   id="due_date_draft"
                   type="date"
                   min={minDate}
-                  {...(register("due_date_draft" as keyof TaskCreateSpecificationFormData) as any)}
-                  aria-invalid={"due_date_draft" in errors && (errors as any).due_date_draft ? "true" : "false"}
+                  {...register("due_date_draft" as FieldPath<TaskCreateSpecificationFormData>)}
+                  aria-invalid={"due_date_draft" in errors && !!errors.due_date_draft ? "true" : "false"}
                 />
-                {"due_date_draft" in errors && (errors as any).due_date_draft && (
-                  <p className="text-sm text-destructive">{(errors as any).due_date_draft.message}</p>
+                {"due_date_draft" in errors && errors.due_date_draft && (
+                  <p className="text-sm text-destructive">{errors.due_date_draft.message}</p>
                 )}
                 {dueDateDraft && dueDateDraft < minDate && (
                   <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>
@@ -706,10 +706,10 @@ export function TaskFormDialog({
                 type="date"
                 min={minDate}
                 {...register("due_date")}
-                aria-invalid={"due_date" in errors && (errors as any).due_date ? "true" : "false"}
+                aria-invalid={"due_date" in errors && !!errors.due_date ? "true" : "false"}
               />
-              {"due_date" in errors && (errors as any).due_date && (
-                <p className="text-sm text-destructive">{(errors as any).due_date.message}</p>
+              {"due_date" in errors && errors.due_date && (
+                <p className="text-sm text-destructive">{errors.due_date.message}</p>
               )}
               {dueDate && dueDate < minDate && (
                 <p className="text-sm text-destructive">오늘 이전 날짜는 선택할 수 없습니다.</p>

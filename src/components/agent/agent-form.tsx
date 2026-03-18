@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { X, Image as ImageIcon, Video, Plus, Trash2 } from "lucide-react";
-import type { Agent } from "@/types/agent";
+import type { Agent } from "@/types/domain/agent";
 import supabase from "@/lib/supabase";
 import { agentCreateSchema, agentUpdateSchema, type AgentCreateFormValues, type AgentUpdateFormValues } from "@/schemas/agent/agent-schema";
 
@@ -45,16 +45,16 @@ export function AgentForm({ initialData, onSubmit, onCancel, isSubmitting = fals
     watch,
     reset,
   } = useForm<AgentCreateFormValues | AgentUpdateFormValues>({
-    resolver: zodResolver(formSchema) as any,
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
       description: initialData?.description || "",
       detailed_description: initialData?.detailed_description || "",
       features: initialData?.features || [],
       site_url: initialData?.site_url || "",
-      site_media_file: undefined as any,
-      site_media_type: undefined as any,
-    },
+      site_media_file: undefined,
+      site_media_type: undefined,
+    } as AgentCreateFormValues | AgentUpdateFormValues,
   });
 
   const watchedFeatures = watch("features");
@@ -70,9 +70,9 @@ export function AgentForm({ initialData, onSubmit, onCancel, isSubmitting = fals
         detailed_description: initialData.detailed_description || "",
         features: initialData.features || [],
         site_url: initialData.site_url || "",
-        site_media_file: undefined as any,
-        site_media_type: undefined as any,
-      });
+        site_media_file: undefined,
+        site_media_type: undefined,
+      } as AgentUpdateFormValues);
 
       // 기존 미디어 미리보기 설정
       if (initialData.site_media_url) {
@@ -127,8 +127,8 @@ export function AgentForm({ initialData, onSubmit, onCancel, isSubmitting = fals
     // 새로 선택한 파일이 있으면 제거하고 기존 미디어로 되돌림
     if (watchedMediaFile) {
       // 새 파일 제거
-      setValue("site_media_file", undefined as any, { shouldValidate: false });
-      setValue("site_media_type", undefined as any, { shouldValidate: false });
+      setValue("site_media_file", undefined, { shouldValidate: false });
+      setValue("site_media_type", undefined, { shouldValidate: false });
       
       // 기존 미디어 미리보기 복원
       if (isEditMode && initialData?.site_media_url) {
@@ -142,13 +142,13 @@ export function AgentForm({ initialData, onSubmit, onCancel, isSubmitting = fals
     } else if (isEditMode && initialData?.site_media_url) {
       // 기존 미디어만 있는 경우 (수정 모드에서 기존 미디어 제거)
       setMediaPreview(null);
-      setValue("site_media_file", undefined as any, { shouldValidate: false });
-      setValue("site_media_type", undefined as any, { shouldValidate: false });
+      setValue("site_media_file", undefined, { shouldValidate: false });
+      setValue("site_media_type", undefined, { shouldValidate: false });
     } else {
       // 생성 모드에서 완전히 제거
       setMediaPreview(null);
-      setValue("site_media_file", undefined as any, { shouldValidate: true });
-      setValue("site_media_type", undefined as any, { shouldValidate: true });
+      setValue("site_media_file", undefined, { shouldValidate: true });
+      setValue("site_media_type", undefined, { shouldValidate: true });
     }
   };
 

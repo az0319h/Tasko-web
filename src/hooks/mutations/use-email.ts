@@ -1,5 +1,5 @@
 import { changeEmail } from "@/api/email";
-import type { UseMutationCallback } from "@/types/types";
+import type { UseMutationCallback } from "@/types/common";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ChangeEmailData {

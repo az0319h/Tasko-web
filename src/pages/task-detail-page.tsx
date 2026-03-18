@@ -64,9 +64,9 @@ import { ProfileAvatar } from "@/components/common/profile-avatar";
 import { LinkPreviewCard } from "@/components/message/link-preview-card";
 import { TaskShareDialog } from "@/components/task/task-share-dialog";
 import { ConfirmEmailDialog } from "@/components/dialog/confirm-email-dialog";
-import type { TaskUpdateFormData } from "@/schemas/task/task-schema";
+import type { TaskCreateFormData, TaskCreateSelfTaskFormData, TaskCreateSpecificationFormData, TaskUpdateFormData } from "@/schemas/task/task-schema";
 import type { TaskStatus } from "@/lib/task-status";
-import type { MessageWithProfile } from "@/api/message";
+import type { ChatLogWithItems, MessageWithProfile } from "@/api/message";
 import { getUnreadCountForMessageFromData } from "@/api/message";
 import { uploadTaskFile, getTaskFileDownloadUrl } from "@/api/storage";
 import { cn } from "@/lib/utils";
@@ -524,13 +524,14 @@ export default function TaskDetailPage() {
   };
 
   // Task 수정 핸들러
-  const handleUpdateTask = async (data: TaskUpdateFormData) => {
+  const handleUpdateTask = async (data: TaskCreateFormData | TaskCreateSelfTaskFormData | TaskCreateSpecificationFormData | TaskUpdateFormData) => {
+    const updateData = data as TaskUpdateFormData;
     await updateTask.mutateAsync({
       id: task.id,
       updates: {
-        title: data.title,
-        client_name: data.client_name,
-        due_date: data.due_date,
+        title: updateData.title,
+        client_name: updateData.client_name,
+        due_date: updateData.due_date,
       },
     });
     setEditDialogOpen(false);
@@ -656,8 +657,9 @@ export default function TaskDetailPage() {
               currentUserId!,
             );
             uploadedFiles.push({ url, fileName, fileType, fileSize });
-          } catch (error: any) {
-            toast.error(`${file.name} 업로드 실패: ${error.message}`);
+          } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : String(error);
+            toast.error(`${file.name} 업로드 실패: ${msg}`);
             // 실패한 파일은 제외하고 계속 진행
           }
         }
@@ -682,11 +684,12 @@ export default function TaskDetailPage() {
           textareaRef.current?.focus();
         }, 0);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 에러 발생 시 입력 복원
       setMessageInput(content || "");
       setAttachedFiles(filesToUpload);
-      toast.error(error.message || "메시지 전송에 실패했습니다.");
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(msg || "메시지 전송에 실패했습니다.");
       // 에러 발생 시에도 포커스 유지 (사용자가 바로 수정할 수 있도록)
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -1848,16 +1851,15 @@ export default function TaskDetailPage() {
                     const systemMessages = messages.filter((msg) => msg.message_type === "SYSTEM");
 
                     // 타임라인 구성: 로그와 SYSTEM 메시지를 시간순으로 배치
-                    const timeline: Array<{
-                      type: "log" | "system" | "regular";
-                      data: any;
-                      timestamp: number;
-                    }> = [];
+                    const timeline: Array<
+                      | { type: "log"; data: ChatLogWithItems; timestamp: number }
+                      | { type: "system"; data: MessageWithProfile; timestamp: number }
+                    > = [];
 
                     // 로그 추가 (로그 박스)
                     chatLogs.forEach((log) => {
                       timeline.push({
-                        type: "log",
+                        type: "log" as const,
                         data: log,
                         timestamp: new Date(log.created_at).getTime(),
                       });
@@ -1866,7 +1868,7 @@ export default function TaskDetailPage() {
                     // SYSTEM 메시지 추가 (상태 변경 알림)
                     systemMessages.forEach((msg) => {
                       timeline.push({
-                        type: "system",
+                        type: "system" as const,
                         data: msg,
                         timestamp: new Date(msg.created_at).getTime(),
                       });

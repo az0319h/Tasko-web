@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import supabase from "@/lib/supabase";
 import { useCurrentProfile } from "@/hooks";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+
+type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
 
 /**
  * Supabase Realtime으로 알림 실시간 구독 훅
@@ -13,7 +16,7 @@ import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 export function useRealtimeNotifications(enabled: boolean = true) {
   const queryClient = useQueryClient();
   const { data: currentProfile } = useCurrentProfile();
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -84,15 +87,15 @@ export function useRealtimeNotifications(enabled: boolean = true) {
             table: "notifications",
             filter: filter, // 현재 사용자의 알림만 구독
           },
-          (payload: RealtimePostgresChangesPayload<any>) => {
-            const newRecord = payload.new as { id?: string; user_id?: string; title?: string; is_read?: boolean } | null;
-            const oldRecord = payload.old as { id?: string; user_id?: string; title?: string; is_read?: boolean } | null;
-            
+          (payload: RealtimePostgresChangesPayload<NotificationRow>) => {
+            const newRecord = payload.new as Partial<NotificationRow> | null;
+            const oldRecord = payload.old as Partial<NotificationRow> | null;
+
             console.log(`[Realtime Notifications] 📨 Notification change detected:`, {
               eventType: payload.eventType,
-              notificationId: newRecord?.id || oldRecord?.id,
-              userId: newRecord?.user_id || oldRecord?.user_id,
-              title: newRecord?.title?.substring(0, 50) || oldRecord?.title?.substring(0, 50),
+              notificationId: newRecord?.id ?? oldRecord?.id,
+              userId: newRecord?.user_id ?? oldRecord?.user_id,
+              title: (newRecord?.title ?? oldRecord?.title)?.substring(0, 50),
               is_read: newRecord?.is_read,
               fullPayload: payload,
             });

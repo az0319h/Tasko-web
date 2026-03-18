@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Theme } from "@/types/types";
+import type { Theme } from "@/types/common";
 import { Sun, Moon, Laptop } from "lucide-react";
 import { useTranslation } from "react-i18next";
 

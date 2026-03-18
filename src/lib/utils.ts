@@ -1,4 +1,4 @@
-import type { Theme } from "@/types/types";
+import type { Theme } from "@/types/common";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

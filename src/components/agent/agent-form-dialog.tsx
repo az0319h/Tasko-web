@@ -46,7 +46,15 @@ export function AgentFormDialog({
       if (isEditMode && agentId) {
         // 수정 모드 - 미디어 파일은 선택사항
         // 파일이 있으면 File 객체이고, 없으면 null이므로 명시적으로 확인
-        const updateData: any = {
+        const updateData: {
+          name: string;
+          description: string;
+          detailed_description: string;
+          features: string[];
+          site_url: string;
+          site_media_file?: File;
+          site_media_type?: "image" | "video";
+        } = {
           name: data.name,
           description: data.description,
           detailed_description: data.detailed_description,

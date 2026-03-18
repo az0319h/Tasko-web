@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTaskSchedules, updateTaskSchedule } from "@/api/schedule";
-import type { TaskScheduleWithTask, TaskSchedule } from "@/types/schedule";
+import type { TaskScheduleWithTask, TaskSchedule } from "@/types/domain/schedule";
 
 /**
  * Get task schedules for a date range

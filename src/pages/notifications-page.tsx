@@ -10,6 +10,7 @@ import { TablePagination } from "@/components/common/table-pagination";
 import { Bell, CheckCircle2, Circle, Trash2, CheckCheck } from "lucide-react";
 import { useNavigate } from "react-router";
 import type { NotificationWithTask } from "@/api/notification";
+import type { TaskStatus } from "@/lib/task-status";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -351,7 +352,7 @@ export default function NotificationsPage() {
                         {/* 상태 (TaskStatusBadge) */}
                         <td className="px-2 py-3 sm:px-4 sm:py-4">
                           {taskStatus ? (
-                            <TaskStatusBadge status={taskStatus as any} />
+                            <TaskStatusBadge status={taskStatus as TaskStatus} />
                           ) : (
                             <span className="text-xs sm:text-sm text-muted-foreground">-</span>
                           )}

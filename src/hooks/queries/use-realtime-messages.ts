@@ -4,7 +4,10 @@ import supabase from "@/lib/supabase";
 import { markMessageAsRead } from "@/api/message";
 import { useCurrentProfile } from "@/hooks";
 import type { MessageWithProfile } from "@/api/message";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@/database.type";
+
+type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 
 /**
  * Supabase Realtime으로 메시지 실시간 구독 훅
@@ -19,7 +22,7 @@ export function useRealtimeMessages(
 ) {
   const queryClient = useQueryClient();
   const { data: currentProfile } = useCurrentProfile();
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export function useRealtimeMessages(
             table: "messages",
             filter: `task_id=eq.${taskId}`,
           },
-          async (payload: RealtimePostgresChangesPayload<any>) => {
+          async (payload: RealtimePostgresChangesPayload<MessageRow>) => {
             console.log(`[Realtime] Message change detected for task ${taskId}:`, payload.eventType, payload);
 
             // INSERT 이벤트: 새 메시지가 생성됨
@@ -90,7 +93,7 @@ export function useRealtimeMessages(
               ) {
                 // Guard: 이미 읽은 메시지인지 확인
                 const readBy = newMessage?.read_by || [];
-                const isAlreadyRead = Array.isArray(readBy) && readBy.some((id: string) => String(id) === String(currentProfile.id));
+                const isAlreadyRead = Array.isArray(readBy) && readBy.some((id) => String(id) === String(currentProfile.id));
 
                 if (!isAlreadyRead) {
                   try {

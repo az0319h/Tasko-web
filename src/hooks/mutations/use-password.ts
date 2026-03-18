@@ -1,5 +1,5 @@
 import { resetPassword, updatePassword, changePassword } from "@/api/password";
-import type { UseMutationCallback } from "@/types/types";
+import type { UseMutationCallback } from "@/types/common";
 import { useMutation } from "@tanstack/react-query";
 
 interface ChangePasswordData {

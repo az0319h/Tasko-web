@@ -1,6 +1,6 @@
 import supabase from "@/lib/supabase";
 import type { Tables, TablesUpdate } from "@/database.type";
-import type { TaskSchedule, TaskScheduleWithTask } from "@/types/schedule";
+import type { TaskSchedule, TaskScheduleWithTask } from "@/types/domain/schedule";
 
 export type TaskScheduleUpdate = TablesUpdate<"task_schedules">;
 

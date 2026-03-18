@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getAgents, getAgentById } from "@/api/agent";
-import type { Agent, AgentWithMedia } from "@/types/agent";
+import type { Agent, AgentWithMedia } from "@/types/domain/agent";
 
 /**
  * 에이전트 목록 조회 훅
