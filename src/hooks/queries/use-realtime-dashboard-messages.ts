@@ -28,6 +28,12 @@ export function useRealtimeDashboardMessages(
 
   const limitedTaskIds = taskIds.slice(0, MAX_SUBSCRIPTIONS);
 
+  if (import.meta.env.DEV && taskIds.length > MAX_SUBSCRIPTIONS) {
+    console.warn(
+      `[Realtime Dashboard] taskIds(${taskIds.length}) exceeded MAX_SUBSCRIPTIONS(${MAX_SUBSCRIPTIONS}). 일부 Task는 실시간 구독에서 제외됩니다.`
+    );
+  }
+
   useEffect(() => {
     if (!enabled || limitedTaskIds.length === 0) {
       // 구독 비활성화 또는 Task ID가 없으면 모든 채널 제거
