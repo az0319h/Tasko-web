@@ -45,8 +45,6 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    console.log("[check-due-date-exceeded-notification] 마감일 초과 알림 체크 시작");
-
     // --- 마감일 초과 Task 조회 (due_date < 오늘, task_status != APPROVED) ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -74,7 +72,6 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log("[check-due-date-exceeded-notification] 마감일이 초과된 Task 없음");
       return new Response(
         JSON.stringify({ message: "마감일이 초과된 Task가 없습니다.", processed: 0 }),
         {
@@ -82,8 +79,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log(`[check-due-date-exceeded-notification] ${tasks.length}개의 Task 조회됨`);
 
     let processedCount = 0;
     let notificationCount = 0;
@@ -121,9 +116,6 @@ Deno.serve(async (req: Request) => {
 
         // 이미 알림이 있으면 스킵
         if (existingNotification) {
-          console.log(
-            `[check-due-date-exceeded-notification] Task ${task.id}: 마감일 초과 알림이 이미 존재함`
-          );
           continue;
         }
 
@@ -157,9 +149,6 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        console.log(
-          `[check-due-date-exceeded-notification] 알림 생성 성공: Task ${task.id}, exceeded_days=${exceededDays}, notification_id=${notificationId}`
-        );
         notificationCount++;
       } catch (error) {
         console.error(
@@ -178,10 +167,6 @@ Deno.serve(async (req: Request) => {
       notifications_created: notificationCount,
       errors: errors.length > 0 ? errors : undefined,
     };
-
-    console.log(
-      `[check-due-date-exceeded-notification] 완료: 처리된 Task ${processedCount}개, 생성된 알림 ${notificationCount}개`
-    );
 
     return new Response(JSON.stringify(result), {
       headers: { "Content-Type": "application/json" },

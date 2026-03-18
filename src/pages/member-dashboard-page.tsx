@@ -1352,24 +1352,10 @@ export default function MemberDashboardPage() {
       });
     }
     
-    const result = Array.from(taskIds);
-    console.log(`[Member Dashboard] 📋 Current task IDs for subscription:`, {
-      activeTab,
-      count: result.length,
-      taskIds: result,
-      myTasksCount: myTasks.length,
-      allMyTasksCount: allMyTasks.length,
-      referenceTasksCount: referenceTasks.length,
-    });
-    
-    return result;
+    return Array.from(taskIds);
   }, [activeTab, myTasks, allMyTasks, referenceTasks]);
 
   // 실시간 구독 활성화
-  console.log(`[Member Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
-    taskIds: currentTaskIds,
-    enabled: true,
-  });
   useRealtimeDashboardMessages(currentTaskIds, true);
 
   // 담당 업무 탭: 총 페이지 수

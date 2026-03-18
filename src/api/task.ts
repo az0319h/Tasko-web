@@ -409,13 +409,6 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error("수정할 내용이 없습니다.");
   }
 
-  // 디버깅: 업데이트 payload 확인
-  console.log("[updateTask] Original updates:", updates);
-  console.log("[updateTask] Allowed updates:", allowedUpdates);
-  console.log("[updateTask] Task ID:", id);
-  console.log("[updateTask] User ID:", userId);
-  console.log("[updateTask] Is Assigner:", task.assigner_id === userId);
-
   // 상태 업데이트
   const { data: updatedTask, error: updateError } = await supabase
     .from("tasks")
@@ -438,7 +431,6 @@ export async function updateTask(id: string, updates: TaskUpdate): Promise<Task>
     throw new Error("업무 수정 후 데이터를 받지 못했습니다.");
   }
 
-  console.log("[updateTask] Update successful:", updatedTask);
   return updatedTask;
 }
 
@@ -836,9 +828,6 @@ export async function checkDueDateExceeded(
     };
   }
 
-  // Edge Function 호출
-  console.log("[checkDueDateExceeded] Edge Function 호출:", { taskId, dueDate });
-  
   const { data, error } = await supabase.functions.invoke(
     "check-due-date-exceeded",
     {
@@ -848,8 +837,6 @@ export async function checkDueDateExceeded(
       },
     }
   );
-
-  console.log("[checkDueDateExceeded] Edge Function 응답:", { data, error });
 
   if (error) {
     console.error("[checkDueDateExceeded] Edge Function 에러:", error);
@@ -861,7 +848,6 @@ export async function checkDueDateExceeded(
     throw new Error(data.error);
   }
 
-  console.log("[checkDueDateExceeded] 최종 반환 데이터:", data);
   return data;
 }
 

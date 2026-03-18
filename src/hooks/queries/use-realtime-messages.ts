@@ -64,15 +64,11 @@ export function useRealtimeMessages(
             filter: `task_id=eq.${taskId}`,
           },
           async (payload: RealtimePostgresChangesPayload<MessageRow>) => {
-            console.log(`[Realtime] Message change detected for task ${taskId}:`, payload.eventType, payload);
-
             // INSERT 이벤트: 새 메시지가 생성됨
             if (payload.eventType === "INSERT") {
               const newMessage = payload.new;
               const messageUserId = newMessage?.user_id;
               const messageId = newMessage?.id;
-
-              console.log(`[Realtime] 📨 New message inserted: ${messageId} from user ${messageUserId}`);
 
               // 먼저 쿼리 무효화하여 새 메시지 즉시 표시
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
@@ -97,7 +93,6 @@ export function useRealtimeMessages(
 
                 if (!isAlreadyRead) {
                   try {
-                    console.log(`[Realtime] 📖 Marking message as read (real-time): ${messageId}`);
                     await markMessageAsRead(messageId);
                     // 읽음 처리 후 쿼리 다시 무효화하여 읽음 상태 반영
                     queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
@@ -111,21 +106,11 @@ export function useRealtimeMessages(
                     console.error(`[Realtime] ❌ Failed to mark message as read:`, error);
                     // 읽음 처리 실패해도 쿼리 무효화는 이미 진행됨
                   }
-                } else {
-                  console.log(`[Realtime] ⏭️ Message ${messageId} already read, skipping`);
                 }
               }
             }
             // UPDATE 이벤트: 메시지가 업데이트됨 (읽음 상태 변경 등)
             else if (payload.eventType === "UPDATE") {
-              const updatedMessage = payload.new;
-              const messageId = updatedMessage?.id;
-
-              console.log(`[Realtime] 🔄 Message updated: ${messageId}`, {
-                read_by: updatedMessage?.read_by,
-                content: updatedMessage?.content?.substring(0, 50),
-              });
-
               // 읽음 상태가 변경된 경우 UI 즉시 업데이트
               // ⚠️ 중요: 읽음 처리 로직은 실행하지 않음 (무한 루프 방지)
               // 단순히 쿼리만 무효화하여 최신 읽음 상태를 가져옴
@@ -139,11 +124,6 @@ export function useRealtimeMessages(
             }
             // DELETE 이벤트: 메시지가 삭제됨
             else if (payload.eventType === "DELETE") {
-              const deletedMessage = payload.old;
-              const messageId = deletedMessage?.id;
-
-              console.log(`[Realtime] 🗑️ Message deleted: ${messageId}`);
-
               // 삭제된 메시지 제거를 위해 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["messages", taskId] });
               queryClient.invalidateQueries({ queryKey: ["chat_logs", taskId] });
@@ -156,10 +136,8 @@ export function useRealtimeMessages(
         )
         .subscribe((status) => {
           setSubscriptionStatus(status);
-          console.log(`[Realtime] Subscription status for task ${taskId}:`, status);
 
           if (status === "SUBSCRIBED") {
-            console.log(`[Realtime] ✅ Successfully subscribed to messages for task ${taskId}`);
             retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
           } else if (status === "CHANNEL_ERROR") {
             console.error(`[Realtime] ❌ Channel error for task ${taskId}`);
@@ -182,9 +160,6 @@ export function useRealtimeMessages(
     const handleSubscriptionFailure = () => {
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current += 1;
-        console.log(
-          `[Realtime] Retrying subscription (${retryCountRef.current}/${MAX_RETRIES}) for task ${taskId}...`
-        );
         retryTimeoutRef.current = setTimeout(() => {
           setupSubscription();
         }, RETRY_DELAY * retryCountRef.current); // 지수 백오프
@@ -205,7 +180,6 @@ export function useRealtimeMessages(
         retryTimeoutRef.current = null;
       }
       if (channelRef.current) {
-        console.log(`[Realtime] Cleaning up subscription for task ${taskId}`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }

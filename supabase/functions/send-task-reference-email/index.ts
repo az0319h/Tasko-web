@@ -54,14 +54,8 @@ function getReferenceEmailTemplate(
   referenceName: string,
 ): { subject: string; html: string } {
   const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
-  console.log("[send-task-reference-email] FRONTEND_URL environment variable:", {
-    exists: !!frontendUrlEnv,
-    value: frontendUrlEnv || "NOT SET",
-    type: typeof frontendUrlEnv,
-  });
   const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
-  console.log("[send-task-reference-email] Generated task link:", taskLink);
 
   const assignerName = data.assignerName || "할당자";
   const assigneeName = data.assigneeName || "담당자";
@@ -158,14 +152,8 @@ function getStatusChangedEmailTemplate(
   referenceName: string,
 ): { subject: string; html: string } {
   const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
-  console.log("[send-task-reference-email] FRONTEND_URL environment variable (status changed):", {
-    exists: !!frontendUrlEnv,
-    value: frontendUrlEnv || "NOT SET",
-    type: typeof frontendUrlEnv,
-  });
   const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
-  console.log("[send-task-reference-email] Generated task link (status changed):", taskLink);
 
   const statusLabels: Record<string, string> = {
     ASSIGNED: "할당됨",
@@ -296,24 +284,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  console.log("[send-task-reference-email] Request received:", {
-    method: req.method,
-    url: req.url,
-  });
-
   try {
     // Parse request body
     const emailData: ReferenceEmailRequest = await req.json();
     const eventType: ReferenceEmailEventType = emailData.eventType || "REFERENCE_ADDED";
-    console.log("[send-task-reference-email] Email data received:", {
-      eventType,
-      taskId: emailData.taskId,
-      referenceCount: emailData.referenceEmails?.length || 0,
-      ...(eventType === "STATUS_CHANGED" && {
-        oldStatus: emailData.oldStatus,
-        newStatus: emailData.newStatus,
-      }),
-    });
 
     // --- 요청 검증 ---
     if (
@@ -388,12 +362,7 @@ Deno.serve(async (req: Request) => {
             ? getStatusChangedEmailTemplate(emailData, reference.name)
             : getReferenceEmailTemplate(emailData, reference.name);
 
-        console.log(`[send-task-reference-email] Sending email to ${reference.email}`);
         const result = await sendEmail(transporter, reference.email, subject, html);
-        console.log(`[send-task-reference-email] Email result for ${reference.email}:`, {
-          success: result.success,
-          error: result.error,
-        });
 
         const logStatus = result.success ? "sent" : "failed";
         const sentAt = result.success ? new Date().toISOString() : null;
@@ -420,13 +389,6 @@ Deno.serve(async (req: Request) => {
     // Check if all emails were sent successfully
     const allSuccess = results.every((r) => r.success);
     const failedRecipients = results.filter((r) => !r.success).map((r) => r.recipient);
-
-    console.log("[send-task-reference-email] Final results:", {
-      allSuccess,
-      totalRecipients: results.length,
-      failedCount: failedRecipients.length,
-      failedRecipients,
-    });
 
     return new Response(
       JSON.stringify({

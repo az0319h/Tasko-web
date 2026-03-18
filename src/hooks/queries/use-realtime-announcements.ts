@@ -53,13 +53,8 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
             table: "announcements",
           },
           (payload: RealtimePostgresChangesPayload<AnnouncementRow>) => {
-            console.log(`[Realtime] Announcement change detected:`, payload.eventType, payload);
-
             // INSERT 이벤트: 새 공지사항이 생성됨
             if (payload.eventType === "INSERT") {
-              const newAnnouncement = payload.new;
-              const announcementId = newAnnouncement?.id;
-              console.log(`[Realtime] 📢 New announcement inserted: ${announcementId}`);
               // 활성 공지사항 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["announcements", "active"] });
               // 관리자 공지사항 목록도 무효화
@@ -67,12 +62,6 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
             }
             // UPDATE 이벤트: 공지사항이 업데이트됨 (활성화/비활성화, 내용 수정 등)
             else if (payload.eventType === "UPDATE") {
-              const updatedAnnouncement = payload.new;
-              const announcementId = updatedAnnouncement?.id;
-              console.log(`[Realtime] 🔄 Announcement updated: ${announcementId}`, {
-                is_active: updatedAnnouncement?.is_active,
-                title: updatedAnnouncement?.title?.substring(0, 50),
-              });
               // 활성 공지사항 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["announcements", "active"] });
               // 관리자 공지사항 목록도 무효화
@@ -80,9 +69,6 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
             }
             // DELETE 이벤트: 공지사항이 삭제됨
             else if (payload.eventType === "DELETE") {
-              const deletedAnnouncement = payload.old;
-              const announcementId = deletedAnnouncement?.id;
-              console.log(`[Realtime] 🗑️ Announcement deleted: ${announcementId}`);
               // 활성 공지사항 쿼리 무효화
               queryClient.invalidateQueries({ queryKey: ["announcements", "active"] });
               // 관리자 공지사항 목록도 무효화
@@ -92,10 +78,8 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
         )
         .subscribe((status) => {
           setSubscriptionStatus(status);
-          console.log(`[Realtime] Announcements subscription status:`, status);
 
           if (status === "SUBSCRIBED") {
-            console.log(`[Realtime] ✅ Successfully subscribed to announcements`);
             retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
           } else if (status === "CHANNEL_ERROR") {
             console.error(`[Realtime] ❌ Channel error for announcements`);
@@ -118,9 +102,6 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
     const handleSubscriptionFailure = () => {
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current += 1;
-        console.log(
-          `[Realtime] Retrying announcements subscription (${retryCountRef.current}/${MAX_RETRIES})...`
-        );
         retryTimeoutRef.current = setTimeout(() => {
           setupSubscription();
         }, RETRY_DELAY * retryCountRef.current); // 지수 백오프
@@ -141,7 +122,6 @@ export function useRealtimeAnnouncements(enabled: boolean = true) {
         retryTimeoutRef.current = null;
       }
       if (channelRef.current) {
-        console.log(`[Realtime] Cleaning up announcements subscription`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }

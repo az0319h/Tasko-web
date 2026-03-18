@@ -121,16 +121,6 @@ export function convertToFullCalendarEvents(
         },
       };
 
-      console.log("이벤트 변환:", {
-        id: event.id,
-        title: event.title,
-        start: event.start,
-        end: event.end,
-        allDay: event.allDay,
-        editable: event.editable,
-        backgroundColor: event.backgroundColor,
-      });
-
       return event;
     });
 }

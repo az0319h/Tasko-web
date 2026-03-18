@@ -268,19 +268,8 @@ export function AnnouncementForm({ initialData, onSubmit, onCancel, isSubmitting
         // 이 방법은 브라우저의 로컬 시간대를 자동으로 사용합니다
         const localDate = new Date(year, month - 1, day, hours, minutes, 0);
         
-        // 디버깅: 로컬 시간 확인
-        console.log("입력된 날짜/시간:", `${expiresAtDate} ${expiresAtTime}`);
-        console.log("로컬 Date 객체:", localDate.toString());
-        console.log("로컬 시간 (getHours):", localDate.getHours(), ":", localDate.getMinutes());
-        
         // UTC로 변환하여 ISO 문자열로 저장 (데이터베이스는 UTC로 저장)
         expiresAt = localDate.toISOString();
-        
-        // 디버깅: UTC 변환 확인
-        console.log("UTC ISO 문자열:", expiresAt);
-        const verifyDate = new Date(expiresAt);
-        console.log("변환 검증 (로컬에서 읽기):", verifyDate.toString());
-        console.log("변환 검증 (로컬 시간):", verifyDate.getHours(), ":", verifyDate.getMinutes());
       } else {
         // 시간이 없으면 해당 날짜의 23:59:59 (로컬 시간)를 UTC로 변환
         const [year, month, day] = expiresAtDate.split("-").map(Number);

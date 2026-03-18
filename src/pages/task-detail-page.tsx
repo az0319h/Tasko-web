@@ -143,15 +143,8 @@ export default function TaskDetailPage() {
       const now = Date.now();
       if (now - lastMarkAsReadTimeRef.current > 1000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(
-          `[TaskDetail] 📖 Case 1: Marking all messages as read for task ${taskId} (initial load / presence ready)`,
-        );
         markMessagesAsRead.mutate(taskId, {
-          onSuccess: () => {
-            console.log(
-              `[TaskDetail] ✅ Case 1: Successfully marked all messages as read for task ${taskId}`,
-            );
-          },
+          onSuccess: () => {},
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 1: Failed to mark messages as read:`, error);
             lastMarkAsReadTimeRef.current = 0;
@@ -169,15 +162,8 @@ export default function TaskDetailPage() {
       // 1초 이내 중복 호출 방지
       if (now - lastMarkAsReadTimeRef.current > 1000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(
-          `[TaskDetail] 📖 Case 2: Marking all messages as read for task ${taskId} (presence reactivated)`,
-        );
         markMessagesAsRead.mutate(taskId, {
-          onSuccess: () => {
-            console.log(
-              `[TaskDetail] ✅ Case 2: Successfully marked all messages as read for task ${taskId}`,
-            );
-          },
+          onSuccess: () => {},
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 2: Failed to mark messages as read:`, error);
             lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
@@ -277,15 +263,8 @@ export default function TaskDetailPage() {
       // 3초 이내 중복 호출 방지 (디바운싱)
       if (now - lastMarkAsReadTimeRef.current > 3000) {
         lastMarkAsReadTimeRef.current = now;
-        console.log(
-          `[TaskDetail] 📖 Case 3: Marking all messages as read for task ${taskId} (message list updated)`,
-        );
         markMessagesAsRead.mutate(taskId, {
-          onSuccess: () => {
-            console.log(
-              `[TaskDetail] ✅ Case 3: Successfully marked all messages as read for task ${taskId}`,
-            );
-          },
+          onSuccess: () => {},
           onError: (error) => {
             console.error(`[TaskDetail] ❌ Case 3: Failed to mark messages as read:`, error);
             lastMarkAsReadTimeRef.current = 0; // 에러 발생 시 시간 리셋하여 재시도 가능하도록
@@ -762,33 +741,24 @@ export default function TaskDetailPage() {
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const clipboardData = e.clipboardData;
     if (!clipboardData) {
-      console.log("[Paste] clipboardData가 없습니다.");
       return;
     }
 
     const items = clipboardData.items;
     if (!items || items.length === 0) {
-      console.log("[Paste] 클립보드 항목이 없습니다.");
       return;
     }
 
-    console.log("[Paste] 클립보드 항목 개수:", items.length);
-    
     const imageFiles: File[] = [];
     let hasImage = false;
 
     // 클립보드 항목 순회하여 이미지 찾기
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      console.log(`[Paste] 항목 ${i}:`, {
-        kind: item.kind,
-        type: item.type,
-      });
 
       // 이미지 타입인지 확인 (kind가 'file'이고 type에 'image'가 포함된 경우)
       if (item.kind === "file" && item.type.startsWith("image/")) {
         hasImage = true;
-        console.log("[Paste] 이미지 발견:", item.type);
 
         try {
           const file = item.getAsFile();
@@ -796,12 +766,6 @@ export default function TaskDetailPage() {
             console.warn("[Paste] 파일을 가져올 수 없습니다.");
             continue;
           }
-
-          console.log("[Paste] 파일 정보:", {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-          });
 
           // 파일명 생성 (타임스탬프 기반)
           const timestamp = Date.now();
@@ -857,12 +821,6 @@ export default function TaskDetailPage() {
               lastModified: Date.now(),
             }) as File;
           }
-
-          console.log("[Paste] 생성된 파일:", {
-            name: imageFile.name,
-            type: imageFile.type,
-            size: imageFile.size,
-          });
           
           imageFiles.push(imageFile);
         } catch (error) {
@@ -876,16 +834,12 @@ export default function TaskDetailPage() {
     if (hasImage && imageFiles.length > 0) {
       e.preventDefault(); // 기본 텍스트 붙여넣기 방지
       e.stopPropagation();
-      
-      console.log("[Paste] 이미지 파일 첨부 성공:", imageFiles.length);
       handleFileAdd(imageFiles);
       toast.success(`${imageFiles.length}개의 이미지가 첨부되었습니다.`);
     } else if (hasImage) {
       // 이미지가 감지되었지만 파일로 변환 실패
       console.warn("[Paste] 이미지가 감지되었지만 파일로 변환할 수 없습니다.");
       toast.error("이미지를 파일로 변환할 수 없습니다.");
-    } else {
-      console.log("[Paste] 이미지가 없어 텍스트 붙여넣기 허용");
     }
   };
 

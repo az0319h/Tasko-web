@@ -121,9 +121,6 @@ export function TaskShareDialog({
       if (link.includes('localhost') || link.includes('127.0.0.1')) {
         console.warn('⚠️ 카카오톡 공유 경고: localhost 도메인은 카카오톡에서 접근할 수 없습니다.');
         console.warn('프로덕션 환경에서는 VITE_FRONTEND_URL을 실제 도메인(예: https://tasko.io.kr)으로 설정해야 합니다.');
-      } else {
-        // 프로덕션 환경에서 정상 동작 확인
-        console.log('✅ 카카오톡 공유 링크 생성 완료:', link);
       }
     }
   }, [task?.id]);
@@ -284,15 +281,6 @@ ${shareLink}
           console.warn('카카오톡 공유 경고: localhost 도메인 사용 중');
           console.warn('프로덕션 환경에서는 VITE_FRONTEND_URL을 실제 도메인(예: https://tasko.io.kr)으로 설정해야 합니다.');
         }
-
-        console.log('카카오톡 공유 데이터:', JSON.stringify(feedTemplate, null, 2));
-        console.log('이미지 URL:', ogImageUrl);
-        console.log('공유 링크:', shareLink);
-        console.log('링크 검증:', {
-          isAbsolute: shareLink.startsWith('http://') || shareLink.startsWith('https://'),
-          isHttps: shareLink.startsWith('https://'),
-          link: shareLink,
-        });
         
         // 카카오톡 Share API 확인
         if (!window.Kakao.Share) {

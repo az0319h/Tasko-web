@@ -59,9 +59,6 @@ export function useRealtimeChatLogs(
             filter: `task_id=eq.${taskId}`,
           },
           (payload: RealtimePostgresChangesPayload<TaskChatLogRow>) => {
-            const newLog = payload.new;
-            console.log(`[Realtime] 📋 Chat log inserted for task ${taskId}:`, newLog);
-            
             // 쿼리 무효화하여 새 로그 즉시 표시
             // 로그 생성 시 아이템도 함께 생성되므로 task_chat_logs만 구독해도 충분
             queryClient.invalidateQueries({ queryKey: ["chat_logs", taskId] });
@@ -69,10 +66,8 @@ export function useRealtimeChatLogs(
         )
         .subscribe((status) => {
           setSubscriptionStatus(status);
-          console.log(`[Realtime] Chat logs subscription status for task ${taskId}:`, status);
 
           if (status === "SUBSCRIBED") {
-            console.log(`[Realtime] ✅ Successfully subscribed to chat logs for task ${taskId}`);
             retryCountRef.current = 0; // 성공 시 재시도 카운터 리셋
           } else if (status === "CHANNEL_ERROR") {
             console.error(`[Realtime] ❌ Channel error for chat logs task ${taskId}`);
@@ -95,9 +90,6 @@ export function useRealtimeChatLogs(
     const handleSubscriptionFailure = () => {
       if (retryCountRef.current < MAX_RETRIES) {
         retryCountRef.current += 1;
-        console.log(
-          `[Realtime] Retrying chat logs subscription (${retryCountRef.current}/${MAX_RETRIES}) for task ${taskId}...`
-        );
         retryTimeoutRef.current = setTimeout(() => {
           setupSubscription();
         }, RETRY_DELAY * retryCountRef.current); // 지수 백오프
@@ -118,7 +110,6 @@ export function useRealtimeChatLogs(
         retryTimeoutRef.current = null;
       }
       if (channelRef.current) {
-        console.log(`[Realtime] Cleaning up chat logs subscription for task ${taskId}`);
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }

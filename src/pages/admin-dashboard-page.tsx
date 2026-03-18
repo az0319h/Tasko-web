@@ -1150,23 +1150,11 @@ export default function AdminDashboardPage() {
 
       // 4. 마감일 초과 여부 확인 및 알림 표시 (Edge Function 사용)
       try {
-        console.log("[Task 생성] 마감일 체크 시작:", {
-          taskId: newTask.id,
-          dueDate: createData.due_date,
-        });
-        
         const result = await checkDueDateExceeded(newTask.id, createData.due_date);
-        
-        console.log("[Task 생성] 마감일 체크 결과:", result);
         
         if (result.exceeded && result.scheduleDate) {
           const dueDateFormatted = formatDateKorean(result.dueDate);
           const scheduleDateFormatted = formatDateKorean(result.scheduleDate);
-          
-          console.log("[Task 생성] 마감일 초과 알림 표시:", {
-            dueDateFormatted,
-            scheduleDateFormatted,
-          });
           
           // 주말 때문에 늦게 배정되었는지 확인
           const hasWeekend = hasWeekendBetween(newTask.created_at, result.scheduleDate);
@@ -1204,8 +1192,6 @@ export default function AdminDashboardPage() {
               }
             );
           }
-        } else {
-          console.log("[Task 생성] 마감일 이내 배정 또는 일정 없음:", result);
         }
       } catch (error: unknown) {
         // 에러는 무시 (Task 생성 성공에 영향 없음)
@@ -1667,26 +1653,10 @@ export default function AdminDashboardPage() {
       });
     }
     
-    const result = Array.from(taskIds);
-    console.log(`[Admin Dashboard] 📋 Current task IDs for subscription:`, {
-      activeTab,
-      count: result.length,
-      taskIds: result,
-      myTasksCount: myTasks.length,
-      allTasksCount: allTasks.length,
-      approvedTasksCount: approvedTasks.length,
-      selfTasksCount: selfTasks.length,
-      referenceTasksCount: referenceTasks.length,
-    });
-    
-    return result;
+    return Array.from(taskIds);
   }, [activeTab, myTasks, allTasks, approvedTasks, selfTasks, referenceTasks]);
 
   // 실시간 구독 활성화
-  console.log(`[Admin Dashboard] 🎯 Calling useRealtimeDashboardMessages with:`, {
-    taskIds: currentTaskIds,
-    enabled: true,
-  });
   useRealtimeDashboardMessages(currentTaskIds, true);
 
   // 승인된 태스크 탭: 총 페이지 수

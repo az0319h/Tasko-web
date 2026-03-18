@@ -289,19 +289,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[get-link-preview] URL 요청: ${url}, userId=${user.id}`);
-
     // --- YouTube oEmbed 처리 (youtube.com, youtu.be) ---
     if (isYouTubeUrl(url)) {
       try {
         const metadata = await getYouTubePreview(url);
-        
-        console.log(`[get-link-preview] YouTube oEmbed 데이터 추출 완료:`, {
-          url,
-          hasTitle: !!metadata.title,
-          hasDescription: !!metadata.description,
-          hasImage: !!metadata.image,
-        });
 
         return new Response(JSON.stringify(metadata), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -335,13 +326,6 @@ serve(async (req) => {
 
       // 메타데이터 추출
       const metadata = extractMetadata(html, url);
-
-      console.log(`[get-link-preview] 메타데이터 추출 완료:`, {
-        url,
-        hasTitle: !!metadata.title,
-        hasDescription: !!metadata.description,
-        hasImage: !!metadata.image,
-      });
 
       return new Response(JSON.stringify(metadata), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
