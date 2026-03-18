@@ -419,14 +419,6 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
       isUpdatingRef.current = true;
       scrollRestoreAttemptsRef.current = 0;
 
-      console.log("일정 드래그 시작:", {
-        eventId: info.event.id,
-        start: info.event.start,
-        end: info.event.end,
-        allDay: info.event.allDay,
-        viewType: info.view.type,
-      });
-
       // 시간 기반 뷰(timeGridWeek, timeGridDay)에서 드래그하면 종일 일정이 아닌 것으로 변경
       const viewType = info.view.type;
       const isTimeBasedView = viewType === "timeGridWeek" || viewType === "timeGridDay";
@@ -445,13 +437,6 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
         }
       }
 
-      console.log("일정 업데이트 요청:", {
-        id: info.event.id,
-        start_time: info.event.start,
-        end_time: endTime,
-        is_all_day: shouldBeAllDay,
-      });
-
       await updateScheduleMutation.mutateAsync({
         id: info.event.id,
         updates: {
@@ -461,7 +446,6 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
         },
       });
 
-      console.log("일정 이동 성공");
       // finally에서 isUpdatingRef를 false로 설정하지 않음 - useEffect에서 스크롤 복원 후 설정
     } catch (error) {
       // Revert the event on error
@@ -483,22 +467,8 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
       isUpdatingRef.current = true;
       scrollRestoreAttemptsRef.current = 0;
 
-      console.log("일정 리사이즈 시작:", {
-        eventId: info.event.id,
-        start: info.event.start,
-        end: info.event.end,
-        allDay: info.event.allDay,
-      });
-
       // 리사이즈는 시간 기반 뷰에서만 가능하므로 종일 일정이 아님
       const endTime = info.event.end || new Date(info.event.start!.getTime() + 60 * 60 * 1000);
-
-      console.log("일정 리사이즈 업데이트 요청:", {
-        id: info.event.id,
-        start_time: info.event.start,
-        end_time: endTime,
-        is_all_day: false,
-      });
 
       await updateScheduleMutation.mutateAsync({
         id: info.event.id,
@@ -509,7 +479,6 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
         },
       });
 
-      console.log("일정 리사이즈 성공");
       // finally에서 isUpdatingRef를 false로 설정하지 않음 - useEffect에서 스크롤 복원 후 설정
     } catch (error) {
       // Revert the event on error
@@ -579,17 +548,6 @@ export function TaskCalendar({ initialView = "timeGridWeek", selectedUserId, rea
       </div>
     );
   }
-
-  console.log("캘린더 렌더링:", {
-    eventsCount: events.length,
-    events: events.map((e) => ({
-      id: e.id,
-      title: e.title,
-      start: e.start,
-      end: e.end,
-      allDay: e.allDay,
-    })),
-  });
 
   return (
     <div ref={calendarContainerRef} className="w-full h-full">

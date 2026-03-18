@@ -45,8 +45,6 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    console.log("[check-due-date-approaching] 마감일 임박 알림 체크 시작");
-
     // --- 마감 임박 Task 조회 (0~2일 남은 것) ---
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -73,7 +71,6 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!tasks || tasks.length === 0) {
-      console.log("[check-due-date-approaching] 마감일이 임박한 Task 없음");
       return new Response(
         JSON.stringify({ message: "마감일이 임박한 Task가 없습니다.", processed: 0 }),
         {
@@ -81,8 +78,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log(`[check-due-date-approaching] ${tasks.length}개의 Task 조회됨`);
 
     let processedCount = 0;
     let notificationCount = 0;
@@ -108,9 +103,6 @@ Deno.serve(async (req: Request) => {
 
         // APPROVED Task는 이미 완료되었으므로 알림 불필요
         if (task.task_status === "APPROVED") {
-          console.log(
-            `[check-due-date-approaching] Task ${task.id}: APPROVED 상태이므로 알림 생성하지 않음`
-          );
           continue;
         }
 
@@ -134,9 +126,6 @@ Deno.serve(async (req: Request) => {
 
         // 이미 알림이 있으면 스킵
         if (existingNotification) {
-          console.log(
-            `[check-due-date-approaching] Task ${task.id}: days_remaining=${daysRemaining} 알림이 이미 존재함`
-          );
           continue;
         }
 
@@ -181,9 +170,6 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        console.log(
-          `[check-due-date-approaching] 알림 생성 성공: Task ${task.id}, days_remaining=${daysRemaining}, notification_id=${notificationId}`
-        );
         notificationCount++;
       } catch (error) {
         console.error(
@@ -202,10 +188,6 @@ Deno.serve(async (req: Request) => {
       notifications_created: notificationCount,
       errors: errors.length > 0 ? errors : undefined,
     };
-
-    console.log(
-      `[check-due-date-approaching] 완료: 처리된 Task ${processedCount}개, 생성된 알림 ${notificationCount}개`
-    );
 
     return new Response(JSON.stringify(result), {
       headers: { "Content-Type": "application/json" },

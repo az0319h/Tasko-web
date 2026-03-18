@@ -356,17 +356,9 @@ export default function TaskListDetailPage() {
     const currentTaskIdSet = new Set(taskIds);
     const existingTaskIdSet = new Set(channelsRef.current.keys());
 
-    console.log(`[Task List Detail] 🚀 Setting up realtime subscriptions for ${taskIds.length} tasks`, {
-      current: Array.from(currentTaskIdSet),
-      existing: Array.from(existingTaskIdSet),
-      toAdd: Array.from(currentTaskIdSet).filter(id => !existingTaskIdSet.has(id)),
-      toRemove: Array.from(existingTaskIdSet).filter(id => !currentTaskIdSet.has(id)),
-    });
-
     // 제거된 Task의 채널 정리
     existingTaskIdSet.forEach((taskId) => {
       if (!currentTaskIdSet.has(taskId)) {
-        console.log(`[Task List Detail] ➖ Removing subscription for task ${taskId} (no longer in list)`);
         const channel = channelsRef.current.get(taskId);
         if (channel) {
           supabase.removeChannel(channel);
@@ -385,8 +377,6 @@ export default function TaskListDetailPage() {
       const channelName = `task-list-messages:${taskId}`;
       const filter = `task_id=eq.${taskId}`;
 
-      console.log(`[Task List Detail] ➕ Setting up subscription for task ${taskId}`);
-
       const channel = supabase
         .channel(channelName, {
           config: {
@@ -402,29 +392,18 @@ export default function TaskListDetailPage() {
             filter: filter,
           },
           (payload: RealtimePostgresChangesPayload<MessageRow>) => {
-            const newRecord = payload.new as Partial<MessageRow> | null;
-            const oldRecord = payload.old as Partial<MessageRow> | null;
-            console.log(`[Task List Detail] 📨 Message change detected for task ${taskId}:`, {
-              eventType: payload.eventType,
-              messageId: newRecord?.id ?? oldRecord?.id,
-            });
-
             // 메시지 변경 시 읽지 않은 메시지 수를 즉시 다시 조회
             fetchUnreadCounts();
           }
         )
-        .subscribe((status) => {
-          console.log(`[Task List Detail] 📊 Subscription status for task ${taskId}:`, status);
-        });
+        .subscribe(() => {});
 
       channelsRef.current.set(taskId, channel);
     });
 
     // 정리 함수
     return () => {
-      console.log(`[Task List Detail] 🧹 Cleaning up realtime subscriptions`);
-      channelsRef.current.forEach((channel, taskId) => {
-        console.log(`[Task List Detail] 🗑️ Removing channel for task ${taskId}`);
+      channelsRef.current.forEach((channel) => {
         supabase.removeChannel(channel);
       });
       channelsRef.current.clear();
@@ -499,15 +478,12 @@ export default function TaskListDetailPage() {
       displayOrder: index,
     }));
 
-    console.log("순서 업데이트 시작:", { listId, itemOrders });
-
     // API 호출로 DB 업데이트
     try {
       await updateTaskListItemsOrder.mutateAsync({
         listId,
         itemOrders,
       });
-      console.log("순서 업데이트 성공");
     } catch (error) {
       // 실패 시 원래 상태로 복구
       console.error("순서 업데이트 실패:", error);

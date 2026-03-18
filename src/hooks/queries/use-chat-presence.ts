@@ -78,7 +78,6 @@ export function useChatPresence(taskId: string | undefined, enabled: boolean = t
       }
     }, 30000); // 30초
 
-    console.log(`[Presence] ✅ Activated presence for task ${taskId}`);
   }, [taskId, enabled, currentProfile, broadcastPresence]);
 
   // Presence 비활성화
@@ -96,8 +95,6 @@ export function useChatPresence(taskId: string | undefined, enabled: boolean = t
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
     }
-
-    console.log(`[Presence] ⚠️ Deactivated presence for task ${taskId}`);
   }, [broadcastLeave, taskId]);
 
   useEffect(() => {
@@ -146,7 +143,6 @@ export function useChatPresence(taskId: string | undefined, enabled: boolean = t
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED" && isMounted) {
-          console.log(`[Presence] ✅ Subscribed to presence channel for task ${taskId}`);
           // 구독 성공 시 즉시 Presence 활성화
           isPresentRef.current = true;
           setIsPresent(true);

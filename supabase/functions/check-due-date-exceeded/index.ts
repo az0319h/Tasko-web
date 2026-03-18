@@ -82,8 +82,6 @@ serve(async (req) => {
     // --- 요청 검증 ---
     const { taskId, dueDate } = await req.json();
 
-    console.log(`[check-due-date-exceeded] 요청 받음: taskId=${taskId}, dueDate=${dueDate}, userId=${user.id}`);
-
     if (!taskId || !dueDate) {
       console.error(`[check-due-date-exceeded] 필수 파라미터 누락: taskId=${taskId}, dueDate=${dueDate}`);
       return new Response(
@@ -163,10 +161,6 @@ serve(async (req) => {
       // 일정을 찾으면 반복 종료
       if (data) {
         schedule = data;
-        console.log(`[check-due-date-exceeded] 일정 발견 (시도 ${attempt + 1}/${maxRetries}):`, {
-          task_id: data.task_id,
-          start_time: data.start_time,
-        });
         break;
       }
 
@@ -178,7 +172,6 @@ serve(async (req) => {
 
     // 일정이 생성되지 않은 경우 (담당자 일정이 30일 내 모두 가득 찬 경우)
     if (!schedule) {
-      console.log(`[check-due-date-exceeded] 일정 없음: taskId=${taskId}`);
       return new Response(
         JSON.stringify({
           exceeded: false,
@@ -201,14 +194,6 @@ serve(async (req) => {
 
     // 일정 시작일이 마감일보다 늦은 경우
     const exceeded = scheduleStartDate.getTime() > dueDateObj.getTime();
-
-    console.log(`[check-due-date-exceeded] 날짜 비교 결과:`, {
-      taskId,
-      dueDate: dueDateObj.toISOString(),
-      scheduleStartDate: scheduleStartDate.toISOString(),
-      exceeded,
-      comparison: exceeded ? "일정이 마감일보다 늦음" : "일정이 마감일 이내",
-    });
 
     return new Response(
       JSON.stringify({

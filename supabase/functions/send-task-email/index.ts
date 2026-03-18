@@ -58,14 +58,8 @@ function getEmailTemplate(
   recipientRole: "assigner" | "assignee",
 ): { subject: string; html: string } {
   const frontendUrlEnv = Deno.env.get("FRONTEND_URL");
-  console.log("[send-task-email] FRONTEND_URL environment variable:", {
-    exists: !!frontendUrlEnv,
-    value: frontendUrlEnv || "NOT SET",
-    type: typeof frontendUrlEnv,
-  });
   const appUrl = frontendUrlEnv || "http://localhost:5173";
   const taskLink = `${appUrl}/tasks/${data.taskId}`;
-  console.log("[send-task-email] Generated task link:", taskLink);
 
   const statusLabels: Record<string, string> = {
     ASSIGNED: "할당됨",
@@ -405,22 +399,9 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  console.log("[send-task-email] Request received:", {
-    method: req.method,
-    url: req.url,
-    headers: Object.fromEntries(req.headers.entries()),
-  });
-
   try {
     // Parse request body
     const emailData: EmailRequest = await req.json();
-    console.log("[send-task-email] Email data received:", {
-      eventType: emailData.eventType,
-      taskId: emailData.taskId,
-      recipients: emailData.recipients,
-      assignerEmail: emailData.assignerEmail,
-      assigneeEmail: emailData.assigneeEmail,
-    });
 
     // --- 요청 검증 ---
     if (
@@ -462,11 +443,6 @@ Deno.serve(async (req: Request) => {
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPass = Deno.env.get("SMTP_PASS");
 
-    console.log("[send-task-email] SMTP config check:", {
-      smtpUserExists: !!smtpUser,
-      smtpPassExists: !!smtpPass,
-    });
-
     if (!smtpUser || !smtpPass) {
       console.error("[send-task-email] SMTP credentials not configured");
       return new Response(JSON.stringify({ error: "SMTP credentials not configured" }), {
@@ -493,11 +469,6 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    console.log("[send-task-email] Supabase config check:", {
-      supabaseUrlExists: !!supabaseUrl,
-      supabaseServiceKeyExists: !!supabaseServiceKey,
-    });
-
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("[send-task-email] Supabase credentials not configured");
       return new Response(
@@ -521,12 +492,6 @@ Deno.serve(async (req: Request) => {
       emailData.newStatus &&
       ((emailData.oldStatus === "ASSIGNED" && emailData.newStatus === "IN_PROGRESS") ||
         (emailData.oldStatus === "REJECTED" && emailData.newStatus === "IN_PROGRESS"));
-
-    if (shouldSkipEmail) {
-      console.log(
-        `[send-task-email] Email sending skipped for status transition: ${emailData.oldStatus} -> ${emailData.newStatus}`,
-      );
-    }
 
     // --- 수신자별 이메일 발송 및 email_logs 기록 ---
     const recipientList: Array<{ role: "assigner" | "assignee"; email: string; name: string }> = [];
@@ -559,19 +524,11 @@ Deno.serve(async (req: Request) => {
 
         if (shouldSkipEmail) {
           // 이메일 전송은 스킵하지만 로그는 기록
-          console.log(
-            `[send-task-email] Skipping email to ${recipient.email} (${recipient.role}) - status transition excluded`,
-          );
           result = { success: true }; // 로그 목적으로 성공으로 처리
           logStatus = "skipped";
         } else {
           // 정상적으로 이메일 전송
-          console.log(`[send-task-email] Sending email to ${recipient.email} (${recipient.role})`);
           result = await sendEmail(transporter, recipient.email, subject, html);
-          console.log(`[send-task-email] Email result for ${recipient.email}:`, {
-            success: result.success,
-            error: result.error,
-          });
           logStatus = result.success ? "sent" : "failed";
           sentAt = result.success ? new Date().toISOString() : null;
         }
@@ -600,13 +557,6 @@ Deno.serve(async (req: Request) => {
     // Check if all emails were sent successfully
     const allSuccess = results.every((r) => r.success);
     const failedRecipients = results.filter((r) => !r.success).map((r) => r.recipient);
-
-    console.log("[send-task-email] Final results:", {
-      allSuccess,
-      totalRecipients: results.length,
-      failedCount: failedRecipients.length,
-      failedRecipients,
-    });
 
     return new Response(
       JSON.stringify({

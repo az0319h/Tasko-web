@@ -137,7 +137,6 @@ export async function uploadTaskFile(
   // MIME type이 변경된 경우 새 File 객체 생성
   let fileToUpload = file;
   if (file.type !== correctMimeType) {
-    console.log(`[Storage] MIME type corrected: ${file.type} → ${correctMimeType} for ${file.name}`);
     fileToUpload = new File([file], file.name, {
       type: correctMimeType,
       lastModified: file.lastModified,

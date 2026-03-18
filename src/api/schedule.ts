@@ -71,7 +71,6 @@ export async function getTaskSchedules(
   }
 
   if (!schedules || schedules.length === 0) {
-    console.log("일정 없음");
     return [];
   }
 
@@ -97,8 +96,6 @@ export async function getTaskSchedules(
       task: taskMap.get(schedule.task_id),
     }))
     .filter((item) => item.task !== undefined); // Filter out schedules without tasks
-
-  console.log("일정 조회 성공:", data.length, "개");
 
   if (!data) {
     return [];
@@ -178,11 +175,6 @@ export async function updateTaskSchedule(
     updateData.is_all_day = updates.is_all_day;
   }
 
-  console.log("일정 업데이트 API 호출:", {
-    id,
-    updateData,
-  });
-
   const { data, error } = await supabase
     .from("task_schedules")
     .update(updateData)
@@ -205,8 +197,6 @@ export async function updateTaskSchedule(
     console.error("일정 업데이트 결과 없음");
     throw new Error("일정을 찾을 수 없습니다.");
   }
-
-  console.log("일정 업데이트 성공:", data);
 
   return {
     ...data,
