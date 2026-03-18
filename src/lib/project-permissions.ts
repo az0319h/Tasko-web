@@ -19,11 +19,3 @@ export function canEditTask(
   return task.assigner_id === userId;
 }
 
-/**
- * 프로젝트 수정/삭제 권한 확인
- * - Admin만 가능
- */
-export function canManageProject(isAdmin: boolean): boolean {
-  return isAdmin;
-}
-
