@@ -1331,29 +1331,20 @@ export default function MemberDashboardPage() {
   // 참조된 업무 탭: 총 페이지 수
   const referenceTasksTotalPages = Math.ceil(sortedReferenceTasks.length / referenceTasksItemsPerPage) || 1;
 
-  // 실시간 구독을 위한 현재 Task ID 목록 수집
-  // 모든 Task에 대해 구독하여 필터 변경 시에도 실시간 업데이트가 가능하도록 함
+  // 실시간 구독을 위한 현재 페이지 Task ID 목록 수집
+  // Supabase Realtime 채널 제한(연결당 100개, 초당 100 조인)으로 현재 페이지 Task만 구독
   const currentTaskIds = useMemo(() => {
-    const taskIds = new Set<string>();
-    
-    // 현재 활성 탭에 따라 전체 Task ID 수집 (필터링/페이지네이션 전)
-    // 이렇게 하면 필터 변경 시에도 실시간 업데이트가 가능함
     if (activeTab === "my-tasks") {
-      myTasks.forEach((task) => {
-        if (task.id) taskIds.add(task.id);
-      });
-    } else if (activeTab === "all-tasks") {
-      allMyTasks.forEach((task) => {
-        if (task.id) taskIds.add(task.id);
-      });
-    } else if (activeTab === "reference-tasks") {
-      referenceTasks.forEach((task) => {
-        if (task.id) taskIds.add(task.id);
-      });
+      return paginatedMyTasks.map((task) => task.id).filter(Boolean);
     }
-    
-    return Array.from(taskIds);
-  }, [activeTab, myTasks, allMyTasks, referenceTasks]);
+    if (activeTab === "all-tasks") {
+      return paginatedAllTasks.map((task) => task.id).filter(Boolean);
+    }
+    if (activeTab === "reference-tasks") {
+      return paginatedReferenceTasks.map((task) => task.id).filter(Boolean);
+    }
+    return [];
+  }, [activeTab, paginatedMyTasks, paginatedAllTasks, paginatedReferenceTasks]);
 
   // 실시간 구독 활성화
   useRealtimeDashboardMessages(currentTaskIds, true);

@@ -6,12 +6,15 @@ import type { Database } from "@/database.type";
 
 type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
 
+/** Supabase Realtime 채널 제한: 연결당 100개, 초당 100 조인 */
+const MAX_SUBSCRIPTIONS = 20;
+
 /**
  * 대시보드용 메시지 실시간 구독 훅
- * 여러 Task의 메시지 변경 사항을 구독하여 대시보드의 읽지 않은 메시지 수를 실시간으로 업데이트합니다.
- * Task 상세 페이지의 useRealtimeMessages와 동일한 패턴을 사용하여 안정성을 보장합니다.
- * 
- * @param taskIds 구독할 Task ID 배열
+ * 현재 페이지 Task의 메시지 변경 사항을 구독하여 대시보드의 읽지 않은 메시지 수를 실시간으로 업데이트합니다.
+ * Supabase Realtime 제한으로 인해 최대 MAX_SUBSCRIPTIONS개 Task만 구독합니다.
+ *
+ * @param taskIds 구독할 Task ID 배열 (현재 페이지 Task 권장)
  * @param enabled 구독 활성화 여부
  */
 export function useRealtimeDashboardMessages(
@@ -23,8 +26,10 @@ export function useRealtimeDashboardMessages(
   const retryTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const retryCountsRef = useRef<Map<string, number>>(new Map());
 
+  const limitedTaskIds = taskIds.slice(0, MAX_SUBSCRIPTIONS);
+
   useEffect(() => {
-    if (!enabled || taskIds.length === 0) {
+    if (!enabled || limitedTaskIds.length === 0) {
       // 구독 비활성화 또는 Task ID가 없으면 모든 채널 제거
       channelsRef.current.forEach((channel, taskId) => {
         supabase.removeChannel(channel);
@@ -147,7 +152,7 @@ export function useRealtimeDashboardMessages(
     };
 
     // 현재 Task ID 목록에 대해 구독 설정
-    const currentTaskIdSet = new Set(taskIds);
+    const currentTaskIdSet = new Set(limitedTaskIds);
     const existingTaskIdSet = new Set(channelsRef.current.keys());
     
     // 새로운 Task ID에 대해 구독 설정
@@ -182,5 +187,5 @@ export function useRealtimeDashboardMessages(
       retryTimeoutsRef.current.clear();
       retryCountsRef.current.clear();
     };
-  }, [taskIds.join(","), enabled, queryClient]);
+  }, [limitedTaskIds.join(","), enabled, queryClient]);
 }
