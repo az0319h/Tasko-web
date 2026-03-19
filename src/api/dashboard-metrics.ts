@@ -62,7 +62,8 @@ function getMonthRanges(): {
  * - Member: assignee_id 기준 (내가 담당한 Task)
  */
 export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<DashboardMetrics> {
-  const { data: session } = await supabase.auth.getSession();
+  const { data: session, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
   if (!session.session) {
     throw new Error("인증이 필요합니다.");
   }
@@ -74,25 +75,27 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
   const idColumn = role === "admin" ? "assigner_id" : "assignee_id";
 
   // 1. 생성 Task (이번 달)
-  const { count: createdThisMonth } = await supabase
+  const { count: createdThisMonth, error: err1 } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq(idColumn, userId)
     .eq("is_self_task", false)
     .gte("created_at", thisMonthStart)
     .lte("created_at", thisMonthEnd);
+  if (err1) throw err1;
 
   // 2. 생성 Task (지난 달)
-  const { count: createdLastMonth } = await supabase
+  const { count: createdLastMonth, error: err2 } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq(idColumn, userId)
     .eq("is_self_task", false)
     .gte("created_at", lastMonthStart)
     .lte("created_at", lastMonthEnd);
+  if (err2) throw err2;
 
   // 3. 승인 완료 (이번 달) - approved_at 기준 (마이그레이션 후)
-  const { count: approvedThisMonth } = await supabase
+  const { count: approvedThisMonth, error: err3 } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq(idColumn, userId)
@@ -100,9 +103,10 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .eq("is_self_task", false)
     .gte("approved_at", thisMonthStart)
     .lte("approved_at", thisMonthEnd);
+  if (err3) throw err3;
 
   // 4. 승인 완료 (지난 달)
-  const { count: approvedLastMonth } = await supabase
+  const { count: approvedLastMonth, error: err4 } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq(idColumn, userId)
@@ -110,10 +114,11 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .eq("is_self_task", false)
     .gte("approved_at", lastMonthStart)
     .lte("approved_at", lastMonthEnd);
+  if (err4) throw err4;
 
   // 5. 평균 처리 소요 시간 - APPROVED Task의 created_at ~ approved_at 일수
 
-  const { data: approvedTasksThisMonth } = await supabase
+  const { data: approvedTasksThisMonth, error: err5 } = await supabase
     .from("tasks")
     .select("created_at, approved_at, updated_at")
     .eq(idColumn, userId)
@@ -121,8 +126,9 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .eq("is_self_task", false)
     .gte("approved_at", thisMonthStart)
     .lte("approved_at", thisMonthEnd);
+  if (err5) throw err5;
 
-  const { data: approvedTasksLastMonth } = await supabase
+  const { data: approvedTasksLastMonth, error: err6 } = await supabase
     .from("tasks")
     .select("created_at, approved_at, updated_at")
     .eq(idColumn, userId)
@@ -130,6 +136,7 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .eq("is_self_task", false)
     .gte("approved_at", lastMonthStart)
     .lte("approved_at", lastMonthEnd);
+  if (err6) throw err6;
 
   const calcAvgDays = (
     tasks: Array<{ created_at: string; approved_at: string | null; updated_at: string }> | null
@@ -159,7 +166,8 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
 
   const overdueQuery = overdueBaseQuery.eq(idColumn, userId);
 
-  const { count: overdueCount } = await overdueQuery;
+  const { count: overdueCount, error: err7 } = await overdueQuery;
+  if (err7) throw err7;
 
   // 7. 마감일 초과 미처리 (지난 달 말 기준) - due_date < 지난달 말, created_at <= 지난달 말 (과거 시점 스냅샷)
   const overdueLastMonthBaseQuery = supabase
@@ -173,7 +181,8 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
 
   const overdueLastMonthQuery = overdueLastMonthBaseQuery.eq(idColumn, userId);
 
-  const { count: overdueCountLastMonthEnd } = await overdueLastMonthQuery;
+  const { count: overdueCountLastMonthEnd, error: err8 } = await overdueLastMonthQuery;
+  if (err8) throw err8;
 
   return {
     createdThisMonth: createdThisMonth ?? 0,
