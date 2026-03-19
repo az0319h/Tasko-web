@@ -22,7 +22,7 @@ export interface DashboardMetrics {
 }
 
 /**
- * 이번 달/지난 달 첫날·마지막날 (로컬 KST 기준)
+ * 이번 달/지난 달 첫날·마지막날 (KST 기준 - 브라우저/OS 타임존 무관)
  */
 function getMonthRanges(): {
   thisMonthStart: string;
@@ -30,15 +30,23 @@ function getMonthRanges(): {
   lastMonthStart: string;
   lastMonthEnd: string;
 } {
-  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parseInt(parts.find((p) => p.type === "year")!.value, 10);
+  const month = parseInt(parts.find((p) => p.type === "month")!.value, 10) - 1; // 0-indexed
 
-  // 이번 달
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-  // 지난 달
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+  // KST 00:00:00.000 = UTC - 9h
+  const thisMonthStart = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS);
+  const thisMonthEnd = new Date(Date.UTC(year, month + 1, 1) - KST_OFFSET_MS - 1);
+  const lastMonthStart = new Date(Date.UTC(year, month - 1, 1) - KST_OFFSET_MS);
+  const lastMonthEnd = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS - 1);
 
   return {
     thisMonthStart: thisMonthStart.toISOString(),
@@ -83,15 +91,15 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .gte("created_at", lastMonthStart)
     .lte("created_at", lastMonthEnd);
 
-  // 3. 승인 완료 (이번 달) - updated_at 기준으로 승인 시점 추정
+  // 3. 승인 완료 (이번 달) - approved_at 기준 (마이그레이션 후)
   const { count: approvedThisMonth } = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq(idColumn, userId)
     .eq("task_status", "APPROVED")
     .eq("is_self_task", false)
-    .gte("updated_at", thisMonthStart)
-    .lte("updated_at", thisMonthEnd);
+    .gte("approved_at", thisMonthStart)
+    .lte("approved_at", thisMonthEnd);
 
   // 4. 승인 완료 (지난 달)
   const { count: approvedLastMonth } = await supabase
@@ -100,35 +108,38 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .eq(idColumn, userId)
     .eq("task_status", "APPROVED")
     .eq("is_self_task", false)
-    .gte("updated_at", lastMonthStart)
-    .lte("updated_at", lastMonthEnd);
+    .gte("approved_at", lastMonthStart)
+    .lte("approved_at", lastMonthEnd);
 
-  // 5. 평균 처리 소요 시간 - APPROVED Task의 created_at ~ updated_at 일수
+  // 5. 평균 처리 소요 시간 - APPROVED Task의 created_at ~ approved_at 일수
 
   const { data: approvedTasksThisMonth } = await supabase
     .from("tasks")
-    .select("created_at, updated_at")
+    .select("created_at, approved_at, updated_at")
     .eq(idColumn, userId)
     .eq("task_status", "APPROVED")
     .eq("is_self_task", false)
-    .gte("updated_at", thisMonthStart)
-    .lte("updated_at", thisMonthEnd);
+    .gte("approved_at", thisMonthStart)
+    .lte("approved_at", thisMonthEnd);
 
   const { data: approvedTasksLastMonth } = await supabase
     .from("tasks")
-    .select("created_at, updated_at")
+    .select("created_at, approved_at, updated_at")
     .eq(idColumn, userId)
     .eq("task_status", "APPROVED")
     .eq("is_self_task", false)
-    .gte("updated_at", lastMonthStart)
-    .lte("updated_at", lastMonthEnd);
+    .gte("approved_at", lastMonthStart)
+    .lte("approved_at", lastMonthEnd);
 
-  const calcAvgDays = (tasks: Array<{ created_at: string; updated_at: string }> | null): number => {
+  const calcAvgDays = (
+    tasks: Array<{ created_at: string; approved_at: string | null; updated_at: string }> | null
+  ): number => {
     if (!tasks || tasks.length === 0) return 0;
     const totalDays = tasks.reduce((sum, t) => {
       const created = new Date(t.created_at).getTime();
-      const updated = new Date(t.updated_at).getTime();
-      return sum + (updated - created) / (1000 * 60 * 60 * 24);
+      const approved = (t.approved_at ?? t.updated_at) as string;
+      const completedAt = new Date(approved).getTime();
+      return sum + (completedAt - created) / (1000 * 60 * 60 * 24);
     }, 0);
     return Math.round((totalDays / tasks.length) * 10) / 10;
   };
@@ -146,26 +157,21 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
     .not("due_date", "is", null)
     .lt("due_date", nowIso);
 
-  const overdueQuery =
-    role === "admin"
-      ? overdueBaseQuery.eq("assigner_id", userId)
-      : overdueBaseQuery.or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`);
+  const overdueQuery = overdueBaseQuery.eq(idColumn, userId);
 
   const { count: overdueCount } = await overdueQuery;
 
-  // 7. 마감일 초과 미처리 (지난 달 말 기준) - due_date < 지난달 말 (전체 타임스탬프)
+  // 7. 마감일 초과 미처리 (지난 달 말 기준) - due_date < 지난달 말, created_at <= 지난달 말 (과거 시점 스냅샷)
   const overdueLastMonthBaseQuery = supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq("is_self_task", false)
     .neq("task_status", "APPROVED")
     .not("due_date", "is", null)
-    .lt("due_date", lastMonthEnd);
+    .lt("due_date", lastMonthEnd)
+    .lte("created_at", lastMonthEnd);
 
-  const overdueLastMonthQuery =
-    role === "admin"
-      ? overdueLastMonthBaseQuery.eq("assigner_id", userId)
-      : overdueLastMonthBaseQuery.or(`assigner_id.eq.${userId},assignee_id.eq.${userId}`);
+  const overdueLastMonthQuery = overdueLastMonthBaseQuery.eq(idColumn, userId);
 
   const { count: overdueCountLastMonthEnd } = await overdueLastMonthQuery;
 
