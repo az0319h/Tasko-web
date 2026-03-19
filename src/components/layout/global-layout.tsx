@@ -21,6 +21,7 @@ export default function GlobalLayout() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevPathRef = useRef(pathname);
   const scrollYRef = useRef(0);
+  const hasHandledInitialLoadRef = useRef(false);
 
   // 공지사항 리얼타임 구독
   useRealtimeAnnouncements(true);
@@ -43,6 +44,19 @@ export default function GlobalLayout() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
+    // 새로고침 시: 최초 마운트 1회만 감지, 스크롤 초기화
+    if (!hasHandledInitialLoadRef.current) {
+      hasHandledInitialLoadRef.current = true;
+      const navEntries = performance.getEntriesByType("navigation");
+      const isReload = navEntries[0]?.type === "reload";
+      if (isReload) {
+        sessionStorage.removeItem(`scroll_${pathname}`);
+        container.scrollTop = 0;
+        prevPathRef.current = pathname;
+        return;
+      }
+    }
+
     // 페이지 이동(PUSH)할 때: 떠나는 페이지 위치 저장
     if (navType === "PUSH") {
       const prevPath = prevPathRef.current;
@@ -56,7 +70,7 @@ export default function GlobalLayout() {
     else if (navType === "POP") {
       const saved = Number(sessionStorage.getItem(`scroll_${pathname}`)) || 0;
       let tries = 0;
-      
+
       const restore = () => {
         container.scrollTop = saved;
         // DOM 렌더링이 완료되지 않았을 수 있으므로 재시도
@@ -64,11 +78,11 @@ export default function GlobalLayout() {
           setTimeout(restore, 50);
         }
       };
-      
+
       // 약간의 지연 후 복원 시도 (DOM 렌더링 완료 대기)
       setTimeout(restore, 0);
     }
-    
+
     prevPathRef.current = pathname;
   }, [pathname, navType]);
 
