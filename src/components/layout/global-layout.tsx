@@ -47,8 +47,10 @@ export default function GlobalLayout() {
     // 새로고침 시: 최초 마운트 1회만 감지, 스크롤 초기화
     if (!hasHandledInitialLoadRef.current) {
       hasHandledInitialLoadRef.current = true;
-      const navEntries = performance.getEntriesByType("navigation");
-      const isReload = navEntries[0]?.type === "reload";
+      const navEntry = performance.getEntriesByType(
+        "navigation"
+      )[0] as PerformanceNavigationTiming | undefined;
+      const isReload = navEntry?.type === "reload";
       if (isReload) {
         sessionStorage.removeItem(`scroll_${pathname}`);
         container.scrollTop = 0;
