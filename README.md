@@ -50,6 +50,7 @@ VITE_FRONTEND_URL=http://localhost:5173
 VITE_SUPABASE_URL=<Supabase 프로젝트 URL>
 VITE_SUPABASE_ANON_KEY=<Supabase anon key>
 VITE_SENTRY_DSN=<Sentry DSN (선택)>
+VITE_KAKAO_APP_KEY=<Kakao JavaScript 키>
 ```
 
 ### 실행
