@@ -36,6 +36,7 @@ import {
 import DefaultSpinner from "@/components/common/default-spinner";
 import { TablePagination } from "@/components/common/table-pagination";
 import { TaskStatusBadge } from "@/components/common/task-status-badge";
+import { DashboardMetrics } from "@/components/dashboard/dashboard-metrics";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TaskWithProfiles } from "@/api/task";
@@ -1911,6 +1912,11 @@ export default function AdminDashboardPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* 메트릭 카드 (탭 위) */}
+      <div className="mt-4">
+        <DashboardMetrics role="admin" />
       </div>
 
       {/* 탭 전환 */}

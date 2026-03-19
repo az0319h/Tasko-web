@@ -4,6 +4,7 @@ export * from "./use-i18n-hydrate";
 export * from "./use-debounce";
 export * from "./queries/use-profile";
 export * from "./queries/use-admin";
+export * from "./queries/use-dashboard-metrics";
 export * from "./queries/use-is-admin";
 export * from "./queries/use-tasks";
 export * from "./queries/use-messages";
