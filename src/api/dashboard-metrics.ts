@@ -57,6 +57,25 @@ function getMonthRanges(): {
 }
 
 /**
+ * 오늘 00:00:00 KST (마감일 초과 판단용 - D-Day는 오늘 종일 유효)
+ */
+function getTodayStartKST(): string {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parseInt(parts.find((p) => p.type === "year")!.value, 10);
+  const month = parseInt(parts.find((p) => p.type === "month")!.value, 10) - 1;
+  const day = parseInt(parts.find((p) => p.type === "day")!.value, 10);
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const todayStart = new Date(Date.UTC(year, month, day) - KST_OFFSET_MS);
+  return todayStart.toISOString();
+}
+
+/**
  * 대시보드 메트릭 조회
  * - Admin: assigner_id 기준 (내가 지시한 Task)
  * - Member: assignee_id 기준 (내가 담당한 Task)
@@ -154,15 +173,15 @@ export async function getDashboardMetrics(role: DashboardMetricsRole): Promise<D
   const avgProcessingDaysThisMonth = calcAvgDays(approvedTasksThisMonth);
   const avgProcessingDaysLastMonth = calcAvgDays(approvedTasksLastMonth);
 
-  // 6. 마감일 초과 미처리 (현재) - due_date < now (UTC) 사용하여 시점 정확히 비교
-  const nowIso = new Date().toISOString();
+  // 6. 마감일 초과 미처리 (현재) - due_date < 오늘 00:00 KST (D-Day는 오늘 종일 유효)
+  const todayStartKST = getTodayStartKST();
   const overdueBaseQuery = supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq("is_self_task", false)
     .neq("task_status", "APPROVED")
     .not("due_date", "is", null)
-    .lt("due_date", nowIso);
+    .lt("due_date", todayStartKST);
 
   const overdueQuery = overdueBaseQuery.eq(idColumn, userId);
 
