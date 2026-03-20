@@ -27,6 +27,7 @@ export function useCreateTask() {
     mutationFn: (task: CreateTaskInput) => createTask(task),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       toast.success("업무가 생성되었습니다.");
     },
     onError: (error: Error) => {
@@ -47,8 +48,8 @@ export function useUpdateTask() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
-      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       toast.success("업무가 수정되었습니다.");
     },
     onError: (error: Error) => {
@@ -67,8 +68,8 @@ export function useDeleteTask() {
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영 (삭제된 task는 자동으로 제거됨)
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       toast.success("업무가 삭제되었습니다.");
     },
     onError: (error: Error) => {
@@ -132,11 +133,10 @@ export function useUpdateTaskStatus() {
       toast.error(error.message || "상태 변경에 실패했습니다.");
     },
     onSuccess: (data) => {
-      // 성공 시 관련 쿼리 무효화하여 최신 데이터 가져오기
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks", "detail", data.id] });
-      // task-list 쿼리도 무효화하여 task-list 상세 페이지에 반영
       queryClient.invalidateQueries({ queryKey: ["task-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-metrics"] });
       toast.success("상태가 변경되었습니다.");
     },
   });
